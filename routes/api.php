@@ -77,11 +77,13 @@ Route::prefix('reservations')->group(function () {
 });
 Route::prefix('paiements')->group(function () {
     Route::get('/user/{id_utilisateur}', [ApiPaiementsController::class, 'getPaiementByUser']);
+    Route::get('/reservation/{id_reservation}', [ApiPaiementsController::class, 'getPaiementStatusByReservation']);
     Route::post('/', [ApiPaiementsController::class, 'store']);
     Route::put('/{id_paiement}', [ApiPaiementsController::class, 'update']);
     Route::delete('/{id_paiement}', [ApiPaiementsController::class, 'destroy']);
 });
 Route::post('/stripe/webhook', [ApiPaiementsController::class, 'stripeWebhook']);
+Route::post('/mobile-money/webhook', [ApiPaiementsController::class, 'mobileMoneyWebhook']);
 Route::prefix('gains-coiffeuses')->group(function () {
     Route::get('/user/{id_utilisateur}', [ApiGainsCoiffeuseController::class, 'getGainsByUser']);
     Route::post('/', [ApiGainsCoiffeuseController::class, 'store']);

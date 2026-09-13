@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Services\MobileMoney\GenericMobileMoneyGateway;
+use App\Services\MobileMoney\MobileMoneyGatewayInterface;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -11,7 +13,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(MobileMoneyGatewayInterface::class, GenericMobileMoneyGateway::class);
     }
 
     /**

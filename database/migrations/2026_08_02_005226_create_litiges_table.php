@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('litiges', function (Blueprint $table) {
-            $table->id('id_litige')->primary();
+            $table->id('id_litige');
             $table->unsignedBigInteger('id_reservation');
             $table->unsignedBigInteger('id_plaignant');
             $table->enum('type', ['qualite_service', 'paiement', 'comportement', 'annulation_abusive', 'autre'])->default('autre');

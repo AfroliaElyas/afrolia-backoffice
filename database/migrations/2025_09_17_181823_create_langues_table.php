@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('langues', function (Blueprint $table) {
-            $table->id('id_langue')->primary();
+            $table->id('id_langue');
             $table->string('libelle', 255);
             $table->timestamps();
         });

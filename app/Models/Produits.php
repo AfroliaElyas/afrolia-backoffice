@@ -23,6 +23,13 @@ class Produits extends Model
 
     protected $primaryKey = 'id_produit';
 
+    // Sans ce cast, une colonne decimal remonte en chaîne de caractères en
+    // JSON sous MySQL (contrairement à SQLite), ce qui casserait le parsing
+    // côté Flutter (champ typé num).
+    protected $casts = [
+        'prix' => 'float',
+    ];
+
     public function coiffeur()
     {
         return $this->belongsTo(UsersApp::class, 'id_coiffeur', 'id_user_app');

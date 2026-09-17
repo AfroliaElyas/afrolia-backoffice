@@ -29,6 +29,15 @@ class Commandes extends Model
 
     protected $primaryKey = 'id_commande';
 
+    // Sans ce cast, une colonne decimal remonte en chaîne de caractères en
+    // JSON sous MySQL (contrairement à SQLite), ce qui casserait le parsing
+    // côté Flutter (champ typé num).
+    protected $casts = [
+        'montant_produits' => 'float',
+        'montant_commission' => 'float',
+        'montant_total' => 'float',
+    ];
+
     public function client()
     {
         return $this->belongsTo(UsersApp::class, 'id_client', 'id_user_app');

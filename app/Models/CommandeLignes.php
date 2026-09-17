@@ -22,6 +22,14 @@ class CommandeLignes extends Model
 
     protected $primaryKey = 'id_ligne';
 
+    // Sans ce cast, une colonne decimal remonte en chaîne de caractères en
+    // JSON sous MySQL (contrairement à SQLite), ce qui casserait le parsing
+    // côté Flutter (champ typé num).
+    protected $casts = [
+        'prix_unitaire' => 'float',
+        'sous_total' => 'float',
+    ];
+
     public function commande()
     {
         return $this->belongsTo(Commandes::class, 'id_commande');

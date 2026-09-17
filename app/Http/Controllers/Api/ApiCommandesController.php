@@ -118,7 +118,7 @@ class ApiCommandesController extends Controller
     // ✅ 2. Historique des commandes d'une cliente
     public function getCommandesByClient($id_client)
     {
-        $commandes = Commandes::with('lignes', 'coiffeur')
+        $commandes = Commandes::with('lignes', 'coiffeur:id_user_app,name,last_name,photo,commune')
             ->where('id_client', $id_client)
             ->orderBy('id_commande', 'desc')
             ->get();
@@ -132,7 +132,7 @@ class ApiCommandesController extends Controller
     // ✅ 3. Commandes reçues par une coiffeuse
     public function getCommandesByCoiffeuse($id_coiffeur)
     {
-        $commandes = Commandes::with('lignes', 'client')
+        $commandes = Commandes::with('lignes', 'client:id_user_app,name,last_name,photo,phone')
             ->where('id_coiffeur', $id_coiffeur)
             ->orderBy('id_commande', 'desc')
             ->get();

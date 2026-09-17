@@ -76,6 +76,11 @@ class BoutiqueTest extends TestCase
         $response->assertJsonPath('data.montant_commission', 1500);
         $response->assertJsonPath('data.montant_total', 11500);
 
+        // Régression : sans cast 'float' sur le modèle, une colonne decimal
+        // remonte en chaîne de caractères sous MySQL (PDO ne la caste pas),
+        // ce qui casserait le parsing côté Flutter (champ typé num).
+        $this->assertIsFloat(Commandes::first()->montant_total);
+
         $this->assertSame(8, $produit->fresh()->quantite_stock);
     }
 

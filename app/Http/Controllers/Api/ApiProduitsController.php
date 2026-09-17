@@ -14,7 +14,7 @@ class ApiProduitsController extends Controller
     // ✅ 1. Catalogue global (produits actifs de toutes les coiffeuses)
     public function getCatalogue(Request $request)
     {
-        $produits = Produits::with('coiffeur')
+        $produits = Produits::with('coiffeur:id_user_app,name,last_name,photo,commune')
             ->where('statut', 'actif')
             ->orderBy('id_produit', 'desc')
             ->get();

@@ -12,6 +12,7 @@ class Paiements extends Model
 
     protected $fillable = [
         'id_reservation',
+        'id_commande',
         'payment_intent_id',
         'amount',
         'currency',
@@ -35,5 +36,10 @@ class Paiements extends Model
     public function reservation()
     {
         return $this->belongsTo(Reservations::class, 'id_reservation');
+    }
+
+    public function commande()
+    {
+        return $this->belongsTo(Commandes::class, 'id_commande');
     }
 }

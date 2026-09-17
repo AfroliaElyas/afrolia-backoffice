@@ -13,6 +13,7 @@ class Gains extends Model
     protected $fillable = [
         'id_coiffeur',
         'id_reservation',
+        'id_commande',
         'montant_brut',
         'montant_commission',
         'montant_net',
@@ -32,5 +33,10 @@ class Gains extends Model
     public function paiement()
     {
         return $this->belongsTo(Paiements::class, 'id_paiement');
+    }
+
+    public function commande()
+    {
+        return $this->belongsTo(Commandes::class, 'id_commande');
     }
 }

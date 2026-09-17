@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\Api\ApiAvisController;
 use App\Http\Controllers\Api\ApiClientFavoriteController;
+use App\Http\Controllers\Api\ApiCommandesController;
 use App\Http\Controllers\Api\ApiDashboardCoiffeuseController;
 use App\Http\Controllers\Api\ApiGainsCoiffeuseController;
 use App\Http\Controllers\Api\ApiPaiementsController;
+use App\Http\Controllers\Api\ApiProduitsController;
 use App\Http\Controllers\Api\ApiReservationsController;
 use App\Http\Controllers\Api\ApiSalonController;
 use App\Http\Controllers\Api\ApiSecurityController;
@@ -78,12 +80,29 @@ Route::prefix('reservations')->group(function () {
 Route::prefix('paiements')->group(function () {
     Route::get('/user/{id_utilisateur}', [ApiPaiementsController::class, 'getPaiementByUser']);
     Route::get('/reservation/{id_reservation}', [ApiPaiementsController::class, 'getPaiementStatusByReservation']);
+    Route::get('/commande/{id_commande}', [ApiPaiementsController::class, 'getPaiementStatusByCommande']);
     Route::post('/', [ApiPaiementsController::class, 'store']);
     Route::put('/{id_paiement}', [ApiPaiementsController::class, 'update']);
     Route::delete('/{id_paiement}', [ApiPaiementsController::class, 'destroy']);
 });
 Route::post('/stripe/webhook', [ApiPaiementsController::class, 'stripeWebhook']);
 Route::post('/mobile-money/webhook', [ApiPaiementsController::class, 'mobileMoneyWebhook']);
+Route::prefix('produits')->group(function () {
+    Route::get('/', [ApiProduitsController::class, 'getCatalogue']);
+    Route::get('/coiffeuse/{id_coiffeur}', [ApiProduitsController::class, 'getProduitsByCoiffeuse']);
+    Route::post('/', [ApiProduitsController::class, 'store']);
+    // POST (pas PUT) : PHP ne remplit $_FILES que pour les requêtes POST,
+    // indispensable pour l'upload de la photo lors d'une modification.
+    Route::post('/{id}', [ApiProduitsController::class, 'update']);
+    Route::delete('/{id}', [ApiProduitsController::class, 'destroy']);
+});
+Route::prefix('commandes')->group(function () {
+    Route::post('/', [ApiCommandesController::class, 'store']);
+    Route::get('/client/{id_client}', [ApiCommandesController::class, 'getCommandesByClient']);
+    Route::get('/coiffeuse/{id_coiffeur}', [ApiCommandesController::class, 'getCommandesByCoiffeuse']);
+    Route::put('/expedier/{id_commande}', [ApiCommandesController::class, 'expedier']);
+    Route::put('/livrer/{id_commande}', [ApiCommandesController::class, 'livrer']);
+});
 Route::prefix('gains-coiffeuses')->group(function () {
     Route::get('/user/{id_utilisateur}', [ApiGainsCoiffeuseController::class, 'getGainsByUser']);
     Route::post('/', [ApiGainsCoiffeuseController::class, 'store']);

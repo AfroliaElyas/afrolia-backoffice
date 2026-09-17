@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Commandes;
 use App\Models\Gains;
 use App\Models\Paiements;
+use App\Models\Produits;
 use App\Models\Reservations;
 use App\Services\MobileMoney\MobileMoneyGatewayInterface;
 use Illuminate\Http\Request;
@@ -60,12 +62,36 @@ class ApiPaiementsController extends Controller
         ]);
     }
 
-    // ✅ 2. Création d’un paiement
+    // ✅ 1ter. Statut du paiement d'une commande boutique (pour le polling client)
+    public function getPaiementStatusByCommande($id_commande)
+    {
+        $commande = Commandes::find($id_commande);
+
+        if (!$commande) {
+            return response()->json(['success' => false, 'message' => 'Commande non trouvée'], 404);
+        }
+
+        $paiement = Paiements::where('id_commande', $id_commande)
+            ->latest()
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'statut_paiement' => $commande->statut_paiement,
+                'statut_commande' => $commande->statut_commande,
+                'paiement' => $paiement,
+            ],
+        ]);
+    }
+
+    // ✅ 2. Création d’un paiement (pour une réservation OU une commande boutique)
     public function store(Request $request)
     {
         $rules = [
             'montant' => 'required|numeric',
-            'id_reservation' => 'required|integer',
+            'id_reservation' => 'required_without:id_commande|integer',
+            'id_commande' => 'required_without:id_reservation|integer',
             'methode' => 'sometimes|string|in:stripe,mobile_money',
             'operateur' => 'required_if:methode,mobile_money|string|in:orange,mtn,moov',
             'telephone' => 'required_if:methode,mobile_money|string',
@@ -80,22 +106,32 @@ class ApiPaiementsController extends Controller
             ], 422);
         }
 
-        $reservation = Reservations::find($request->id_reservation);
-
-        if (!$reservation) {
-            return response()->json(['success' => false, 'message' => 'Réservation non trouvée'], 404);
+        if ($request->filled('id_reservation')) {
+            $payable = Reservations::find($request->id_reservation);
+            $payableLabel = 'Réservation';
+        } else {
+            $payable = Commandes::find($request->id_commande);
+            $payableLabel = 'Commande';
         }
+
+        if (!$payable) {
+            return response()->json(['success' => false, 'message' => "$payableLabel non trouvée"], 404);
+        }
+
+        $paiementBase = $request->filled('id_reservation')
+            ? ['id_reservation' => $payable->id_reservation]
+            : ['id_commande' => $payable->id_commande];
 
         $methode = $request->input('methode', 'stripe');
 
         if ($methode === 'mobile_money') {
-            return $this->storeMobileMoneyPaiement($request, $reservation);
+            return $this->storeMobileMoneyPaiement($request, $paiementBase);
         }
 
-        return $this->storeStripePaiement($request, $reservation);
+        return $this->storeStripePaiement($request, $paiementBase);
     }
 
-    private function storeStripePaiement(Request $request, Reservations $reservation)
+    private function storeStripePaiement(Request $request, array $paiementBase)
     {
         Stripe::setApiKey(config('services.stripe.secret'));
 
@@ -107,8 +143,7 @@ class ApiPaiementsController extends Controller
         ]);
 
         // 🔵 2 — Enregistrer le paiement (status = pending)
-        $paiement = Paiements::create([
-            'id_reservation' => $reservation->id_reservation,
+        $paiement = Paiements::create($paiementBase + [
             'payment_intent_id' => $intent->id,
             'amount' => $request->montant,
             'currency' => 'XOF',
@@ -124,10 +159,9 @@ class ApiPaiementsController extends Controller
         ]);
     }
 
-    private function storeMobileMoneyPaiement(Request $request, Reservations $reservation)
+    private function storeMobileMoneyPaiement(Request $request, array $paiementBase)
     {
-        $paiement = Paiements::create([
-            'id_reservation' => $reservation->id_reservation,
+        $paiement = Paiements::create($paiementBase + [
             'amount' => $request->montant,
             'currency' => 'XOF',
             'payment_method' => 'mobile_money',
@@ -258,6 +292,11 @@ class ApiPaiementsController extends Controller
             'processed_at' => now(),
         ]);
 
+        if ($paiement->id_commande) {
+            $this->marquerCommandePayee($paiement);
+            return;
+        }
+
         $reservation = Reservations::find($paiement->id_reservation);
 
         if (!$reservation) {
@@ -280,6 +319,26 @@ class ApiPaiementsController extends Controller
         ]);
     }
 
+    private function marquerCommandePayee(Paiements $paiement): void
+    {
+        $commande = Commandes::find($paiement->id_commande);
+
+        if (!$commande) {
+            return;
+        }
+
+        $commande->update(['statut_paiement' => 'paye', 'statut_commande' => 'payee']);
+
+        Gains::create([
+            'id_coiffeur' => $commande->id_coiffeur,
+            'id_commande' => $commande->id_commande,
+            'montant_brut' => $commande->montant_total,
+            'montant_commission' => $commande->montant_commission,
+            'montant_net' => $commande->montant_produits,
+            'statut' => 'en_attente',
+        ]);
+    }
+
     private function markPaiementFailed(Paiements $paiement, string $raison): void
     {
         if (in_array($paiement->status, ['succeeded', 'failed', 'cancelled'], true)) {
@@ -292,10 +351,38 @@ class ApiPaiementsController extends Controller
             'processed_at' => now(),
         ]);
 
+        if ($paiement->id_commande) {
+            $this->annulerCommandeEtRestituerStock($paiement, $raison);
+            return;
+        }
+
         $reservation = Reservations::find($paiement->id_reservation);
 
         // La réservation reste non payée (elle n'est pas annulée automatiquement,
         // le client peut retenter un paiement).
         $reservation?->update(['statut_paiement' => 'echoue']);
+    }
+
+    private function annulerCommandeEtRestituerStock(Paiements $paiement, string $raison): void
+    {
+        $commande = Commandes::with('lignes')->find($paiement->id_commande);
+
+        if (!$commande || $commande->statut_commande === 'annulee') {
+            return;
+        }
+
+        // Le stock avait été réservé dès la création de la commande : on le
+        // restitue puisque le paiement n'a pas abouti.
+        foreach ($commande->lignes as $ligne) {
+            Produits::where('id_produit', $ligne->id_produit)
+                ->increment('quantite_stock', $ligne->quantite);
+        }
+
+        $commande->update([
+            'statut_paiement' => 'echoue',
+            'statut_commande' => 'annulee',
+            'raison_annulation' => $raison,
+            'annulee_le' => now(),
+        ]);
     }
 }

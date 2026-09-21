@@ -24,11 +24,17 @@ class UsersApp extends Model
         'role',
         'otp',
         'statut',
+        'formule_abonnement',
+        'prochain_prelevement_le',
     ];
 
     protected $table = 'users_app';
 
     protected $primaryKey = 'id_user_app';
+
+    protected $casts = [
+        'prochain_prelevement_le' => 'datetime',
+    ];
 
     public function reservationsClient()
     {
@@ -76,6 +82,11 @@ class UsersApp extends Model
     public function gains()
     {
         return $this->hasMany(Gains::class, 'id_coiffeur', 'id_user_app');
+    }
+
+    public function abonnementPaiements()
+    {
+        return $this->hasMany(AbonnementPaiement::class, 'id_coiffeur', 'id_user_app');
     }
 
     public function servicesProposes()

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\CommandeLignes;
 use App\Models\Commandes;
 use App\Models\Produits;
+use App\Models\UsersApp;
+use App\Services\AbonnementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -14,6 +16,10 @@ use Illuminate\Validation\ValidationException;
 
 class ApiCommandesController extends Controller
 {
+    public function __construct(private readonly AbonnementService $abonnements)
+    {
+    }
+
     // ✅ 1. Passer commande (checkout) : réserve le stock avant paiement
     public function store(Request $request)
     {
@@ -78,7 +84,10 @@ class ApiCommandesController extends Controller
                     ];
                 }
 
-                $montantCommission = round($montantProduits * 0.15, 2);
+                $coiffeuse = UsersApp::find($request->id_coiffeur);
+                $taux = $coiffeuse ? $this->abonnements->tauxCommissionPourCoiffeuse($coiffeuse) : $this->abonnements->tauxCommission('gratuit');
+
+                $montantCommission = round($montantProduits * $taux, 2);
                 $montantTotal = $montantProduits + $montantCommission;
 
                 do {

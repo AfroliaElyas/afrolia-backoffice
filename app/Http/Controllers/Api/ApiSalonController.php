@@ -23,6 +23,7 @@ class ApiSalonController extends Controller
             'users_app.last_name',
             'users_app.commune',
             'users_app.experience',
+            'users_app.formule_abonnement',
 
             DB::raw('COALESCE(AVG(reviews.rating), 0) as moyenne_note'),
             DB::raw('COUNT(DISTINCT reviews.id_review) as nombre_avis'),
@@ -63,8 +64,13 @@ class ApiSalonController extends Controller
                 'users_app.name',
                 'users_app.last_name',
                 'users_app.commune',
-                'users_app.experience'
+                'users_app.experience',
+                'users_app.formule_abonnement'
             )
+            // Les coiffeuses Premium apparaissent en premier, puis Standard,
+            // puis Gratuit ; à palier égal, la meilleure note passe devant.
+            ->orderByRaw("FIELD(users_app.formule_abonnement, 'premium', 'standard', 'gratuit')")
+            ->orderByRaw('moyenne_note DESC')
             ->get();
 
         return response()->json([
@@ -81,7 +87,8 @@ class ApiSalonController extends Controller
                     'specialites' => explode(', ', $coiffeur->specialites),
                     'prix_range' => number_format($coiffeur->prix_min, 0, ',', ' ') . ' - ' .
                         number_format($coiffeur->prix_max, 0, ',', ' ') . ' FCFA',
-                    'statut' => $coiffeur->statut_disponibilite
+                    'statut' => $coiffeur->statut_disponibilite,
+                    'est_premium' => $coiffeur->formule_abonnement === 'premium',
                 ];
             })
         ]);

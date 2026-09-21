@@ -8,6 +8,8 @@ use App\Models\Gains;
 use App\Models\Paiements;
 use App\Models\Produits;
 use App\Models\Reservations;
+use App\Models\UsersApp;
+use App\Services\AbonnementService;
 use App\Services\MobileMoney\MobileMoneyGatewayInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -21,7 +23,8 @@ use UnexpectedValueException;
 class ApiPaiementsController extends Controller
 {
     public function __construct(
-        private readonly MobileMoneyGatewayInterface $mobileMoneyGateway
+        private readonly MobileMoneyGatewayInterface $mobileMoneyGateway,
+        private readonly AbonnementService $abonnements
     ) {
     }
 
@@ -305,8 +308,14 @@ class ApiPaiementsController extends Controller
 
         $reservation->update(['statut_paiement' => 'paye']);
 
+        $coiffeuse = UsersApp::find($reservation->id_coiffeur);
+        $taux = $coiffeuse ? $this->abonnements->tauxCommissionPourCoiffeuse($coiffeuse) : $this->abonnements->tauxCommission('gratuit');
+
+        // Le montant facturé au client inclut déjà la commission de la
+        // plateforme (comme pour la boutique) : on l'en extrait pour
+        // obtenir le montant net qui revient à la coiffeuse.
         $montant_brut = $paiement->amount;
-        $montant_net = $montant_brut / 1.15;
+        $montant_net = $montant_brut / (1 + $taux);
         $commission = $montant_brut - $montant_net;
 
         Gains::create([

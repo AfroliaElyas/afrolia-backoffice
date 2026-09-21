@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ApiAbonnementController;
 use App\Http\Controllers\Api\ApiAvisController;
 use App\Http\Controllers\Api\ApiClientFavoriteController;
 use App\Http\Controllers\Api\ApiCommandesController;
@@ -110,6 +111,11 @@ Route::prefix('gains-coiffeuses')->group(function () {
     Route::delete('/{id_gain_coiffeuse}', [ApiGainsCoiffeuseController::class, 'destroy']);
     Route::get('/evolution-annuelle/{id_utilisateur}', [ApiGainsCoiffeuseController::class, 'getEvolutionAnnuelle']);
     Route::get('/revenus-par-service/{id_utilisateur}', [ApiGainsCoiffeuseController::class, 'getRevenusParService']);
+});
+Route::prefix('abonnement')->group(function () {
+    Route::get('/{id_coiffeur}', [ApiAbonnementController::class, 'getStatut']);
+    Route::put('/{id_coiffeur}', [ApiAbonnementController::class, 'changerFormule']);
+    Route::get('/{id_coiffeur}/historique', [ApiAbonnementController::class, 'historique']);
 });
 Route::prefix('avis')->group(function () {
     Route::get('/coiffeuse/{id_coiffeuse}', [ApiAvisController::class, 'getAvisByCoiffeuse']);

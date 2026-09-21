@@ -73,8 +73,9 @@ class BoutiqueTest extends TestCase
 
         $response->assertStatus(201);
         $response->assertJsonPath('data.montant_produits', 10000);
-        $response->assertJsonPath('data.montant_commission', 1500);
-        $response->assertJsonPath('data.montant_total', 11500);
+        // Formule Gratuite par défaut => commission de 5 %.
+        $response->assertJsonPath('data.montant_commission', 500);
+        $response->assertJsonPath('data.montant_total', 10500);
 
         // Régression : sans cast 'float' sur le modèle, une colonne decimal
         // remonte en chaîne de caractères sous MySQL (PDO ne la caste pas),

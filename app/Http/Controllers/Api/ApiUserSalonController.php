@@ -32,6 +32,9 @@ class ApiUserSalonController extends Controller
                 'experience' => 'nullable',
                 'password' => 'nullable|string',
                 'photo' => 'nullable|file|mimes:jpg,jpeg,png,webp|max:5120', // 5MB
+                'latitude' => 'nullable|numeric|between:-90,90',
+                'longitude' => 'nullable|numeric|between:-180,180',
+                'deplacement_domicile' => 'nullable|boolean',
             ];
 
             $messages = [
@@ -71,6 +74,14 @@ class ApiUserSalonController extends Controller
             if ($request->filled('experience')) $utilisateur->experience = (int)$request->experience;
             if ($request->filled('email')) $utilisateur->email = $request->email;
             if ($request->filled('password')) $utilisateur->password = Hash::make($request->password);
+            if ($request->filled('latitude') && $request->filled('longitude')) {
+                $utilisateur->latitude = $request->latitude;
+                $utilisateur->longitude = $request->longitude;
+                $utilisateur->derniere_maj_position = now();
+            }
+            if ($request->has('deplacement_domicile')) {
+                $utilisateur->deplacement_domicile = filter_var($request->deplacement_domicile, FILTER_VALIDATE_BOOLEAN);
+            }
 
             $utilisateur->save();
 

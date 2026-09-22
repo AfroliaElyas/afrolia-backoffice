@@ -26,6 +26,10 @@ class UsersApp extends Model
         'statut',
         'formule_abonnement',
         'prochain_prelevement_le',
+        'latitude',
+        'longitude',
+        'derniere_maj_position',
+        'deplacement_domicile',
     ];
 
     protected $table = 'users_app';
@@ -34,6 +38,10 @@ class UsersApp extends Model
 
     protected $casts = [
         'prochain_prelevement_le' => 'datetime',
+        'latitude' => 'float',
+        'longitude' => 'float',
+        'derniere_maj_position' => 'datetime',
+        'deplacement_domicile' => 'boolean',
     ];
 
     public function reservationsClient()

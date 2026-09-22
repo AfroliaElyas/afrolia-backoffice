@@ -10,13 +10,20 @@ use Illuminate\Support\Facades\DB;
 
 class ApiSalonController extends Controller
 {
-    public function getCoiffeursAvecStatut()
+    public function getCoiffeursAvecStatut(Request $request)
     {
         $now = Carbon::now();
         $dateActuelle = $now->format('Y-m-d');
         $heureActuelle = $now->format('H:i:s');
 
-        $coiffeurs = UsersApp::select(
+        $lat = $request->filled('lat') ? (float) $request->query('lat') : null;
+        $lng = $request->filled('lng') ? (float) $request->query('lng') : null;
+        $avecPosition = $lat !== null && $lng !== null;
+        $rayonKm = $avecPosition
+            ? (float) ($request->query('rayon_km') ?? $this->rayonRechercheParDefaut())
+            : null;
+
+        $requete = UsersApp::select(
             'users_app.id_user_app',
             'users_app.photo',
             'users_app.name',
@@ -24,6 +31,9 @@ class ApiSalonController extends Controller
             'users_app.commune',
             'users_app.experience',
             'users_app.formule_abonnement',
+            'users_app.latitude',
+            'users_app.longitude',
+            'users_app.deplacement_domicile',
 
             DB::raw('COALESCE(AVG(reviews.rating), 0) as moyenne_note'),
             DB::raw('COUNT(DISTINCT reviews.id_review) as nombre_avis'),
@@ -65,13 +75,59 @@ class ApiSalonController extends Controller
                 'users_app.last_name',
                 'users_app.commune',
                 'users_app.experience',
-                'users_app.formule_abonnement'
-            )
-            // Les coiffeuses Premium apparaissent en premier, puis Standard,
-            // puis Gratuit ; à palier égal, la meilleure note passe devant.
-            ->orderByRaw("FIELD(users_app.formule_abonnement, 'premium', 'standard', 'gratuit')")
-            ->orderByRaw('moyenne_note DESC')
-            ->get();
+                'users_app.formule_abonnement',
+                'users_app.latitude',
+                'users_app.longitude',
+                'users_app.deplacement_domicile'
+            );
+
+        if ($avecPosition) {
+            // Distance à vol d'oiseau en km (formule de Haversine). On utilise
+            // des fonctions trigonométriques standard (SIN/COS/ACOS/RADIANS)
+            // plutôt que ST_Distance_Sphere/POINT (MySQL-only) pour que la
+            // requête reste portable et testable sous SQLite.
+            //
+            // L'expression est répétée (avec ses propres `?`) plutôt que de
+            // référencer l'alias "distance_km" dans la clause du rayon
+            // ci-dessous : réutiliser un alias à l'intérieur d'un CASE combiné
+            // à un paramètre lié donne un ordre incorrect sous SQLite (testé),
+            // alors qu'une utilisation "nue" de l'alias (IS NULL / ASC) reste
+            // fiable sur les deux moteurs.
+            $expressionDistance = "(CASE
+                WHEN users_app.latitude IS NULL OR users_app.longitude IS NULL THEN NULL
+                ELSE 6371 * ACOS(
+                    COS(RADIANS(?)) * COS(RADIANS(users_app.latitude)) * COS(RADIANS(users_app.longitude) - RADIANS(?))
+                    + SIN(RADIANS(?)) * SIN(RADIANS(users_app.latitude))
+                )
+            END)";
+
+            $requete->selectRaw("ROUND($expressionDistance, 2) as distance_km", [$lat, $lng, $lat]);
+
+            // Ordre demandé : (1) Premium à proximité, (2) autres à proximité,
+            // (3) Premium hors rayon triées par distance, (4) autres hors
+            // rayon triées par distance. Une coiffeuse sans position connue
+            // est traitée comme "hors rayon" (on ne peut pas prouver sa
+            // proximité, et une comparaison avec NULL n'est jamais vraie) et
+            // placée en fin de son groupe.
+            $requete
+                // "(? + 0)" force une comparaison numérique : lié tel quel, PDO
+                // envoie le paramètre en TEXT et SQLite (utilisé par les
+                // tests) compare alors par classe de stockage (REAL < TEXT
+                // toujours), pas par valeur — ce qui fausserait le classement.
+                ->orderByRaw("CASE WHEN $expressionDistance <= (? + 0) THEN 0 ELSE 1 END", [$lat, $lng, $lat, $rayonKm])
+                ->orderByRaw("CASE WHEN users_app.formule_abonnement = 'premium' THEN 0 ELSE 1 END")
+                ->orderByRaw('distance_km IS NULL')
+                ->orderByRaw('distance_km ASC')
+                ->orderByRaw('moyenne_note DESC');
+        } else {
+            // Pas de position transmise (permission refusée, première visite) :
+            // on garde le tri par palier d'abonnement seul.
+            $requete
+                ->orderByRaw("FIELD(users_app.formule_abonnement, 'premium', 'standard', 'gratuit')")
+                ->orderByRaw('moyenne_note DESC');
+        }
+
+        $coiffeurs = $requete->get();
 
         return response()->json([
             'success' => true,
@@ -89,9 +145,18 @@ class ApiSalonController extends Controller
                         number_format($coiffeur->prix_max, 0, ',', ' ') . ' FCFA',
                     'statut' => $coiffeur->statut_disponibilite,
                     'est_premium' => $coiffeur->formule_abonnement === 'premium',
+                    'distance_km' => $coiffeur->distance_km ?? null,
+                    'deplacement_domicile' => (bool) $coiffeur->deplacement_domicile,
                 ];
             })
         ]);
+    }
+
+    private function rayonRechercheParDefaut(): float
+    {
+        $valeur = DB::table('parametres')->where('cle', 'rayon_recherche_defaut_km')->value('valeur');
+
+        return $valeur !== null ? (float) $valeur : 8.0;
     }
 
 

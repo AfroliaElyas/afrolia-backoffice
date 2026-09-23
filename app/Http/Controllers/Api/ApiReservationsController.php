@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Reservations;
+use App\Models\UsersApp;
+use App\Services\AbonnementService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +13,11 @@ use Illuminate\Support\Str;
 
 class ApiReservationsController extends Controller
 {
+    public function __construct(
+        private readonly AbonnementService $abonnements
+    ) {
+    }
+
     // ✅ 1. Liste des réservations d’un coiffeur
     public function getReservationsByCoiffeuse($id_coiffeur)
     {
@@ -72,11 +79,22 @@ class ApiReservationsController extends Controller
             'date_reservation' => 'required|date',
             'heure_reservation' => 'required',
             'prix_service' => 'required|numeric',
-            'montant_commission' => 'required|numeric',
-            'montant_total' => 'required|numeric',
+            'montant_commission' => 'sometimes|numeric',
+            'montant_total' => 'sometimes|numeric',
             'methode_paiement' => 'required|string|in:stripe,mobile_money,cash',
             'notes' => 'nullable|string',
         ]);
+
+        // La commission doit toujours refléter la formule d'abonnement
+        // actuelle de la coiffeuse (gratuit/standard/premium) : on l'ignore
+        // si le client en envoie une et on la recalcule ici, jamais l'inverse.
+        $coiffeuse = UsersApp::find($validated['id_coiffeur']);
+        $taux = $coiffeuse
+            ? $this->abonnements->tauxCommissionPourCoiffeuse($coiffeuse)
+            : $this->abonnements->tauxCommission('gratuit');
+
+        $validated['montant_commission'] = round($validated['prix_service'] * $taux, 2);
+        $validated['montant_total'] = $validated['prix_service'] + $validated['montant_commission'];
 
         // Génération du numero_reservation unique
         do {

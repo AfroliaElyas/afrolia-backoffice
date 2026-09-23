@@ -125,16 +125,22 @@ class ApiPaiementsController extends Controller
             ? ['id_reservation' => $payable->id_reservation]
             : ['id_commande' => $payable->id_commande];
 
+        // Le montant réellement facturé est toujours celui déjà calculé et
+        // stocké côté serveur sur la réservation/commande (lui-même basé sur
+        // la formule d'abonnement de la coiffeuse) : on ignore délibérément
+        // le montant envoyé par le client pour éviter tout écart.
+        $montantAutorise = (float) $payable->montant_total;
+
         $methode = $request->input('methode', 'stripe');
 
         if ($methode === 'mobile_money') {
-            return $this->storeMobileMoneyPaiement($request, $paiementBase);
+            return $this->storeMobileMoneyPaiement($request, $paiementBase, $montantAutorise);
         }
 
-        return $this->storeStripePaiement($request, $paiementBase);
+        return $this->storeStripePaiement($request, $paiementBase, $montantAutorise);
     }
 
-    private function storeStripePaiement(Request $request, array $paiementBase)
+    private function storeStripePaiement(Request $request, array $paiementBase, float $montantAutorise)
     {
         Stripe::setApiKey(config('services.stripe.secret'));
 
@@ -143,7 +149,7 @@ class ApiPaiementsController extends Controller
         // transmis tel quel, sans le multiplier par 100 (contrairement à EUR/USD).
         // https://docs.stripe.com/currencies#zero-decimal
         $intent = PaymentIntent::create([
-            'amount' => $request->montant,
+            'amount' => $montantAutorise,
             'currency' => 'xof',
             'payment_method_types' => ['card'],
         ]);
@@ -151,7 +157,7 @@ class ApiPaiementsController extends Controller
         // 🔵 2 — Enregistrer le paiement (status = pending)
         $paiement = Paiements::create($paiementBase + [
             'payment_intent_id' => $intent->id,
-            'amount' => $request->montant,
+            'amount' => $montantAutorise,
             'currency' => 'XOF',
             'payment_method' => 'stripe',
             'status' => 'pending',
@@ -165,10 +171,10 @@ class ApiPaiementsController extends Controller
         ]);
     }
 
-    private function storeMobileMoneyPaiement(Request $request, array $paiementBase)
+    private function storeMobileMoneyPaiement(Request $request, array $paiementBase, float $montantAutorise)
     {
         $paiement = Paiements::create($paiementBase + [
-            'amount' => $request->montant,
+            'amount' => $montantAutorise,
             'currency' => 'XOF',
             'payment_method' => 'mobile_money',
             'status' => 'pending',

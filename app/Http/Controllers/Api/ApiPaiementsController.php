@@ -139,8 +139,11 @@ class ApiPaiementsController extends Controller
         Stripe::setApiKey(config('services.stripe.secret'));
 
         // 🔵 1 — Créer PaymentIntent
+        // XOF est une devise "zero-decimal" pour Stripe : le montant doit être
+        // transmis tel quel, sans le multiplier par 100 (contrairement à EUR/USD).
+        // https://docs.stripe.com/currencies#zero-decimal
         $intent = PaymentIntent::create([
-            'amount' => $request->montant * 100,  // Stripe en centimes
+            'amount' => $request->montant,
             'currency' => 'xof',
             'payment_method_types' => ['card'],
         ]);

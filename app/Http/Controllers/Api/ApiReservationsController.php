@@ -18,7 +18,64 @@ class ApiReservationsController extends Controller
     ) {
     }
 
-    // ✅ 1. Liste des réservations d’un coiffeur
+    // ✅ 1. Liste des réservations d’un client
+    public function getReservationByUser(Request $request, $id)
+    {
+        if ((int) $id !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez consulter que vos propres réservations'
+            ], 403);
+        }
+
+        $reservations = Reservations::join('users_app as coiffeuses', 'reservations.id_coiffeur', '=', 'coiffeuses.id_user_app')
+            ->join('services', 'reservations.id_service', '=', 'services.id_service')
+            ->join('specialites', 'services.id_speciale', '=', 'specialites.id_specialite')
+            ->select(
+                'reservations.id_reservation',
+                'reservations.numero_reservation',
+                'reservations.date_reservation',
+                'reservations.heure_reservation',
+                'reservations.statut',
+                'reservations.montant_total',
+                'coiffeuses.name as nom_coiffeuse',
+                'coiffeuses.last_name as prenom_coiffeuse',
+                'coiffeuses.photo as photo_coiffeuse',
+                'specialites.libelle as nom_service'
+            )
+            ->where('reservations.id_client', $id)
+            ->orderBy('reservations.date_reservation', 'desc')
+            ->get();
+
+        if ($reservations->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucune réservation trouvée pour cet utilisateur'
+            ], 404);
+        }
+
+        $reservations->transform(function ($reservation) {
+            $reservation->statut_label = match ($reservation->statut) {
+                'confirmee' => 'Confirmée',
+                'en_attente' => 'En attente',
+                'en_cours' => 'En cours',
+                'terminee' => 'Terminée',
+                'annulee' => 'Annulée',
+                'no_show' => 'Non honorée',
+                default => ucfirst($reservation->statut),
+            };
+            $reservation->montant_affiche = number_format($reservation->montant_total, 0, ',', ' ') . ' CFA';
+            return $reservation;
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Liste des réservations de l’utilisateur récupérée avec succès',
+            'data' => $reservations
+        ]);
+    }
+
+    // ✅ 2. Liste des réservations d’un coiffeur
     public function getReservationsByCoiffeuse(Request $request, $id_coiffeur)
     {
         if ((int) $id_coiffeur !== (int) $request->user()->id_user_app) {

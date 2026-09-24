@@ -8,7 +8,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class ApiUtilisateursController extends Controller
@@ -180,21 +179,23 @@ class ApiUtilisateursController extends Controller
 
         if ($request->hasFile('photo')) {
             // supprimer l'ancienne photo si elle existe
-            if ($utilisateur->photo_utilisateur) {
-                $anciennePhotoPath = str_replace('/storage/', '', $utilisateur->photo_utilisateur);
-                Storage::disk('public')->delete($anciennePhotoPath);
+            if ($utilisateur->photo) {
+                $anciennePhoto = public_path(parse_url($utilisateur->photo, PHP_URL_PATH));
+                if (file_exists($anciennePhoto)) {
+                    @unlink($anciennePhoto);
+                }
             }
 
             $timestamp = Carbon::now()->format('Ymd_His');
             $photo = $request->file('photo');
-            $photoName = 'photo_' . $timestamp . '.' . $photo->getClientOriginalExtension();
-            $photoPath = $photo->storeAs('utilisateurs/photos', $photoName, 'public');
-            $utilisateur->photo_utilisateur = Storage::url($photoPath);
+            $photoName = 'photo_' . $timestamp . '_' . uniqid() . '.' . $photo->getClientOriginalExtension();
+            $photo->move(public_path('salon/user'), $photoName);
+            $utilisateur->photo = url('afrolia/public/salon/user/' . $photoName);
         }
 
         // Mise à jour des champs modifiables
         if ($request->filled('nom')) {
-            $utilisateur->nom_utilisateur = $request->nom;
+            $utilisateur->name = $request->nom;
         }
 
         if ($request->filled('prenom')) {
@@ -213,7 +214,7 @@ class ApiUtilisateursController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Informations mises à jour avec succès',
-                'photo' => url($utilisateur->photo_utilisateur)
+                'photo' => $utilisateur->photo ?? '',
             ], 200);
         } else {
             return response()->json([

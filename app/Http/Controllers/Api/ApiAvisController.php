@@ -11,9 +11,9 @@ class ApiAvisController extends Controller
     // ✅ 1. Récupérer tous les avis pour une coiffeuse
     public function getAvisByCoiffeuse($id_coiffeuse)
     {
-        $avis = Reviews::where('id_coiffeuse', $id_coiffeuse)
-            ->with(['utilisateur'])
-            ->orderBy('id_avis', 'desc')
+        $avis = Reviews::where('id_stylist', $id_coiffeuse)
+            ->with(['client:id_user_app,name,last_name,photo'])
+            ->orderBy('id_review', 'desc')
             ->get();
 
         if ($avis->isEmpty()) {
@@ -34,15 +34,18 @@ class ApiAvisController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'note' => 'required|numeric|min:1|max:5',
-            'commentaire' => 'nullable|string',
-            'id_coiffeuse' => 'required|integer',
-            'id_reservation' => 'nullable|integer',
+            'rating' => 'required|integer|min:1|max:5',
+            'comment' => 'nullable|string',
+            'id_stylist' => 'required|integer|exists:users_app,id_user_app',
+            // La table impose id_reservation en base (une coiffeuse ne peut
+            // être notée qu'au titre d'une réservation réelle) : la
+            // validation doit refléter cette contrainte, pas la contredire.
+            'id_reservation' => 'required|integer|exists:reservations,id_reservation',
         ]);
 
         // Un avis est toujours publié par l'utilisateur authentifié, jamais
-        // par un id_utilisateur transmis par le client.
-        $validated['id_utilisateur'] = $request->user()->id_user_app;
+        // par un id_client transmis par le client.
+        $validated['id_client'] = $request->user()->id_user_app;
 
         $avis = Reviews::create($validated);
 
@@ -65,14 +68,22 @@ class ApiAvisController extends Controller
             ], 404);
         }
 
-        if ((int) $avis->id_utilisateur !== (int) $request->user()->id_user_app) {
+        if ((int) $avis->id_client !== (int) $request->user()->id_user_app) {
             return response()->json([
                 'success' => false,
                 'message' => 'Vous ne pouvez modifier que vos propres avis'
             ], 403);
         }
 
-        $avis->update($request->all());
+        // Seuls la note et le commentaire sont modifiables : pas question de
+        // laisser l'auteur d'un avis réassigner id_stylist/id_reservation ou
+        // s'auto-approuver via status/is_verified.
+        $validated = $request->validate([
+            'rating' => 'sometimes|required|integer|min:1|max:5',
+            'comment' => 'nullable|string',
+        ]);
+
+        $avis->update($validated);
 
         return response()->json([
             'success' => true,
@@ -93,7 +104,7 @@ class ApiAvisController extends Controller
             ], 404);
         }
 
-        if ((int) $avis->id_utilisateur !== (int) $request->user()->id_user_app) {
+        if ((int) $avis->id_client !== (int) $request->user()->id_user_app) {
             return response()->json([
                 'success' => false,
                 'message' => 'Vous ne pouvez supprimer que vos propres avis'

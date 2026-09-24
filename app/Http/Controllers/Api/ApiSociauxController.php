@@ -7,7 +7,6 @@ use App\Models\Gallery;
 use App\Models\Sociaux;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class ApiSociauxController extends Controller
@@ -165,14 +164,16 @@ class ApiSociauxController extends Controller
         // Suppression de l'ancienne image si une nouvelle est envoyée
         if ($request->hasFile('image')) {
             if ($gallery->image) {
-                $anciennePhotoPath = str_replace('/storage/', '', $gallery->image);
-                Storage::disk('public')->delete($anciennePhotoPath);
+                $anciennePhoto = public_path(parse_url($gallery->image, PHP_URL_PATH));
+                if (file_exists($anciennePhoto)) {
+                    @unlink($anciennePhoto);
+                }
             }
 
             $timestamp = Carbon::now()->format('Ymd_His');
-            $photoName = 'gallery_' . $timestamp . '.' . $request->file('image')->getClientOriginalExtension();
-            $photoPath = $request->file('image')->storeAs('utilisateurs/gallery', $photoName, 'public');
-            $gallery->image = Storage::url($photoPath);
+            $photoName = 'gallery_' . $timestamp . '_' . uniqid() . '.' . $request->file('image')->getClientOriginalExtension();
+            $request->file('image')->move(public_path('salon/gallery'), $photoName);
+            $gallery->image = url('afrolia/public/salon/gallery/' . $photoName);
         }
 
         if ($request->filled('description')) {

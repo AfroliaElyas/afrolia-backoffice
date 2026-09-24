@@ -16,8 +16,12 @@ class ApiAbonnementController extends Controller
     }
 
     // ✅ 1. Statut d'abonnement d'une coiffeuse (formule actuelle, solde, formules disponibles)
-    public function getStatut($id_coiffeur)
+    public function getStatut(Request $request, $id_coiffeur)
     {
+        if ((int) $id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json(['success' => false, 'message' => 'Vous ne pouvez consulter que votre propre abonnement'], 403);
+        }
+
         $coiffeuse = UsersApp::where('id_user_app', $id_coiffeur)->where('role', 'hair')->first();
 
         if (!$coiffeuse) {
@@ -39,6 +43,10 @@ class ApiAbonnementController extends Controller
     // ✅ 2. Changement de formule (souscription immédiate si payante, gratuite du jour au lendemain)
     public function changerFormule(Request $request, $id_coiffeur)
     {
+        if ((int) $id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json(['success' => false, 'message' => 'Vous ne pouvez modifier que votre propre abonnement'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'formule' => 'required|string|in:' . implode(',', AbonnementService::FORMULES),
         ]);
@@ -74,8 +82,12 @@ class ApiAbonnementController extends Controller
     }
 
     // ✅ 3. Historique des prélèvements d'abonnement d'une coiffeuse
-    public function historique($id_coiffeur)
+    public function historique(Request $request, $id_coiffeur)
     {
+        if ((int) $id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json(['success' => false, 'message' => 'Vous ne pouvez consulter que votre propre historique'], 403);
+        }
+
         $historique = AbonnementPaiement::where('id_coiffeur', $id_coiffeur)
             ->orderBy('id_abonnement_paiement', 'desc')
             ->get();

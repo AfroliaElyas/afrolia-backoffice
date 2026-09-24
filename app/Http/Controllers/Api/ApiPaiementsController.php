@@ -29,8 +29,12 @@ class ApiPaiementsController extends Controller
     }
 
     // ✅ 1. Liste (ou first) des paiements d’un utilisateur
-    public function getPaiementByUser($id_utilisateur)
+    public function getPaiementByUser(Request $request, $id_utilisateur)
     {
+        if ((int) $id_utilisateur !== (int) $request->user()->id_user_app) {
+            return response()->json(['message' => 'Vous ne pouvez consulter que vos propres paiements'], 403);
+        }
+
         $paiement = Paiements::where('id_utilisateur', $id_utilisateur)
             ->with(['reservation'])
             ->first();
@@ -43,11 +47,16 @@ class ApiPaiementsController extends Controller
     }
 
     // ✅ 1bis. Statut du paiement d'une réservation (pour le polling client)
-    public function getPaiementStatusByReservation($id_reservation)
+    public function getPaiementStatusByReservation(Request $request, $id_reservation)
     {
         $reservation = Reservations::find($id_reservation);
 
         if (!$reservation) {
+            return response()->json(['success' => false, 'message' => 'Réservation non trouvée'], 404);
+        }
+
+        $userId = (int) $request->user()->id_user_app;
+        if ((int) $reservation->id_client !== $userId && (int) $reservation->id_coiffeur !== $userId) {
             return response()->json(['success' => false, 'message' => 'Réservation non trouvée'], 404);
         }
 
@@ -66,11 +75,16 @@ class ApiPaiementsController extends Controller
     }
 
     // ✅ 1ter. Statut du paiement d'une commande boutique (pour le polling client)
-    public function getPaiementStatusByCommande($id_commande)
+    public function getPaiementStatusByCommande(Request $request, $id_commande)
     {
         $commande = Commandes::find($id_commande);
 
         if (!$commande) {
+            return response()->json(['success' => false, 'message' => 'Commande non trouvée'], 404);
+        }
+
+        $userId = (int) $request->user()->id_user_app;
+        if ((int) $commande->id_client !== $userId && (int) $commande->id_coiffeur !== $userId) {
             return response()->json(['success' => false, 'message' => 'Commande non trouvée'], 404);
         }
 
@@ -118,6 +132,10 @@ class ApiPaiementsController extends Controller
         }
 
         if (!$payable) {
+            return response()->json(['success' => false, 'message' => "$payableLabel non trouvée"], 404);
+        }
+
+        if ((int) $payable->id_client !== (int) $request->user()->id_user_app) {
             return response()->json(['success' => false, 'message' => "$payableLabel non trouvée"], 404);
         }
 
@@ -202,9 +220,13 @@ class ApiPaiementsController extends Controller
     // ✅ 3. Mise à jour d’un paiement
     public function update(Request $request, $id_paiement)
     {
-        $paiement = Paiements::find($id_paiement);
+        $paiement = Paiements::with(['reservation', 'commande'])->find($id_paiement);
 
         if (!$paiement) {
+            return response()->json(['message' => 'Paiement non trouvé'], 404);
+        }
+
+        if (!$this->appartientAUtilisateur($paiement, $request->user()->id_user_app)) {
             return response()->json(['message' => 'Paiement non trouvé'], 404);
         }
 
@@ -217,17 +239,30 @@ class ApiPaiementsController extends Controller
     }
 
     // ✅ 4. Suppression d’un paiement
-    public function destroy($id_paiement)
+    public function destroy(Request $request, $id_paiement)
     {
-        $paiement = Paiements::find($id_paiement);
+        $paiement = Paiements::with(['reservation', 'commande'])->find($id_paiement);
 
         if (!$paiement) {
+            return response()->json(['message' => 'Paiement non trouvé'], 404);
+        }
+
+        if (!$this->appartientAUtilisateur($paiement, $request->user()->id_user_app)) {
             return response()->json(['message' => 'Paiement non trouvé'], 404);
         }
 
         $paiement->delete();
 
         return response()->json(['message' => 'Paiement supprimé avec succès']);
+    }
+
+    // Un paiement appartient au client de la réservation ou de la commande
+    // qui lui est associée.
+    private function appartientAUtilisateur(Paiements $paiement, int $idUtilisateur): bool
+    {
+        $client = $paiement->reservation->id_client ?? $paiement->commande->id_client ?? null;
+
+        return (int) $client === $idUtilisateur;
     }
 
     public function stripeWebhook(Request $request)

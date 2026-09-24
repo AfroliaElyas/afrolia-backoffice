@@ -45,7 +45,6 @@ class ApiServicesController extends Controller
 
         // Règles de validation
         $rules = [
-            '*.id_utilisateur' => 'required|integer|exists:users_app,id_user_app',
             '*.prix' => 'required|numeric',
             '*.minute' => 'required|integer',
             '*.description' => 'required|string',
@@ -62,12 +61,16 @@ class ApiServicesController extends Controller
             ], 422);
         }
 
+        // Un service appartient toujours à l'utilisateur authentifié, jamais
+        // à un id_utilisateur transmis par le client.
+        $id_utilisateur = $request->user()->id_user_app;
+
         // Création des services
         $createdServices = [];
 
         foreach ($servicesData as $serviceData) {
             $createdServices[] = Services::create([
-                'id_utilisateur' => $serviceData['id_utilisateur'],
+                'id_utilisateur' => $id_utilisateur,
                 'prix' => $serviceData['prix'],
                 'minute' => $serviceData['minute'],
                 'description' => $serviceData['description'],
@@ -97,6 +100,13 @@ class ApiServicesController extends Controller
             ], 404);
         }
 
+        if ((int) $service->id_utilisateur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez modifier que vos propres services'
+            ], 403);
+        }
+
         $rules = [
             'prix' => 'sometimes|required|numeric',
             'minute' => 'sometimes|required|integer',
@@ -123,7 +133,7 @@ class ApiServicesController extends Controller
         ]);
     }
 
-    public function deleteService($id_service)
+    public function deleteService(Request $request, $id_service)
     {
         $service = Services::find($id_service);
 
@@ -132,6 +142,13 @@ class ApiServicesController extends Controller
                 'success' => false,
                 'message' => 'Service introuvable'
             ], 404);
+        }
+
+        if ((int) $service->id_utilisateur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez supprimer que vos propres services'
+            ], 403);
         }
 
         $service->delete();

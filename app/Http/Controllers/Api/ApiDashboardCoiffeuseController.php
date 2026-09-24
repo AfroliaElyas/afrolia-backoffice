@@ -11,8 +11,15 @@ class ApiDashboardCoiffeuseController extends Controller
     /**
      * Dashboard complet d’une coiffeuse
      */
-    public function index($id_coiffeur)
+    public function index(Request $request, $id_coiffeur)
     {
+        if ((int) $id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez consulter que votre propre tableau de bord'
+            ], 403);
+        }
+
         // ✅ Revenus totaux (gains déjà payés)
         $revenusTotaux = DB::table('gains')
             ->where('id_coiffeur', $id_coiffeur)

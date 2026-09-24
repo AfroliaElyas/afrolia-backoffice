@@ -20,6 +20,13 @@ class ApiUserSalonController extends Controller
 {
     public function updateInfoBasic(Request $request, $id)
     {
+        if ((int) $id !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => "Vous ne pouvez modifier que votre propre profil.",
+            ], 403);
+        }
+
         try {
             $utilisateur = UsersApp::findOrFail($id);
 
@@ -101,6 +108,13 @@ class ApiUserSalonController extends Controller
 
     public function updatePresentation(Request $request, $id)
     {
+        if ((int) $id !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => "Vous ne pouvez modifier que votre propre profil.",
+            ], 403);
+        }
+
         $utilisateur = UsersApp::findOrFail($id);
 
         $rules = [
@@ -239,15 +253,11 @@ class ApiUserSalonController extends Controller
     public function associerSpecialitesUtilisateur(Request $request)
     {
         $rules = [
-            'id_utilisateur' => 'required|integer|exists:users_app,id_user_app',
             'specialites' => 'required|array',
             'specialites.*' => 'integer|exists:specialites,id_specialite',
         ];
 
         $messages = [
-            'id_utilisateur.required' => 'L’identifiant de l’utilisateur est requis.',
-            'id_utilisateur.integer' => 'L’identifiant de l’utilisateur doit être un nombre.',
-            'id_utilisateur.exists' => 'L’utilisateur spécifié est introuvable.',
             'specialites.required' => 'Veuillez sélectionner au moins une spécialité.',
             'specialites.array' => 'Le format des spécialités est invalide.',
             'specialites.*.integer' => 'Chaque spécialité doit être un nombre.',
@@ -263,8 +273,9 @@ class ApiUserSalonController extends Controller
             ], 422);
         }
 
-        // ✅ Si la validation passe
-        $id_utilisateur = $request->id_utilisateur;
+        // On associe toujours les spécialités à l'utilisateur authentifié,
+        // jamais à un id_utilisateur transmis par le client.
+        $id_utilisateur = $request->user()->id_user_app;
         $specialites = $request->specialites;
 
         DB::beginTransaction();
@@ -307,15 +318,11 @@ class ApiUserSalonController extends Controller
     public function associerLanguesUtilisateur(Request $request)
     {
         $rules = [
-            'id_utilisateur' => 'required|integer|exists:users_app,id_user_app',
             'langues' => 'required|array',
             'langues.*' => 'integer|exists:langues,id_langue',
         ];
 
         $messages = [
-            'id_utilisateur.required' => 'L’identifiant de l’utilisateur est requis.',
-            'id_utilisateur.integer' => 'L’identifiant de l’utilisateur doit être un nombre.',
-            'id_utilisateur.exists' => 'L’utilisateur spécifié est introuvable.',
             'langues.required' => 'Veuillez sélectionner au moins une langue.',
             'langues.array' => 'Le format des langues est invalide.',
             'langues.*.integer' => 'Chaque langue doit être un nombre.',
@@ -331,8 +338,9 @@ class ApiUserSalonController extends Controller
             ], 422);
         }
 
-        // ✅ Si la validation passe
-        $id_utilisateur = $request->id_utilisateur;
+        // On associe toujours les langues à l'utilisateur authentifié, jamais
+        // à un id_utilisateur transmis par le client.
+        $id_utilisateur = $request->user()->id_user_app;
         $langues = $request->langues;
 
         DB::beginTransaction();
@@ -397,14 +405,12 @@ class ApiUserSalonController extends Controller
     public function saveDisponibilites(Request $request)
     {
         $rules = [
-            'id_utilisateur' => 'required|integer',
             'disponibilites' => 'required|array',
             'disponibilites.*.id_day' => 'required|integer|exists:jours,id_jour',
             'disponibilites.*.id_time' => 'required|integer|exists:heures,id_heure',
         ];
 
         $messages = [
-            'id_utilisateur.required' => 'Veuillez préciser l’utilisateur.',
             'disponibilites.required' => 'Les disponibilités sont requises.',
             'disponibilites.*.id_day.required' => 'Le jour est requis.',
             'disponibilites.*.id_time.required' => 'L’heure est requise.',
@@ -419,15 +425,17 @@ class ApiUserSalonController extends Controller
             ], 422);
         }
 
+        $id_utilisateur = $request->user()->id_user_app;
+
         // Supprimer les anciennes disponibilités
-        Disponibilites::where('id_utilisateur', $request->id_utilisateur)->delete();
+        Disponibilites::where('id_utilisateur', $id_utilisateur)->delete();
 
         // Insérer les nouvelles
         foreach ($request->disponibilites as $dispo) {
             Disponibilites::create([
                 'id_day' => $dispo['id_day'],
                 'id_time' => $dispo['id_time'],
-                'id_utilisateur' => $request->id_utilisateur,
+                'id_utilisateur' => $id_utilisateur,
             ]);
         }
 

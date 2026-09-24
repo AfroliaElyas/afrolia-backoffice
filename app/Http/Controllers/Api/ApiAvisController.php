@@ -36,10 +36,13 @@ class ApiAvisController extends Controller
         $validated = $request->validate([
             'note' => 'required|numeric|min:1|max:5',
             'commentaire' => 'nullable|string',
-            'id_utilisateur' => 'required|integer',
             'id_coiffeuse' => 'required|integer',
             'id_reservation' => 'nullable|integer',
         ]);
+
+        // Un avis est toujours publié par l'utilisateur authentifié, jamais
+        // par un id_utilisateur transmis par le client.
+        $validated['id_utilisateur'] = $request->user()->id_user_app;
 
         $avis = Reviews::create($validated);
 
@@ -62,6 +65,13 @@ class ApiAvisController extends Controller
             ], 404);
         }
 
+        if ((int) $avis->id_utilisateur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez modifier que vos propres avis'
+            ], 403);
+        }
+
         $avis->update($request->all());
 
         return response()->json([
@@ -72,7 +82,7 @@ class ApiAvisController extends Controller
     }
 
     // ✅ 4. Suppression d’un avis
-    public function destroy($id_avis)
+    public function destroy(Request $request, $id_avis)
     {
         $avis = Reviews::find($id_avis);
 
@@ -81,6 +91,13 @@ class ApiAvisController extends Controller
                 'success' => false,
                 'message' => 'Avis introuvable'
             ], 404);
+        }
+
+        if ((int) $avis->id_utilisateur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez supprimer que vos propres avis'
+            ], 403);
         }
 
         $avis->delete();

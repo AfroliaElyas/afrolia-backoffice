@@ -5,8 +5,9 @@ namespace Tests\Feature;
 use App\Models\Commandes;
 use App\Models\Paiements;
 use App\Models\Produits;
+use App\Models\UsersApp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class BoutiqueTest extends TestCase
@@ -22,16 +23,14 @@ class BoutiqueTest extends TestCase
         config(['services.stripe.webhook_secret' => self::WEBHOOK_SECRET]);
     }
 
-    private function creerUtilisateur(string $phone, string $role): int
+    private function creerUtilisateur(string $phone, string $role): UsersApp
     {
-        return DB::table('users_app')->insertGetId([
+        return UsersApp::create([
             'name' => 'Test',
             'last_name' => 'Test',
             'phone' => $phone,
             'password' => 'x',
             'role' => $role,
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
     }
 
@@ -60,11 +59,11 @@ class BoutiqueTest extends TestCase
     {
         $coiffeur = $this->creerUtilisateur('0711111111', 'hair');
         $client = $this->creerUtilisateur('0722222222', 'user');
-        $produit = $this->creerProduit($coiffeur, prix: 5000, stock: 10);
+        $produit = $this->creerProduit($coiffeur->id_user_app, prix: 5000, stock: 10);
 
+        Sanctum::actingAs($client);
         $response = $this->postJson('/api/commandes', [
-            'id_client' => $client,
-            'id_coiffeur' => $coiffeur,
+            'id_coiffeur' => $coiffeur->id_user_app,
             'methode_paiement' => 'stripe',
             'lignes' => [
                 ['id_produit' => $produit->id_produit, 'quantite' => 2],
@@ -89,11 +88,11 @@ class BoutiqueTest extends TestCase
     {
         $coiffeur = $this->creerUtilisateur('0711111111', 'hair');
         $client = $this->creerUtilisateur('0722222222', 'user');
-        $produit = $this->creerProduit($coiffeur, prix: 5000, stock: 1);
+        $produit = $this->creerProduit($coiffeur->id_user_app, prix: 5000, stock: 1);
 
+        Sanctum::actingAs($client);
         $response = $this->postJson('/api/commandes', [
-            'id_client' => $client,
-            'id_coiffeur' => $coiffeur,
+            'id_coiffeur' => $coiffeur->id_user_app,
             'methode_paiement' => 'stripe',
             'lignes' => [
                 ['id_produit' => $produit->id_produit, 'quantite' => 5],
@@ -109,11 +108,11 @@ class BoutiqueTest extends TestCase
     {
         $coiffeur = $this->creerUtilisateur('0711111111', 'hair');
         $client = $this->creerUtilisateur('0722222222', 'user');
-        $produit = $this->creerProduit($coiffeur);
+        $produit = $this->creerProduit($coiffeur->id_user_app);
 
+        Sanctum::actingAs($client);
         $commande = $this->postJson('/api/commandes', [
-            'id_client' => $client,
-            'id_coiffeur' => $coiffeur,
+            'id_coiffeur' => $coiffeur->id_user_app,
             'methode_paiement' => 'stripe',
             'lignes' => [['id_produit' => $produit->id_produit, 'quantite' => 1]],
         ])->json('data');
@@ -150,11 +149,11 @@ class BoutiqueTest extends TestCase
     {
         $coiffeur = $this->creerUtilisateur('0711111111', 'hair');
         $client = $this->creerUtilisateur('0722222222', 'user');
-        $produit = $this->creerProduit($coiffeur, prix: 5000, stock: 10);
+        $produit = $this->creerProduit($coiffeur->id_user_app, prix: 5000, stock: 10);
 
+        Sanctum::actingAs($client);
         $commande = $this->postJson('/api/commandes', [
-            'id_client' => $client,
-            'id_coiffeur' => $coiffeur,
+            'id_coiffeur' => $coiffeur->id_user_app,
             'methode_paiement' => 'stripe',
             'lignes' => [['id_produit' => $produit->id_produit, 'quantite' => 3]],
         ])->json('data');
@@ -194,29 +193,31 @@ class BoutiqueTest extends TestCase
     {
         $coiffeur = $this->creerUtilisateur('0711111111', 'hair');
         $client = $this->creerUtilisateur('0722222222', 'user');
-        $produit = $this->creerProduit($coiffeur);
+        $produit = $this->creerProduit($coiffeur->id_user_app);
 
         $commande = Commandes::create([
             'numero_commande' => 'CMD-TEST-0001',
-            'id_client' => $client,
-            'id_coiffeur' => $coiffeur,
+            'id_client' => $client->id_user_app,
+            'id_coiffeur' => $coiffeur->id_user_app,
             'montant_produits' => 5000,
             'montant_commission' => 750,
             'montant_total' => 5750,
             'methode_paiement' => 'stripe',
         ]);
 
+        Sanctum::actingAs($coiffeur);
+
         // Ne peut pas être expédiée avant d'être payée.
-        $this->putJson("/api/commandes/expedier/{$commande->id_commande}", ['id_coiffeur' => $coiffeur])
+        $this->putJson("/api/commandes/expedier/{$commande->id_commande}", [])
             ->assertStatus(400);
 
         $commande->update(['statut_commande' => 'payee', 'statut_paiement' => 'paye']);
 
-        $this->putJson("/api/commandes/expedier/{$commande->id_commande}", ['id_coiffeur' => $coiffeur])
+        $this->putJson("/api/commandes/expedier/{$commande->id_commande}", [])
             ->assertStatus(200)
             ->assertJsonPath('data.statut_commande', 'expediee');
 
-        $this->putJson("/api/commandes/livrer/{$commande->id_commande}", ['id_coiffeur' => $coiffeur])
+        $this->putJson("/api/commandes/livrer/{$commande->id_commande}", [])
             ->assertStatus(200)
             ->assertJsonPath('data.statut_commande', 'livree');
     }
@@ -225,12 +226,12 @@ class BoutiqueTest extends TestCase
     {
         $coiffeur = $this->creerUtilisateur('0711111111', 'hair');
         $client = $this->creerUtilisateur('0722222222', 'user');
-        $produit = $this->creerProduit($coiffeur, prix: 5000, stock: 10);
+        $produit = $this->creerProduit($coiffeur->id_user_app, prix: 5000, stock: 10);
 
         $commande = Commandes::create([
             'numero_commande' => 'CMD-TEST-0002',
-            'id_client' => $client,
-            'id_coiffeur' => $coiffeur,
+            'id_client' => $client->id_user_app,
+            'id_coiffeur' => $coiffeur->id_user_app,
             'montant_produits' => 10000,
             'montant_commission' => 1500,
             'montant_total' => 11500,

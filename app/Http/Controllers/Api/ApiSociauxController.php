@@ -31,7 +31,6 @@ class ApiSociauxController extends Controller
     public function saveSociaux(Request $request)
     {
         $rules = [
-            'id_utilisateur' => 'required|integer|exists:users_app,id_user_app',
             'instagram' => 'nullable|string',
             'facebook' => 'nullable|string',
             'whatsapp' => 'nullable|string',
@@ -47,8 +46,10 @@ class ApiSociauxController extends Controller
             ], 422);
         }
 
+        $id_utilisateur = $request->user()->id_user_app;
+
         // Chercher si l'utilisateur a déjà des réseaux sociaux
-        $sociaux = Sociaux::where('id_utilisateur', $request->id_utilisateur)->first();
+        $sociaux = Sociaux::where('id_utilisateur', $id_utilisateur)->first();
 
         if ($sociaux) {
             // Mise à jour
@@ -56,7 +57,7 @@ class ApiSociauxController extends Controller
             $message = 'Informations sociales mises à jour avec succès';
         } else {
             // Création
-            $sociaux = Sociaux::create($request->only(['instagram', 'facebook', 'whatsapp', 'tiktok', 'id_utilisateur']));
+            $sociaux = Sociaux::create($request->only(['instagram', 'facebook', 'whatsapp', 'tiktok']) + ['id_utilisateur' => $id_utilisateur]);
             $message = 'Informations sociales créées avec succès';
         }
 
@@ -82,7 +83,6 @@ class ApiSociauxController extends Controller
     public function createGallery(Request $request)
     {
         $rules = [
-            'id_utilisateur' => 'required|integer|exists:users_app,id_user_app',
             'images' => 'required|array',
             'images.*.image' => 'required|file|mimes:jpg,jpeg,png,webp|max:5120',
             'images.*.description' => 'nullable|string',
@@ -97,6 +97,7 @@ class ApiSociauxController extends Controller
             ], 422);
         }
 
+        $id_utilisateur = $request->user()->id_user_app;
         $createdImages = [];
 
         // 🔁 Parcourir chaque image reçue
@@ -114,7 +115,7 @@ class ApiSociauxController extends Controller
                 $photoUrl = url('afrolia/public/salon/gallery/' . $photoName);
 
                 $createdImages[] = Gallery::create([
-                    'id_utilisateur' => $request->id_utilisateur,
+                    'id_utilisateur' => $id_utilisateur,
                     'image' => $photoUrl,
                     'description' => $img['description'] ?? '',
                 ]);
@@ -138,6 +139,13 @@ class ApiSociauxController extends Controller
                 'success' => false,
                 'message' => 'Image introuvable'
             ], 404);
+        }
+
+        if ((int) $gallery->id_utilisateur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez modifier que vos propres images'
+            ], 403);
         }
 
         $rules = [
@@ -180,7 +188,7 @@ class ApiSociauxController extends Controller
         ]);
     }
 
-    public function deleteGallery($id)
+    public function deleteGallery(Request $request, $id)
     {
         $gallery = Gallery::find($id);
 
@@ -189,6 +197,13 @@ class ApiSociauxController extends Controller
                 'success' => false,
                 'message' => 'Image introuvable'
             ], 404);
+        }
+
+        if ((int) $gallery->id_utilisateur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez supprimer que vos propres images'
+            ], 403);
         }
 
         // 🧹 Supprimer physiquement le fichier du dossier public

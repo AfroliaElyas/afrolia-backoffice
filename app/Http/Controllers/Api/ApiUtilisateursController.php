@@ -44,6 +44,10 @@ class ApiUtilisateursController extends Controller
                 ], 401);
             }
 
+            // Un jeton par connexion : permet de révoquer une session précise
+            // (déconnexion) sans affecter les autres appareils connectés.
+            $token = $utilisateur->createToken('mobile')->plainTextToken;
+
             return response()->json([
                 'success' => true,
                 'message' => 'Connexion réussie',
@@ -60,6 +64,7 @@ class ApiUtilisateursController extends Controller
                     'role' => $utilisateur->role,
                     'photo' => $utilisateur->photo ? url($utilisateur->photo) : "",
                     'creation' => $utilisateur->created_at,
+                    'token' => $token,
                 ],
             ], 200);
         } else {
@@ -108,9 +113,16 @@ class ApiUtilisateursController extends Controller
         $utilisateur->role = $request->role;
         $utilisateur->password = Hash::make($request->password);
         if ($utilisateur->save()) {
+            $token = $utilisateur->createToken('mobile')->plainTextToken;
+
             return response()->json([
                 'success' => true,
                 'message' => 'Vous êtes inscrit avec succès',
+                'data' => [
+                    'id' => $utilisateur->id_user_app,
+                    'role' => $utilisateur->role,
+                    'token' => $token,
+                ],
             ]);
         } else {
             return response()->json([
@@ -120,8 +132,25 @@ class ApiUtilisateursController extends Controller
         }
     }
 
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Déconnexion réussie',
+        ]);
+    }
+
     public function update(Request $request, $id)
     {
+        if ((int) $id !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => "Vous ne pouvez modifier que votre propre compte.",
+            ], 403);
+        }
+
         $utilisateur = UsersApp::findOrFail($id);
 
         $rules = [
@@ -281,8 +310,14 @@ class ApiUtilisateursController extends Controller
         }
     }
 
-    public function supprimerCompte($id)
+    public function supprimerCompte(Request $request, $id)
     {
+        if ((int) $id !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => "Vous ne pouvez supprimer que votre propre compte.",
+            ], 403);
+        }
 
         $utilisateur = UsersApp::find($id);
 

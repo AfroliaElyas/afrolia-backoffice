@@ -136,4 +136,30 @@ class CorrectionsBugsMineursTest extends TestCase
         $response->assertJsonPath('data.0.name', 'Test');
         $response->assertJsonPath('data.0.last_name', 'Test');
     }
+
+    public function test_la_liste_des_reservations_d_un_client_fonctionne(): void
+    {
+        $coiffeuse = $this->creerUtilisateur('0700000018', 'hair');
+        $client = $this->creerUtilisateur('0700000019', 'user');
+        $reservation = $this->creerReservationTerminee($client, $coiffeuse);
+
+        Sanctum::actingAs($client);
+
+        $response = $this->getJson("/api/reservations/user/{$client->id_user_app}");
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.0.id_reservation', $reservation->id_reservation);
+        $response->assertJsonPath('data.0.nom_coiffeuse', 'Test');
+    }
+
+    public function test_un_client_ne_peut_pas_consulter_les_reservations_d_un_autre(): void
+    {
+        $clientA = $this->creerUtilisateur('0700000020', 'user');
+        $clientB = $this->creerUtilisateur('0700000021', 'user');
+
+        Sanctum::actingAs($clientB);
+
+        $this->getJson("/api/reservations/user/{$clientA->id_user_app}")
+            ->assertStatus(403);
+    }
 }

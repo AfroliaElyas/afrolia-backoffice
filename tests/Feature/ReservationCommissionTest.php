@@ -6,6 +6,7 @@ use App\Models\Reservations;
 use App\Models\UsersApp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class ReservationCommissionTest extends TestCase
@@ -77,6 +78,7 @@ class ReservationCommissionTest extends TestCase
         $client = $this->creerClient();
         $service = $this->creerService($coiffeuse->id_user_app, 10000);
 
+        Sanctum::actingAs($client);
         $response = $this->postJson('/api/reservations', $this->corpsReservation(
             $client->id_user_app,
             $coiffeuse->id_user_app,
@@ -95,6 +97,7 @@ class ReservationCommissionTest extends TestCase
         $client = $this->creerClient();
         $service = $this->creerService($coiffeuse->id_user_app, 10000);
 
+        Sanctum::actingAs($client);
         $response = $this->postJson('/api/reservations', $this->corpsReservation(
             $client->id_user_app,
             $coiffeuse->id_user_app,
@@ -113,6 +116,7 @@ class ReservationCommissionTest extends TestCase
         $client = $this->creerClient();
         $service = $this->creerService($coiffeuse->id_user_app, 10000);
 
+        Sanctum::actingAs($client);
         $response = $this->postJson('/api/reservations', $this->corpsReservation(
             $client->id_user_app,
             $coiffeuse->id_user_app,
@@ -131,6 +135,7 @@ class ReservationCommissionTest extends TestCase
         $client = $this->creerClient();
         $service = $this->creerService($coiffeuse->id_user_app, 10000);
 
+        Sanctum::actingAs($client);
         $creation = $this->postJson('/api/reservations', $this->corpsReservation(
             $client->id_user_app,
             $coiffeuse->id_user_app,

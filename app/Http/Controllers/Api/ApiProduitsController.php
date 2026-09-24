@@ -51,7 +51,6 @@ class ApiProduitsController extends Controller
     public function store(Request $request)
     {
         $rules = [
-            'id_coiffeur' => 'required|integer|exists:users_app,id_user_app',
             'nom' => 'required|string|max:150',
             'description' => 'nullable|string',
             'prix' => 'required|numeric|min:0',
@@ -75,7 +74,7 @@ class ApiProduitsController extends Controller
         $photoUrl = url('afrolia/public/salon/produits/' . $photoName);
 
         $produit = Produits::create([
-            'id_coiffeur' => $request->id_coiffeur,
+            'id_coiffeur' => $request->user()->id_user_app,
             'nom' => $request->nom,
             'description' => $request->description,
             'prix' => $request->prix,
@@ -100,6 +99,13 @@ class ApiProduitsController extends Controller
                 'success' => false,
                 'message' => 'Produit introuvable',
             ], 404);
+        }
+
+        if ((int) $produit->id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez modifier que vos propres produits',
+            ], 403);
         }
 
         $rules = [
@@ -146,7 +152,7 @@ class ApiProduitsController extends Controller
     }
 
     // ✅ 5. Suppression d'un produit
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $produit = Produits::find($id);
 
@@ -155,6 +161,13 @@ class ApiProduitsController extends Controller
                 'success' => false,
                 'message' => 'Produit introuvable',
             ], 404);
+        }
+
+        if ((int) $produit->id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez supprimer que vos propres produits',
+            ], 403);
         }
 
         if ($produit->photo) {

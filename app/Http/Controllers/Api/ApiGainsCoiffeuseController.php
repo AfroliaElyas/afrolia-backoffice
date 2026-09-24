@@ -11,8 +11,15 @@ use Illuminate\Support\Facades\DB;
 class ApiGainsCoiffeuseController extends Controller
 {
     // ✅ 1. Récupération des statistiques de gains d'une coiffeuse
-    public function getGainsByUser($id_utilisateur)
+    public function getGainsByUser(Request $request, $id_utilisateur)
     {
+        if ((int) $id_utilisateur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez consulter que vos propres gains'
+            ], 403);
+        }
+
         $now = Carbon::now();
 
         // Revenu total
@@ -70,8 +77,15 @@ class ApiGainsCoiffeuseController extends Controller
         ]);
     }
 
-    public function getEvolutionAnnuelle($id_utilisateur)
+    public function getEvolutionAnnuelle(Request $request, $id_utilisateur)
     {
+        if ((int) $id_utilisateur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez consulter que vos propres gains'
+            ], 403);
+        }
+
         $annee = now()->year;
 
         // Initialiser les mois (1 à 12)
@@ -133,8 +147,15 @@ class ApiGainsCoiffeuseController extends Controller
         ]);
     }
 
-    public function getRevenusParService($id_utilisateur)
+    public function getRevenusParService(Request $request, $id_utilisateur)
     {
+        if ((int) $id_utilisateur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez consulter que vos propres gains'
+            ], 403);
+        }
+
         // Jointure entre gains, réservations et services
         $gains = DB::table('gains')
             ->join('reservations', 'gains.id_reservation', '=', 'reservations.id_reservation')
@@ -188,7 +209,6 @@ class ApiGainsCoiffeuseController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'id_coiffeur' => 'required|integer|exists:users_app,id_user_app',
             'id_reservation' => 'required|integer|exists:reservations,id_reservation',
             'montant_brut' => 'required|numeric',
             'montant_commission' => 'required|numeric',
@@ -196,6 +216,12 @@ class ApiGainsCoiffeuseController extends Controller
             'statut' => 'in:en_attente,disponible,paye',
             'date_paiement' => 'nullable|date',
         ]);
+
+        // Un gain ne peut être créé que pour l'utilisateur authentifié : en
+        // temps normal les gains naissent automatiquement d'un paiement
+        // réussi (voir ApiPaiementsController), cet endpoint ne doit jamais
+        // permettre de créditer un compte tiers.
+        $validated['id_coiffeur'] = $request->user()->id_user_app;
 
         $gain = Gains::create($validated);
 
@@ -218,6 +244,13 @@ class ApiGainsCoiffeuseController extends Controller
             ], 404);
         }
 
+        if ((int) $gain->id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez modifier que vos propres gains'
+            ], 403);
+        }
+
         $validated = $request->validate([
             'montant_brut' => 'nullable|numeric',
             'montant_commission' => 'nullable|numeric',
@@ -236,7 +269,7 @@ class ApiGainsCoiffeuseController extends Controller
     }
 
     // ✅ 4. Suppression d’un gain
-    public function destroy($id_gain)
+    public function destroy(Request $request, $id_gain)
     {
         $gain = Gains::find($id_gain);
 
@@ -245,6 +278,13 @@ class ApiGainsCoiffeuseController extends Controller
                 'success' => false,
                 'message' => 'Gain introuvable'
             ], 404);
+        }
+
+        if ((int) $gain->id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez supprimer que vos propres gains'
+            ], 403);
         }
 
         $gain->delete();

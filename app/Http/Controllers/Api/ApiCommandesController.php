@@ -24,7 +24,6 @@ class ApiCommandesController extends Controller
     public function store(Request $request)
     {
         $rules = [
-            'id_client' => 'required|integer|exists:users_app,id_user_app',
             'id_coiffeur' => 'required|integer|exists:users_app,id_user_app',
             'methode_paiement' => 'required|string|in:stripe,mobile_money',
             'lignes' => 'required|array|min:1',
@@ -41,8 +40,12 @@ class ApiCommandesController extends Controller
             ], 422);
         }
 
+        // La commande est toujours passée pour l'utilisateur authentifié,
+        // jamais pour un id_client transmis par le client.
+        $idClient = $request->user()->id_user_app;
+
         try {
-            $commande = DB::transaction(function () use ($request) {
+            $commande = DB::transaction(function () use ($request, $idClient) {
                 // Verrouille les produits dans un ordre stable pour éviter les deadlocks
                 // entre deux commandes concurrentes.
                 $idsProduits = collect($request->lignes)->pluck('id_produit')->unique()->sort()->values();
@@ -96,7 +99,7 @@ class ApiCommandesController extends Controller
 
                 $commande = Commandes::create([
                     'numero_commande' => $numeroCommande,
-                    'id_client' => $request->id_client,
+                    'id_client' => $idClient,
                     'id_coiffeur' => $request->id_coiffeur,
                     'montant_produits' => $montantProduits,
                     'montant_commission' => $montantCommission,
@@ -125,8 +128,15 @@ class ApiCommandesController extends Controller
     }
 
     // ✅ 2. Historique des commandes d'une cliente
-    public function getCommandesByClient($id_client)
+    public function getCommandesByClient(Request $request, $id_client)
     {
+        if ((int) $id_client !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez consulter que vos propres commandes',
+            ], 403);
+        }
+
         $commandes = Commandes::with('lignes', 'coiffeur:id_user_app,name,last_name,photo,commune')
             ->where('id_client', $id_client)
             ->orderBy('id_commande', 'desc')
@@ -139,8 +149,15 @@ class ApiCommandesController extends Controller
     }
 
     // ✅ 3. Commandes reçues par une coiffeuse
-    public function getCommandesByCoiffeuse($id_coiffeur)
+    public function getCommandesByCoiffeuse(Request $request, $id_coiffeur)
     {
+        if ((int) $id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez consulter que vos propres commandes',
+            ], 403);
+        }
+
         $commandes = Commandes::with('lignes', 'client:id_user_app,name,last_name,photo,phone')
             ->where('id_coiffeur', $id_coiffeur)
             ->orderBy('id_commande', 'desc')
@@ -156,7 +173,7 @@ class ApiCommandesController extends Controller
     public function expedier(Request $request, $id_commande)
     {
         $commande = Commandes::where('id_commande', $id_commande)
-            ->where('id_coiffeur', $request->id_coiffeur)
+            ->where('id_coiffeur', $request->user()->id_user_app)
             ->first();
 
         if (!$commande) {
@@ -189,7 +206,7 @@ class ApiCommandesController extends Controller
     public function livrer(Request $request, $id_commande)
     {
         $commande = Commandes::where('id_commande', $id_commande)
-            ->where('id_coiffeur', $request->id_coiffeur)
+            ->where('id_coiffeur', $request->user()->id_user_app)
             ->first();
 
         if (!$commande) {

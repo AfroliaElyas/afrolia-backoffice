@@ -13,9 +13,10 @@ class ApiClientFavoriteController extends Controller
     public function addFavorite(Request $request)
     {
         $validated = $request->validate([
-            'client_id' => 'required|integer',
             'stylist_id' => 'required|integer',
         ]);
+
+        $validated['client_id'] = $request->user()->id_user_app;
 
         $exists = ClientFavorite::where('client_id', $validated['client_id'])
             ->where('stylist_id', $validated['stylist_id'])
@@ -41,9 +42,10 @@ class ApiClientFavoriteController extends Controller
     public function removeFavorite(Request $request)
     {
         $validated = $request->validate([
-            'client_id' => 'required|integer',
             'stylist_id' => 'required|integer',
         ]);
+
+        $validated['client_id'] = $request->user()->id_user_app;
 
         $deleted = ClientFavorite::where('client_id', $validated['client_id'])
             ->where('stylist_id', $validated['stylist_id'])
@@ -63,8 +65,15 @@ class ApiClientFavoriteController extends Controller
     }
 
     // ✅ Liste des coiffeuses favorites avec note moyenne et avis
-    public function getFavoritesByClient($client_id)
+    public function getFavoritesByClient(Request $request, $client_id)
     {
+        if ((int) $client_id !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez consulter que vos propres favoris'
+            ], 403);
+        }
+
         $favorites = ClientFavorite::where('client_id', $client_id)
             ->join('users_app as u', 'u.id_user_app', '=', 'client_favorites.stylist_id')
             ->leftJoin('reviews as r', 'r.id_stylist', '=', 'u.id_user_app')
@@ -97,9 +106,10 @@ class ApiClientFavoriteController extends Controller
     public function isFavorite(Request $request)
     {
         $validated = $request->validate([
-            'client_id' => 'required|integer',
             'stylist_id' => 'required|integer',
         ]);
+
+        $validated['client_id'] = $request->user()->id_user_app;
 
         $exists = ClientFavorite::where('client_id', $validated['client_id'])
             ->where('stylist_id', $validated['stylist_id'])

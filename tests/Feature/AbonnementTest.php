@@ -6,6 +6,7 @@ use App\Models\AbonnementPaiement;
 use App\Models\Gains;
 use App\Models\UsersApp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class AbonnementTest extends TestCase
@@ -40,6 +41,7 @@ class AbonnementTest extends TestCase
 
         $this->assertSame('gratuit', $coiffeuse->fresh()->formule_abonnement);
 
+        Sanctum::actingAs($coiffeuse);
         $this->getJson("/api/abonnement/{$coiffeuse->id_user_app}")
             ->assertStatus(200)
             ->assertJsonPath('data.formule_abonnement', 'gratuit')
@@ -51,6 +53,7 @@ class AbonnementTest extends TestCase
         $coiffeuse = $this->creerCoiffeuse();
         $this->crediterGain($coiffeuse, 5000);
 
+        Sanctum::actingAs($coiffeuse);
         $response = $this->putJson("/api/abonnement/{$coiffeuse->id_user_app}", ['formule' => 'standard']);
 
         $response->assertStatus(200);
@@ -72,6 +75,7 @@ class AbonnementTest extends TestCase
         $coiffeuse = $this->creerCoiffeuse();
         $this->crediterGain($coiffeuse, 1000);
 
+        Sanctum::actingAs($coiffeuse);
         $response = $this->putJson("/api/abonnement/{$coiffeuse->id_user_app}", ['formule' => 'standard']);
 
         $response->assertStatus(422);
@@ -144,6 +148,7 @@ class AbonnementTest extends TestCase
     {
         $coiffeuse = $this->creerCoiffeuse();
         $this->crediterGain($coiffeuse, 10000);
+        Sanctum::actingAs($coiffeuse);
         $this->putJson("/api/abonnement/{$coiffeuse->id_user_app}", ['formule' => 'premium'])
             ->assertStatus(200);
 
@@ -160,8 +165,8 @@ class AbonnementTest extends TestCase
             'photo' => 'http://example.test/produit.jpg',
         ]);
 
+        Sanctum::actingAs($client);
         $response = $this->postJson('/api/commandes', [
-            'id_client' => $client->id_user_app,
             'id_coiffeur' => $coiffeuse->id_user_app,
             'methode_paiement' => 'stripe',
             'lignes' => [['id_produit' => $produit->id_produit, 'quantite' => 1]],

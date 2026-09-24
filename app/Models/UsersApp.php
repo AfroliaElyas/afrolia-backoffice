@@ -2,13 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Auth\Authenticatable;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
-class UsersApp extends Model
+class UsersApp extends Model implements AuthenticatableContract
 {
-    use HasFactory, Notifiable;
+    use Authenticatable, HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
         'photo',

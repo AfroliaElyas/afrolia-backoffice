@@ -19,8 +19,15 @@ class ApiReservationsController extends Controller
     }
 
     // ✅ 1. Liste des réservations d’un coiffeur
-    public function getReservationsByCoiffeuse($id_coiffeur)
+    public function getReservationsByCoiffeuse(Request $request, $id_coiffeur)
     {
+        if ((int) $id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez consulter que vos propres réservations'
+            ], 403);
+        }
+
         $reservations = Reservations::join('users_app as clients', 'reservations.id_client', '=', 'clients.id_user_app')
             ->join('services', 'reservations.id_service', '=', 'services.id_service')
             ->join('specialites', 'services.id_speciale', '=', 'specialites.id_specialite')
@@ -73,7 +80,6 @@ class ApiReservationsController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'id_client' => 'required|integer',
             'id_coiffeur' => 'required|integer',
             'id_service' => 'required|integer',
             'date_reservation' => 'required|date',
@@ -84,6 +90,10 @@ class ApiReservationsController extends Controller
             'methode_paiement' => 'required|string|in:stripe,mobile_money,cash',
             'notes' => 'nullable|string',
         ]);
+
+        // La réservation est toujours créée pour l'utilisateur authentifié,
+        // jamais pour un id_client transmis par le client.
+        $validated['id_client'] = $request->user()->id_user_app;
 
         // La commission doit toujours refléter la formule d'abonnement
         // actuelle de la coiffeuse (gratuit/standard/premium) : on l'ignore
@@ -124,6 +134,13 @@ class ApiReservationsController extends Controller
             ], 404);
         }
 
+        if ((int) $reservation->id_client !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez modifier que vos propres réservations'
+            ], 403);
+        }
+
         $validated = $request->validate([
             'date_reservation' => 'sometimes|date',
             'heure_reservation' => 'sometimes',
@@ -148,7 +165,7 @@ class ApiReservationsController extends Controller
     }
 
     // ✅ 4. Suppression d’une réservation
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $reservation = Reservations::find($id);
 
@@ -157,6 +174,13 @@ class ApiReservationsController extends Controller
                 'success' => false,
                 'message' => 'Réservation non trouvée'
             ], 404);
+        }
+
+        if ((int) $reservation->id_client !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez supprimer que vos propres réservations'
+            ], 403);
         }
 
         $reservation->delete();
@@ -171,7 +195,7 @@ class ApiReservationsController extends Controller
     public function confirmerReservation(Request $request, $id_reservation)
     {
         $reservation = Reservations::where('id_reservation', $id_reservation)
-            ->where('id_coiffeur', $request->id_coiffeur)
+            ->where('id_coiffeur', $request->user()->id_user_app)
             ->first();
 
         if (!$reservation) {
@@ -197,7 +221,7 @@ class ApiReservationsController extends Controller
     public function refuserReservation(Request $request, $id_reservation)
     {
         $reservation = Reservations::where('id_reservation', $id_reservation)
-            ->where('id_coiffeur', $request->id_coiffeur)
+            ->where('id_coiffeur', $request->user()->id_user_app)
             ->first();
 
         if (!$reservation) {
@@ -225,7 +249,7 @@ class ApiReservationsController extends Controller
     public function terminerReservation(Request $request, $id_reservation)
     {
         $reservation = Reservations::where('id_reservation', $id_reservation)
-            ->where('id_coiffeur', $request->id_coiffeur)
+            ->where('id_coiffeur', $request->user()->id_user_app)
             ->first();
 
         if (!$reservation) {
@@ -254,8 +278,15 @@ class ApiReservationsController extends Controller
         ]);
     }
 
-    public function recentReservations($id_coiffeur)
+    public function recentReservations(Request $request, $id_coiffeur)
     {
+        if ((int) $id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez consulter que vos propres réservations'
+            ], 403);
+        }
+
         // Récupère les 3 réservations les plus récentes pour un coiffeur donné
         $reservations = Reservations::where('id_coiffeur', $id_coiffeur)
             ->orderBy('date_reservation', 'desc')
@@ -269,8 +300,15 @@ class ApiReservationsController extends Controller
         ]);
     }
 
-    public function reservationStatsByCoiffeur($id_coiffeur)
+    public function reservationStatsByCoiffeur(Request $request, $id_coiffeur)
     {
+        if ((int) $id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez consulter que vos propres statistiques'
+            ], 403);
+        }
+
         $today = Carbon::today()->toDateString();
         $startOfMonth = Carbon::now()->startOfMonth()->toDateString();
 
@@ -308,8 +346,15 @@ class ApiReservationsController extends Controller
         ]);
     }
 
-    public function topServices($id_coiffeur)
+    public function topServices(Request $request, $id_coiffeur)
     {
+        if ((int) $id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez consulter que vos propres statistiques'
+            ], 403);
+        }
+
         $topServices = DB::table('reservations as r')
             ->select(
                 's.id_service',

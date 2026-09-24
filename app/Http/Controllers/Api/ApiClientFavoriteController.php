@@ -79,13 +79,13 @@ class ApiClientFavoriteController extends Controller
             ->leftJoin('reviews as r', 'r.id_stylist', '=', 'u.id_user_app')
             ->select(
                 'u.id_user_app',
-                'u.nom',
-                'u.prenom',
-                'u.photo_profil',
+                'u.name',
+                'u.last_name',
+                'u.photo',
                 DB::raw('COALESCE(ROUND(AVG(r.rating), 1), 0) as moyenne_notes'),
                 DB::raw('COUNT(r.id_review) as nombre_avis')
             )
-            ->groupBy('u.id_user_app', 'u.nom', 'u.prenom', 'u.photo_profil')
+            ->groupBy('u.id_user_app', 'u.name', 'u.last_name', 'u.photo')
             ->get();
 
         if ($favorites->isEmpty()) {

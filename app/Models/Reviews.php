@@ -26,14 +26,14 @@ class Reviews extends Model
     protected $primaryKey = 'id_review';
 
       // Relations
-    public function utilisateur()
+    public function client()
     {
-        return $this->belongsTo(UsersApp::class, 'id_utilisateur');
+        return $this->belongsTo(UsersApp::class, 'id_client');
     }
 
     public function coiffeuse()
     {
-        return $this->belongsTo(UsersApp::class, 'id_coiffeuse');
+        return $this->belongsTo(UsersApp::class, 'id_stylist');
     }
 
     public function reservation()

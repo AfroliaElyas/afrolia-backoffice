@@ -115,13 +115,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/populaires/{id_coiffeur}', [ApiReservationsController::class, 'topServices']);
     });
 
+    // Le statut d'un paiement ne change que par webhook (Stripe / mobile
+    // money) : pas de update()/destroy() ici.
     Route::prefix('paiements')->group(function () {
         Route::get('/user/{id_utilisateur}', [ApiPaiementsController::class, 'getPaiementByUser']);
         Route::get('/reservation/{id_reservation}', [ApiPaiementsController::class, 'getPaiementStatusByReservation']);
         Route::get('/commande/{id_commande}', [ApiPaiementsController::class, 'getPaiementStatusByCommande']);
         Route::post('/', [ApiPaiementsController::class, 'store']);
-        Route::put('/{id_paiement}', [ApiPaiementsController::class, 'update']);
-        Route::delete('/{id_paiement}', [ApiPaiementsController::class, 'destroy']);
     });
 
     Route::prefix('produits')->group(function () {

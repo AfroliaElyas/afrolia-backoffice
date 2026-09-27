@@ -52,6 +52,13 @@ class ApiAvisController extends Controller
         // réservation de quelqu'un d'autre.
         $reservation = Reservations::find($validated['id_reservation']);
 
+        if (!$reservation) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Réservation introuvable'
+            ], 404);
+        }
+
         if ((int) $reservation->id_client !== (int) $request->user()->id_user_app) {
             return response()->json([
                 'success' => false,

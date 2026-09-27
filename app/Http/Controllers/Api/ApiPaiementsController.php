@@ -28,22 +28,28 @@ class ApiPaiementsController extends Controller
     ) {
     }
 
-    // ✅ 1. Liste (ou first) des paiements d’un utilisateur
+    // ✅ 1. Liste des paiements d'un utilisateur
     public function getPaiementByUser(Request $request, $id_utilisateur)
     {
         if ((int) $id_utilisateur !== (int) $request->user()->id_user_app) {
             return response()->json(['message' => 'Vous ne pouvez consulter que vos propres paiements'], 403);
         }
 
-        $paiement = Paiements::where('id_utilisateur', $id_utilisateur)
-            ->with(['reservation'])
-            ->first();
+        // La table paiements n'a pas de colonne id_utilisateur : un paiement
+        // est toujours rattaché à une réservation OU une commande, chacune
+        // ayant son propre id_client.
+        $paiements = Paiements::where(function ($query) use ($id_utilisateur) {
+                $query->whereHas('reservation', fn ($q) => $q->where('id_client', $id_utilisateur))
+                    ->orWhereHas('commande', fn ($q) => $q->where('id_client', $id_utilisateur));
+            })
+            ->with(['reservation', 'commande'])
+            ->latest()
+            ->get();
 
-        if (!$paiement) {
-            return response()->json(['message' => 'Aucun paiement trouvé'], 404);
-        }
-
-        return response()->json($paiement);
+        return response()->json([
+            'success' => true,
+            'data' => $paiements,
+        ]);
     }
 
     // ✅ 1bis. Statut du paiement d'une réservation (pour le polling client)

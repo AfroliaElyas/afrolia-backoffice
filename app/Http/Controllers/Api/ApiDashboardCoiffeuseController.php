@@ -78,8 +78,8 @@ class ApiDashboardCoiffeuseController extends Controller
                 'r.heure_reservation',
                 'r.statut',
                 's.description as service',
-                'u.nom as client_nom',
-                'u.prenom as client_prenom'
+                'u.name as client_nom',
+                'u.last_name as client_prenom'
             )
             ->get();
 

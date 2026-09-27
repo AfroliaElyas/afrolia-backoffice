@@ -25,9 +25,15 @@ class Gains extends Model
 
     protected $primaryKey = 'id_gain';
 
-    public function utilisateur()
+    protected $casts = [
+        'montant_brut' => 'float',
+        'montant_commission' => 'float',
+        'montant_net' => 'float',
+    ];
+
+    public function coiffeur()
     {
-        return $this->belongsTo(UsersApp::class, 'id_user_app');
+        return $this->belongsTo(UsersApp::class, 'id_coiffeur');
     }
 
     public function paiement()

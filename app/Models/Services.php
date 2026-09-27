@@ -23,6 +23,14 @@ class Services extends Model
 
     protected $primaryKey = 'id_service';
 
+    // Sans ce cast, une colonne decimal remonte en chaîne de caractères en
+    // JSON sous MySQL (contrairement à SQLite), ce qui casserait le parsing
+    // côté Flutter (champs typés num). Même correctif que sur Produits::prix.
+    protected $casts = [
+        'prix' => 'float',
+        'commission' => 'float',
+    ];
+
     public function utilisateur()
     {
         return $this->belongsTo(UsersApp::class, 'id_utilisateur', 'id_user_app');

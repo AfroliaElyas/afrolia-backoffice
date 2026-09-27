@@ -35,6 +35,16 @@ class Reservations extends Model
 
     protected $primaryKey = 'id_reservation';
 
+    // Sans ce cast, une colonne decimal remonte en chaîne de caractères en
+    // JSON sous MySQL (contrairement à SQLite), ce qui casserait le parsing
+    // côté Flutter (le `as num` sur montant_total à la confirmation de
+    // paiement). Même correctif que sur Produits::prix et Services::prix.
+    protected $casts = [
+        'prix_service' => 'float',
+        'montant_commission' => 'float',
+        'montant_total' => 'float',
+    ];
+
     // Relations
     public function utilisateur()
     {

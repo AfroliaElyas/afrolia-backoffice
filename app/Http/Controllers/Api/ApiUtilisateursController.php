@@ -82,7 +82,7 @@ class ApiUtilisateursController extends Controller
             'phone' => 'required|string|unique:users_app,phone',
             'email' => 'nullable|string|unique:users_app,email',
             'password' => 'required',
-            'role' => 'required',
+            'role' => 'required|in:user,hair',
         ];
 
         $messages = [
@@ -93,6 +93,7 @@ class ApiUtilisateursController extends Controller
             'email.uninque' => "L'adresse email est deja utilisé.",
             'password.required' => 'Veuillez saisir votre mot de passe.',
             'role.required' => 'Veuillez selectionner votre type de conpte.',
+            'role.in' => 'Type de compte invalide.',
         ];
 
         $validator = Validator::make($request->all(), $rules, $messages);

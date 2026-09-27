@@ -27,11 +27,14 @@ class Paiements extends Model
 
     protected $primaryKey = 'id_paiement';
 
+    protected $casts = [
+        'amount' => 'float',
+    ];
+
     // Relations
-    public function utilisateur()
-    {
-        return $this->belongsTo(UsersApp::class, 'id_user_app');
-    }
+    // Pas de relation utilisateur() directe : la table paiements n'a pas de
+    // colonne id_user_app, un paiement se rattache à un client via sa
+    // réservation ou sa commande (voir reservation()/commande() ci-dessous).
 
     public function reservation()
     {

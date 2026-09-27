@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\ApiAbonnementController;
+use App\Http\Controllers\Api\ApiAssistantController;
 use App\Http\Controllers\Api\ApiAvisController;
 use App\Http\Controllers\Api\ApiClientFavoriteController;
 use App\Http\Controllers\Api\ApiCommandesController;
@@ -168,4 +169,9 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('/dashboard/{id_coiffeur}', [ApiDashboardCoiffeuseController::class, 'index']);
+
+    // Assistant IA — limité en fréquence pour maîtriser le coût des appels
+    // au modèle (chaque requête consomme un appel payant à l'API Claude).
+    Route::post('assistant', [ApiAssistantController::class, 'chat'])
+        ->middleware('throttle:10,1');
 });

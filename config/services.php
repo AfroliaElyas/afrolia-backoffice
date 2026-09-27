@@ -44,4 +44,8 @@ return [
         'webhook_secret' => env('MOBILE_MONEY_WEBHOOK_SECRET'),
     ],
 
+    'anthropic' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
+    ],
+
 ];

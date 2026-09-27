@@ -15,7 +15,7 @@ class AbonnementService
     {
         return match ($formule) {
             'standard' => $this->parametre('prix_abonnement_standard', 4500),
-            'premium' => $this->parametre('prix_abonnement_premium', 5500),
+            'premium' => $this->parametre('prix_abonnement_premium', 8000),
             default => 0.0,
         };
     }

@@ -107,7 +107,7 @@ class AbonnementTest extends TestCase
         $this->assertDatabaseHas('abonnement_paiements', [
             'id_coiffeur' => $coiffeuse->id_user_app,
             'formule' => 'premium',
-            'montant' => 5500,
+            'montant' => 8000,
             'statut' => 'reussi',
         ]);
     }

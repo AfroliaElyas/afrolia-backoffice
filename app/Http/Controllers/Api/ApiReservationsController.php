@@ -38,6 +38,7 @@ class ApiReservationsController extends Controller
                 'reservations.heure_reservation',
                 'reservations.statut',
                 'reservations.montant_total',
+                'reservations.id_coiffeur',
                 'coiffeuses.name as nom_coiffeuse',
                 'coiffeuses.last_name as prenom_coiffeuse',
                 'coiffeuses.photo as photo_coiffeuse',

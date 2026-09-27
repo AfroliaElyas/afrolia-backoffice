@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Reservations;
 use App\Models\Reviews;
 use Illuminate\Http\Request;
 
@@ -42,6 +43,42 @@ class ApiAvisController extends Controller
             // validation doit refléter cette contrainte, pas la contredire.
             'id_reservation' => 'required|integer|exists:reservations,id_reservation',
         ]);
+
+        // La seule existence de id_reservation/id_stylist en base ne suffit
+        // pas : il faut vérifier que la réservation appartient bien à
+        // l'auteur de l'avis, qu'elle concerne réellement la coiffeuse
+        // citée, et qu'elle est terminée — sinon n'importe quel utilisateur
+        // pourrait noter n'importe quelle coiffeuse en citant la
+        // réservation de quelqu'un d'autre.
+        $reservation = Reservations::find($validated['id_reservation']);
+
+        if ((int) $reservation->id_client !== (int) $request->user()->id_user_app) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez laisser un avis que sur vos propres réservations'
+            ], 403);
+        }
+
+        if ((int) $reservation->id_coiffeur !== (int) $validated['id_stylist']) {
+            return response()->json([
+                'success' => false,
+                'message' => "Cette réservation ne concerne pas la coiffeuse indiquée"
+            ], 422);
+        }
+
+        if ($reservation->statut !== 'terminee') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez laisser un avis que sur une réservation terminée'
+            ], 422);
+        }
+
+        if (Reviews::where('id_reservation', $reservation->id_reservation)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Un avis a déjà été publié pour cette réservation'
+            ], 422);
+        }
 
         // Un avis est toujours publié par l'utilisateur authentifié, jamais
         // par un id_client transmis par le client.

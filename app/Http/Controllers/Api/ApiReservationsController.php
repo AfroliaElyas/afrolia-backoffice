@@ -199,15 +199,15 @@ class ApiReservationsController extends Controller
             ], 403);
         }
 
+        // Le client ne peut que reprogrammer ou annuler sa propre
+        // réservation : le prix, la commission, le statut de paiement et
+        // les transitions de statut autres que l'annulation appartiennent
+        // au flux de paiement (webhook) ou aux actions dédiées de la
+        // coiffeuse (confirmerReservation/refuserReservation/terminerReservation).
         $validated = $request->validate([
             'date_reservation' => 'sometimes|date',
             'heure_reservation' => 'sometimes',
-            'statut' => 'sometimes|in:en_attente,confirmee,en_cours,terminee,annulee,no_show',
-            'prix_service' => 'sometimes|numeric',
-            'montant_commission' => 'sometimes|numeric',
-            'montant_total' => 'sometimes|numeric',
-            'statut_paiement' => 'sometimes|in:en_attente,paye,rembourse,echoue',
-            'methode_paiement' => 'sometimes|in:stripe,mobile_money,cash',
+            'statut' => 'sometimes|in:annulee',
             'notes' => 'nullable|string',
             'raison_annulation' => 'nullable|string',
             'annule_par' => 'nullable|in:client,coiffeur,admin'

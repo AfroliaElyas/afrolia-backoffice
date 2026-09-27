@@ -115,13 +115,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/populaires/{id_coiffeur}', [ApiReservationsController::class, 'topServices']);
     });
 
+    // Le statut d'un paiement ne change que par webhook (Stripe / mobile
+    // money) : pas de update()/destroy() ici.
     Route::prefix('paiements')->group(function () {
         Route::get('/user/{id_utilisateur}', [ApiPaiementsController::class, 'getPaiementByUser']);
         Route::get('/reservation/{id_reservation}', [ApiPaiementsController::class, 'getPaiementStatusByReservation']);
         Route::get('/commande/{id_commande}', [ApiPaiementsController::class, 'getPaiementStatusByCommande']);
         Route::post('/', [ApiPaiementsController::class, 'store']);
-        Route::put('/{id_paiement}', [ApiPaiementsController::class, 'update']);
-        Route::delete('/{id_paiement}', [ApiPaiementsController::class, 'destroy']);
     });
 
     Route::prefix('produits')->group(function () {
@@ -140,11 +140,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/livrer/{id_commande}', [ApiCommandesController::class, 'livrer']);
     });
 
+    // Lecture seule : un gain ne naît que d'un paiement vérifié par
+    // webhook (voir ApiPaiementsController), jamais d'une écriture directe
+    // de la coiffeuse — pas de store()/update()/destroy() ici.
     Route::prefix('gains-coiffeuses')->group(function () {
         Route::get('/user/{id_utilisateur}', [ApiGainsCoiffeuseController::class, 'getGainsByUser']);
-        Route::post('/', [ApiGainsCoiffeuseController::class, 'store']);
-        Route::put('/{id_gain_coiffeuse}', [ApiGainsCoiffeuseController::class, 'update']);
-        Route::delete('/{id_gain_coiffeuse}', [ApiGainsCoiffeuseController::class, 'destroy']);
         Route::get('/evolution-annuelle/{id_utilisateur}', [ApiGainsCoiffeuseController::class, 'getEvolutionAnnuelle']);
         Route::get('/revenus-par-service/{id_utilisateur}', [ApiGainsCoiffeuseController::class, 'getRevenusParService']);
     });

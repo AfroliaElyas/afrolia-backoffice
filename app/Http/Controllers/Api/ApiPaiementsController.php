@@ -217,53 +217,11 @@ class ApiPaiementsController extends Controller
         ]);
     }
 
-    // ✅ 3. Mise à jour d’un paiement
-    public function update(Request $request, $id_paiement)
-    {
-        $paiement = Paiements::with(['reservation', 'commande'])->find($id_paiement);
-
-        if (!$paiement) {
-            return response()->json(['message' => 'Paiement non trouvé'], 404);
-        }
-
-        if (!$this->appartientAUtilisateur($paiement, $request->user()->id_user_app)) {
-            return response()->json(['message' => 'Paiement non trouvé'], 404);
-        }
-
-        $paiement->update($request->all());
-
-        return response()->json([
-            'message' => 'Paiement mis à jour avec succès',
-            'data' => $paiement
-        ]);
-    }
-
-    // ✅ 4. Suppression d’un paiement
-    public function destroy(Request $request, $id_paiement)
-    {
-        $paiement = Paiements::with(['reservation', 'commande'])->find($id_paiement);
-
-        if (!$paiement) {
-            return response()->json(['message' => 'Paiement non trouvé'], 404);
-        }
-
-        if (!$this->appartientAUtilisateur($paiement, $request->user()->id_user_app)) {
-            return response()->json(['message' => 'Paiement non trouvé'], 404);
-        }
-
-        $paiement->delete();
-
-        return response()->json(['message' => 'Paiement supprimé avec succès']);
-    }
-
-    // Un paiement appartient au client de la réservation ou de la commande
-    // qui lui est associée.
-    private function appartientAUtilisateur(Paiements $paiement, int $idUtilisateur): bool
-    {
-        $client = $paiement->reservation->id_client ?? $paiement->commande->id_client ?? null;
-
-        return (int) $client === $idUtilisateur;
-    }
+    // Pas de update()/destroy() ici par conception : le statut d'un
+    // paiement ne doit changer que via le webhook Stripe/mobile money
+    // (voir stripeWebhook/mobileMoneyWebhook plus bas), jamais sur simple
+    // requête du client qui l'a initié — un client aurait pu faire passer
+    // son propre paiement en attente directement à "succeeded".
 
     public function stripeWebhook(Request $request)
     {

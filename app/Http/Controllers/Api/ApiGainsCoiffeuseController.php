@@ -205,93 +205,10 @@ class ApiGainsCoiffeuseController extends Controller
         ]);
     }
 
-    // ✅ 2. Enregistrement d’un nouveau gain
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'id_reservation' => 'required|integer|exists:reservations,id_reservation',
-            'montant_brut' => 'required|numeric',
-            'montant_commission' => 'required|numeric',
-            'montant_net' => 'required|numeric',
-            'statut' => 'in:en_attente,disponible,paye',
-            'date_paiement' => 'nullable|date',
-        ]);
-
-        // Un gain ne peut être créé que pour l'utilisateur authentifié : en
-        // temps normal les gains naissent automatiquement d'un paiement
-        // réussi (voir ApiPaiementsController), cet endpoint ne doit jamais
-        // permettre de créditer un compte tiers.
-        $validated['id_coiffeur'] = $request->user()->id_user_app;
-
-        $gain = Gains::create($validated);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Gain enregistré avec succès',
-            'data' => $gain
-        ], 201);
-    }
-
-    // ✅ 3. Mise à jour d’un gain
-    public function update(Request $request, $id_gain)
-    {
-        $gain = Gains::find($id_gain);
-
-        if (!$gain) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gain introuvable'
-            ], 404);
-        }
-
-        if ((int) $gain->id_coiffeur !== (int) $request->user()->id_user_app) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Vous ne pouvez modifier que vos propres gains'
-            ], 403);
-        }
-
-        $validated = $request->validate([
-            'montant_brut' => 'nullable|numeric',
-            'montant_commission' => 'nullable|numeric',
-            'montant_net' => 'nullable|numeric',
-            'statut' => 'nullable|in:en_attente,disponible,paye',
-            'date_paiement' => 'nullable|date',
-        ]);
-
-        $gain->update($validated);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Gain mis à jour avec succès',
-            'data' => $gain
-        ]);
-    }
-
-    // ✅ 4. Suppression d’un gain
-    public function destroy(Request $request, $id_gain)
-    {
-        $gain = Gains::find($id_gain);
-
-        if (!$gain) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gain introuvable'
-            ], 404);
-        }
-
-        if ((int) $gain->id_coiffeur !== (int) $request->user()->id_user_app) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Vous ne pouvez supprimer que vos propres gains'
-            ], 403);
-        }
-
-        $gain->delete();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Gain supprimé avec succès'
-        ]);
-    }
+    // Pas de store()/update()/destroy() ici par conception : un gain ne doit
+    // naître que d'un paiement réellement vérifié (voir
+    // ApiPaiementsController::markPaiementSucceeded/marquerCommandePayee),
+    // jamais d'une requête écrite librement par la coiffeuse elle-même —
+    // ces trois actions permettaient de fabriquer ou de réécrire son propre
+    // solde sans qu'aucun paiement n'ait eu lieu.
 }

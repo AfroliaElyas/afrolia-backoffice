@@ -124,7 +124,10 @@ class ApiServicesController extends Controller
             ], 422);
         }
 
-        $service->update($request->all());
+        // Seuls les champs explicitement validés ci-dessus peuvent être
+        // modifiés : $request->all() permettait de réassigner id_utilisateur
+        // (le propriétaire du service) à n'importe quelle valeur.
+        $service->update($validator->validated());
 
         return response()->json([
             'success' => true,

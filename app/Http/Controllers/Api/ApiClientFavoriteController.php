@@ -95,6 +95,16 @@ class ApiClientFavoriteController extends Controller
             ], 404);
         }
 
+        // Résultat d'une requête brute (DB::raw) : pas de $casts de modèle
+        // applicable, donc AVG/COUNT peuvent remonter en chaînes de
+        // caractères sous MySQL. On force le type ici, comme partout
+        // ailleurs où un champ numérique est exposé à l'app.
+        $favorites = $favorites->map(function ($favorite) {
+            $favorite->moyenne_notes = (float) $favorite->moyenne_notes;
+            $favorite->nombre_avis = (int) $favorite->nombre_avis;
+            return $favorite;
+        });
+
         return response()->json([
             'success' => true,
             'message' => 'Liste des coiffeuses favorites avec leurs notes',

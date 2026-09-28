@@ -97,16 +97,19 @@ class ApiDashboardCoiffeuseController extends Controller
             'success' => true,
             'message' => 'Données du tableau de bord de la coiffeuse',
             'data' => [
-                'revenus_totaux' => $revenusTotaux,
-                'revenus_disponibles' => $revenusDisponibles,
-                'revenus_mois' => $revenusMois,
-                'revenus_jour' => $revenusJour,
+                // sum()/AVG() sur une colonne decimal remontent parfois en
+                // chaîne de caractères sous MySQL/PDO : cast explicite,
+                // même correctif que partout ailleurs dans l'API.
+                'revenus_totaux' => (float) $revenusTotaux,
+                'revenus_disponibles' => (float) $revenusDisponibles,
+                'revenus_mois' => (float) $revenusMois,
+                'revenus_jour' => (float) $revenusJour,
                 'total_clients' => $totalClients,
                 'reservations_mois' => $reservationsMois,
                 'reservations_par_statut' => $reservationsParStatut,
                 'prochaines_reservations' => $prochainesReservations,
-                'moyenne_notes' => $avisStats->moyenne_notes ?? 0,
-                'total_avis' => $avisStats->total_avis ?? 0,
+                'moyenne_notes' => (float) ($avisStats->moyenne_notes ?? 0),
+                'total_avis' => (int) ($avisStats->total_avis ?? 0),
             ]
         ]);
     }

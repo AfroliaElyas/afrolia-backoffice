@@ -246,9 +246,12 @@ class ApiUtilisateursController extends Controller
 
         $utilisateur = UsersApp::where('phone', $request->phone)->first();
 
-        // Générer un OTP aléatoire
+        // Générer un OTP aléatoire, valable un temps limité (voir
+        // resetPasswordWithOtp) : un code qui traîne dans un log ou un SMS
+        // ne doit pas rester utilisable indéfiniment.
         $otp = rand(100000, 999999);
         $utilisateur->otp = $otp;
+        $utilisateur->otp_created_at = now();
         $utilisateur->save();
 
         // TODO : Envoyer le code OTP via SMS
@@ -289,7 +292,11 @@ class ApiUtilisateursController extends Controller
             ->where('otp', $request->otp)
             ->first();
 
-        if (!$utilisateur) {
+        // Un OTP est valable 10 minutes après sa génération : au-delà, il
+        // est traité comme expiré même si la valeur en base correspond
+        // encore (elle n'est effacée qu'à la prochaine demande ou au
+        // prochain reset réussi).
+        if (!$utilisateur || $utilisateur->otp_created_at === null || $utilisateur->otp_created_at->addMinutes(10)->isPast()) {
             return response()->json([
                 'success' => false,
                 'message' => 'OTP invalide ou expiré',
@@ -298,6 +305,7 @@ class ApiUtilisateursController extends Controller
 
         $utilisateur->password = Hash::make($request->nouveau);
         $utilisateur->otp = null; // on réinitialise l’OTP
+        $utilisateur->otp_created_at = null;
 
         if ($utilisateur->save()) {
             return response()->json([

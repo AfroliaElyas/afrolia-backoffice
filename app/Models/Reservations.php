@@ -46,9 +46,19 @@ class Reservations extends Model
     ];
 
     // Relations
-    public function utilisateur()
+    //
+    // utilisateur() référençait auparavant une colonne id_user_app qui
+    // n'existe pas sur cette table (seules id_client et id_coiffeur
+    // existent) : tout appel aurait levé une erreur SQL. Remplacée par les
+    // deux relations réellement utilisables.
+    public function client()
     {
-        return $this->belongsTo(UsersApp::class, 'id_user_app');
+        return $this->belongsTo(UsersApp::class, 'id_client');
+    }
+
+    public function coiffeur()
+    {
+        return $this->belongsTo(UsersApp::class, 'id_coiffeur');
     }
 
     public function service()

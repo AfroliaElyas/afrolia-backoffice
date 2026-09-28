@@ -138,8 +138,8 @@ class ApiReservationsController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'id_coiffeur' => 'required|integer',
-            'id_service' => 'required|integer',
+            'id_coiffeur' => 'required|integer|exists:users_app,id_user_app',
+            'id_service' => 'required|integer|exists:services,id_service',
             'date_reservation' => 'required|date',
             'heure_reservation' => 'required',
             'prix_service' => 'required|numeric',

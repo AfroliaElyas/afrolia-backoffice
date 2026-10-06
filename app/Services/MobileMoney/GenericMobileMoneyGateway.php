@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
  */
 class GenericMobileMoneyGateway implements MobileMoneyGatewayInterface
 {
-    public function initiate(Paiements $paiement, string $operateur, string $telephone): array
+    public function initiate(Paiements $paiement, string $operateur, ?string $telephone): array
     {
         $reference = 'MM-' . strtoupper(Str::random(12));
 

@@ -10,6 +10,7 @@ use App\Models\Produits;
 use App\Models\Reservations;
 use App\Models\UsersApp;
 use App\Services\AbonnementService;
+use App\Services\MobileMoney\JekoMobileMoneyGateway;
 use App\Services\MobileMoney\MobileMoneyGatewayInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -116,8 +117,9 @@ class ApiPaiementsController extends Controller
             'id_reservation' => 'required_without:id_commande|integer',
             'id_commande' => 'required_without:id_reservation|integer',
             'methode' => 'sometimes|string|in:stripe,mobile_money',
-            'operateur' => 'required_if:methode,mobile_money|string|in:orange,mtn,moov',
-            'telephone' => 'required_if:methode,mobile_money|string',
+            'operateur' => 'required_if:methode,mobile_money|string|in:orange,mtn,moov,wave,djamo',
+            // Jèko fait saisir le numéro sur sa propre page de paiement.
+            'telephone' => 'nullable|string',
         ];
 
         $validator = Validator::make($request->all(), $rules);
@@ -204,11 +206,26 @@ class ApiPaiementsController extends Controller
             'status' => 'pending',
         ]);
 
-        $result = $this->mobileMoneyGateway->initiate(
-            $paiement,
-            $request->input('operateur'),
-            $request->input('telephone')
-        );
+        try {
+            $result = $this->mobileMoneyGateway->initiate(
+                $paiement,
+                $request->input('operateur'),
+                $request->input('telephone')
+            );
+        } catch (\Throwable $e) {
+            Log::error('Mobile money : initiation impossible', ['error' => $e->getMessage()]);
+
+            $paiement->update([
+                'status' => 'failed',
+                'failure_reason' => 'Initiation impossible chez le fournisseur',
+                'processed_at' => now(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Le paiement mobile money est momentanément indisponible, réessayez plus tard',
+            ], 502);
+        }
 
         $paiement->update([
             'provider_transaction_id' => $result['reference'],
@@ -219,6 +236,8 @@ class ApiPaiementsController extends Controller
             'success' => true,
             'message' => 'Paiement mobile money initié, en attente de confirmation',
             'reference' => $result['reference'],
+            // Page de paiement du fournisseur (Jèko) à ouvrir côté app, ou null.
+            'redirect_url' => $result['redirect_url'] ?? null,
             'paiement' => $paiement,
         ]);
     }
@@ -289,6 +308,66 @@ class ApiPaiementsController extends Controller
         };
 
         return response()->json(['status' => 'ok']);
+    }
+
+    /**
+     * Webhook Jèko (en-têtes Jeko-Signature / Jeko-Event). Seul ce webhook
+     * signé fait passer un paiement Jèko à « succeeded » ou « failed ».
+     */
+    public function jekoWebhook(Request $request, JekoMobileMoneyGateway $jeko)
+    {
+        $payload = $request->getContent();
+
+        if (!$jeko->verifyWebhookSignature($payload, $request->header('Jeko-Signature'))) {
+            Log::warning('Webhook Jèko : signature invalide');
+
+            return response()->json(['error' => 'Signature invalide'], 401);
+        }
+
+        // Seul l'événement de fin de transaction nous concerne ici.
+        if ($request->header('Jeko-Event') !== 'TRANSACTION_COMPLETED') {
+            return response()->json(['status' => 'ok']);
+        }
+
+        $data = json_decode($payload, true);
+
+        if (!is_array($data) || ($data['transactionType'] ?? null) !== 'payment') {
+            return response()->json(['status' => 'ok']);
+        }
+
+        $paiement = $this->trouverPaiementJeko($data);
+
+        if (!$paiement) {
+            Log::warning('Webhook Jèko : paiement introuvable', ['id' => $data['id'] ?? null]);
+
+            return response()->json(['status' => 'ok']);
+        }
+
+        // markPaiementSucceeded/Failed sont idempotents (Jèko peut réessayer).
+        match ($data['status'] ?? null) {
+            'success' => $this->markPaiementSucceeded($paiement),
+            'error' => $this->markPaiementFailed($paiement, 'Paiement Jèko refusé ou échoué'),
+            default => null,
+        };
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    private function trouverPaiementJeko(array $data): ?Paiements
+    {
+        if (!empty($data['id'])) {
+            $paiement = Paiements::where('provider_transaction_id', (string) $data['id'])->first();
+            if ($paiement) {
+                return $paiement;
+            }
+        }
+
+        // Repli : la référence Afrolia « AFR-<id_paiement>-XXXXXX », si Jèko la renvoie.
+        if (!empty($data['reference']) && preg_match('/^AFR-(\d+)-/', (string) $data['reference'], $m)) {
+            return Paiements::find((int) $m[1]);
+        }
+
+        return null;
     }
 
     private function markPaiementSucceeded(Paiements $paiement): void

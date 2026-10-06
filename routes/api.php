@@ -65,6 +65,7 @@ Route::get('avis/coiffeuse/{id_coiffeuse}', [ApiAvisController::class, 'getAvisB
 // l'app — authentifiés par vérification de signature, pas par jeton.
 Route::post('/stripe/webhook', [ApiPaiementsController::class, 'stripeWebhook']);
 Route::post('/mobile-money/webhook', [ApiPaiementsController::class, 'mobileMoneyWebhook']);
+Route::post('/jeko/webhook', [ApiPaiementsController::class, 'jekoWebhook']);
 
 /*
 |--------------------------------------------------------------------------

@@ -41,7 +41,20 @@ return [
     ],
 
     'mobile_money' => [
+        // 'generic' (en attente) ou 'jeko'
+        'driver' => env('MOBILE_MONEY_DRIVER', 'generic'),
         'webhook_secret' => env('MOBILE_MONEY_WEBHOOK_SECRET'),
+    ],
+
+    // Jèko Africa : clés dans le Dashboard Business (Paramètres → API & Webhooks).
+    // Ne jamais les mettre dans le code ni dans l'app mobile : uniquement ici.
+    'jeko' => [
+        'base_url' => env('JEKO_BASE_URL', 'https://api.jeko.africa/partner_api'),
+        'api_key' => env('JEKO_API_KEY'),
+        'api_key_id' => env('JEKO_API_KEY_ID'),
+        'store_id' => env('JEKO_STORE_ID'),
+        'webhook_secret' => env('JEKO_WEBHOOK_SECRET'),
+        'return_url_base' => env('JEKO_RETURN_URL_BASE', env('APP_URL')),
     ],
 
     'anthropic' => [

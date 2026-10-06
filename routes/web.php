@@ -17,6 +17,24 @@ use App\Http\Controllers\UtilisateursController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
+// Page affichée au client quand il revient de la page de paiement Jèko.
+// Elle ne prouve rien : le paiement n'est confirmé que par le webhook.
+Route::get('/paiement/retour', function (\Illuminate\Http\Request $request) {
+    $ok = $request->query('statut') === 'success';
+
+    return response(
+        '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        . '<title>Afrolia</title></head>'
+        . '<body style="font-family:sans-serif;text-align:center;padding:48px 24px">'
+        . '<h2>' . ($ok ? 'Merci, paiement reçu' : 'Paiement non abouti') . '</h2>'
+        . '<p>' . ($ok
+            ? 'Retournez dans l\'application Afrolia : la confirmation s\'affichera dans quelques secondes.'
+            : 'Retournez dans l\'application Afrolia pour réessayer.') . '</p>'
+        . '</body></html>'
+    );
+});
+
 Route::post('custom-login', [CustomAuthController::class, 'customLogin']);
 Route::get('logout', [CustomAuthController::class, 'signOut'])->name('logout');
 

@@ -9,13 +9,12 @@ use Illuminate\Support\Facades\DB;
 
 class AbonnementService
 {
-    public const FORMULES = ['gratuit', 'standard', 'premium'];
+    public const FORMULES = ['gratuit', 'premium'];
 
     public function prix(string $formule): float
     {
         return match ($formule) {
-            'standard' => $this->parametre('prix_abonnement_standard', 4500),
-            'premium' => $this->parametre('prix_abonnement_premium', 8000),
+            'premium' => $this->parametre('prix_abonnement_premium', 4500),
             default => 0.0,
         };
     }
@@ -23,8 +22,7 @@ class AbonnementService
     public function tauxCommission(string $formule): float
     {
         return match ($formule) {
-            'standard' => $this->parametre('commission_standard', 3) / 100,
-            'premium' => $this->parametre('commission_premium', 0) / 100,
+            'premium' => $this->parametre('commission_premium', 3) / 100,
             default => $this->parametre('commission_gratuit', 5) / 100,
         };
     }

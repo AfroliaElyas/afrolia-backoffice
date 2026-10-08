@@ -52,7 +52,6 @@ class StripeWebhookTest extends TestCase
         $service = DB::table('services')->insertGetId([
             'prix' => 10000,
             'minute' => 60,
-            'commission' => 1500,
             'id_utilisateur' => $coiffeur,
             'id_speciale' => $specialite,
             'created_at' => now(),

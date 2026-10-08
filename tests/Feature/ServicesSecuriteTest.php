@@ -23,7 +23,7 @@ class ServicesSecuriteTest extends TestCase
         ]);
         $service = Services::create([
             'prix' => 5000, 'minute' => 30, 'description' => 'Tresses simples',
-            'commission' => 250, 'id_utilisateur' => $coiffeuseA->id_user_app, 'id_speciale' => $specialite,
+            'id_utilisateur' => $coiffeuseA->id_user_app, 'id_speciale' => $specialite,
         ]);
 
         Sanctum::actingAs($coiffeuseA);

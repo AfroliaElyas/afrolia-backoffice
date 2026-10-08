@@ -24,12 +24,6 @@
                         <form action="{{ route('tarifs.update') }}" method="POST">
                             @csrf
                             <div class="mb-20">
-                                <label class="form-label fw-semibold text-sm mb-8">Commission par défaut (%)</label>
-                                <input type="number" step="0.01" name="commission_defaut" value="{{ $commissionDefaut }}"
-                                    class="form-control radius-8" required>
-                                <span class="text-secondary-light text-sm">Appliquée aux nouveaux services créés par les coiffeuses.</span>
-                            </div>
-                            <div class="mb-20">
                                 <label class="form-label fw-semibold text-sm mb-8">Frais d'annulation (%)</label>
                                 <input type="number" step="0.01" name="frais_annulation" value="{{ $fraisAnnulation }}"
                                     class="form-control radius-8" required>
@@ -53,7 +47,6 @@
                                         <th>Offres</th>
                                         <th>Prix moyen</th>
                                         <th>Fourchette</th>
-                                        <th>Commission moy.</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -63,10 +56,9 @@
                                             <td>{{ $t->nb_offres }}</td>
                                             <td>{{ number_format($t->prix_moyen, 0, ',', ' ') }} F</td>
                                             <td>{{ number_format($t->prix_min, 0, ',', ' ') }} - {{ number_format($t->prix_max, 0, ',', ' ') }} F</td>
-                                            <td>{{ number_format($t->commission_moyenne, 1) }}%</td>
                                         </tr>
                                     @empty
-                                        <tr><td colspan="5" class="text-center py-40 text-secondary-light">Aucun service enregistré.</td></tr>
+                                        <tr><td colspan="4" class="text-center py-40 text-secondary-light">Aucun service enregistré.</td></tr>
                                     @endforelse
                                 </tbody>
                             </table>

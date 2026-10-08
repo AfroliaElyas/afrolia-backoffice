@@ -211,7 +211,7 @@ class ApiReservationsController extends Controller
         $validated['prix_service'] = $service->prix;
 
         // La commission doit toujours refléter la formule d'abonnement
-        // actuelle de la coiffeuse (gratuit/standard/premium).
+        // actuelle de la coiffeuse (gratuit/premium).
         $coiffeuse = UsersApp::find($validated['id_coiffeur']);
         $taux = $coiffeuse
             ? $this->abonnements->tauxCommissionPourCoiffeuse($coiffeuse)

@@ -123,7 +123,7 @@ class ApiSalonController extends Controller
             // Pas de position transmise (permission refusée, première visite) :
             // on garde le tri par palier d'abonnement seul.
             $requete
-                ->orderByRaw("FIELD(users_app.formule_abonnement, 'premium', 'standard', 'gratuit')")
+                ->orderByRaw("FIELD(users_app.formule_abonnement, 'premium', 'gratuit')")
                 ->orderByRaw('moyenne_note DESC');
         }
 

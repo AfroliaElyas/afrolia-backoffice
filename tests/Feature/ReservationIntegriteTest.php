@@ -35,7 +35,7 @@ class ReservationIntegriteTest extends TestCase
         ]);
 
         return Services::create([
-            'prix' => $prix, 'minute' => $minute, 'description' => 'Test', 'commission' => 0,
+            'prix' => $prix, 'minute' => $minute, 'description' => 'Test',
             'id_utilisateur' => $idCoiffeur, 'id_speciale' => $specialite,
         ]);
     }

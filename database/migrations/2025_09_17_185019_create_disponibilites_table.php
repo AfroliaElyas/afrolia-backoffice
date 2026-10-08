@@ -29,11 +29,5 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('disponibilites');
-        Schema::table('disponibilites', function (Blueprint $table) {
-            $table->dropForeign(['id_utilisateur','id_day','id_time']);
-            $table->dropColumn('id_utilisateur');
-            $table->dropColumn('id_day');
-            $table->dropColumn('id_time');
-        });
     }
 };

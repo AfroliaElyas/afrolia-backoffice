@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Paiements;
 use App\Models\Reservations;
 use App\Models\UsersApp;
+use App\Services\MobileMoney\MobileMoneyGatewayInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
@@ -12,6 +14,30 @@ use Tests\TestCase;
 class ReservationCommissionTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * Depuis la correction qui bloque explicitement le connecteur Mobile
+     * Money générique (503, en attente de l'intégration Jèko), ce test a
+     * besoin d'un faux connecteur fonctionnel pour vérifier un aspect qui
+     * lui est indépendant : le serveur ignore le montant envoyé par le
+     * client et facture le montant réel de la réservation.
+     */
+    private function activerFauxConnecteurMobileMoney(): void
+    {
+        $faux = new class implements MobileMoneyGatewayInterface {
+            public function initiate(Paiements $paiement, string $operateur, string $telephone): array
+            {
+                return ['reference' => 'MM-TEST-FAKE', 'status' => 'pending'];
+            }
+
+            public function verifyWebhookSignature(string $payload, ?string $signature): bool
+            {
+                return true;
+            }
+        };
+
+        $this->app->instance(MobileMoneyGatewayInterface::class, $faux);
+    }
 
     private function creerCoiffeuse(string $formule): UsersApp
     {
@@ -131,6 +157,7 @@ class ReservationCommissionTest extends TestCase
 
     public function test_le_paiement_utilise_le_montant_reel_de_la_reservation_pas_celui_envoye_par_le_client(): void
     {
+        $this->activerFauxConnecteurMobileMoney();
         $coiffeuse = $this->creerCoiffeuse('premium');
         $client = $this->creerClient();
         $service = $this->creerService($coiffeuse->id_user_app, 10000);

@@ -13,6 +13,7 @@ use App\Services\AbonnementService;
 use App\Services\MobileMoney\MobileMoneyGatewayInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\PaymentIntent;
@@ -113,8 +114,8 @@ class ApiPaiementsController extends Controller
     {
         $rules = [
             'montant' => 'required|numeric',
-            'id_reservation' => 'required_without:id_commande|integer',
-            'id_commande' => 'required_without:id_reservation|integer',
+            'id_reservation' => 'required_without:id_commande|prohibits:id_commande|integer',
+            'id_commande' => 'required_without:id_reservation|prohibits:id_reservation|integer',
             'methode' => 'sometimes|string|in:stripe,mobile_money',
             'operateur' => 'required_if:methode,mobile_money|string|in:orange,mtn,moov',
             'telephone' => 'required_if:methode,mobile_money|string',
@@ -143,6 +144,14 @@ class ApiPaiementsController extends Controller
 
         if ((int) $payable->id_client !== (int) $request->user()->id_user_app) {
             return response()->json(['success' => false, 'message' => "$payableLabel non trouvée"], 404);
+        }
+
+        if ($payable->statut_paiement === 'paye') {
+            return response()->json(['success' => false, 'message' => 'Ce paiement a déjà été effectué'], 409);
+        }
+        $statut = $payable instanceof Reservations ? $payable->statut : $payable->statut_commande;
+        if (in_array($statut, ['annulee', 'terminee', 'no_show', 'livree'], true)) {
+            return response()->json(['success' => false, 'message' => 'Cette réservation ou commande ne peut plus être payée'], 409);
         }
 
         $paiementBase = $request->filled('id_reservation')
@@ -197,6 +206,13 @@ class ApiPaiementsController extends Controller
 
     private function storeMobileMoneyPaiement(Request $request, array $paiementBase, float $montantAutorise)
     {
+        if ($this->mobileMoneyGateway instanceof \App\Services\MobileMoney\GenericMobileMoneyGateway) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Le paiement Mobile Money est temporairement indisponible.',
+            ], 503);
+        }
+
         $paiement = Paiements::create($paiementBase + [
             'amount' => $montantAutorise,
             'currency' => 'XOF',
@@ -273,6 +289,14 @@ class ApiPaiementsController extends Controller
             return response()->json(['error' => 'Signature invalide'], 400);
         }
 
+        $validator = Validator::make($request->all(), [
+            'reference' => 'required|string',
+            'statut' => 'required|string|in:SUCCESS,FAILED,CANCELLED',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['error' => 'Notification de paiement invalide'], 422);
+        }
+
         $reference = $request->input('reference');
         $statut = $request->input('statut');
 
@@ -293,6 +317,14 @@ class ApiPaiementsController extends Controller
 
     private function markPaiementSucceeded(Paiements $paiement): void
     {
+        DB::transaction(function () use ($paiement) {
+            $locked = Paiements::whereKey($paiement->getKey())->lockForUpdate()->first();
+            if ($locked) $this->applyPaiementSucceeded($locked);
+        }, 3);
+    }
+
+    private function applyPaiementSucceeded(Paiements $paiement): void
+    {
         // Idempotence : un webhook peut être livré plusieurs fois par le fournisseur
         if ($paiement->status === 'succeeded') {
             return;
@@ -308,23 +340,19 @@ class ApiPaiementsController extends Controller
             return;
         }
 
-        $reservation = Reservations::find($paiement->id_reservation);
+        $reservation = Reservations::whereKey($paiement->id_reservation)->lockForUpdate()->first();
 
-        if (!$reservation) {
+        if (!$reservation || $reservation->statut_paiement === 'paye') {
             return;
         }
 
         $reservation->update(['statut_paiement' => 'paye']);
 
-        $coiffeuse = UsersApp::find($reservation->id_coiffeur);
-        $taux = $coiffeuse ? $this->abonnements->tauxCommissionPourCoiffeuse($coiffeuse) : $this->abonnements->tauxCommission('gratuit');
-
-        // Le montant facturé au client inclut déjà la commission de la
-        // plateforme (comme pour la boutique) : on l'en extrait pour
-        // obtenir le montant net qui revient à la coiffeuse.
+        // Utiliser les montants de la réservation : une modification de
+        // formule entre réservation et paiement ne doit pas changer le gain.
         $montant_brut = $paiement->amount;
-        $montant_net = $montant_brut / (1 + $taux);
-        $commission = $montant_brut - $montant_net;
+        $montant_net = $reservation->prix_service;
+        $commission = $reservation->montant_commission;
 
         Gains::create([
             'id_coiffeur' => $reservation->id_coiffeur,
@@ -338,9 +366,9 @@ class ApiPaiementsController extends Controller
 
     private function marquerCommandePayee(Paiements $paiement): void
     {
-        $commande = Commandes::find($paiement->id_commande);
+        $commande = Commandes::whereKey($paiement->id_commande)->lockForUpdate()->first();
 
-        if (!$commande) {
+        if (!$commande || $commande->statut_paiement === 'paye') {
             return;
         }
 
@@ -358,6 +386,14 @@ class ApiPaiementsController extends Controller
 
     private function markPaiementFailed(Paiements $paiement, string $raison): void
     {
+        DB::transaction(function () use ($paiement, $raison) {
+            $locked = Paiements::whereKey($paiement->getKey())->lockForUpdate()->first();
+            if ($locked) $this->applyPaiementFailed($locked, $raison);
+        }, 3);
+    }
+
+    private function applyPaiementFailed(Paiements $paiement, string $raison): void
+    {
         if (in_array($paiement->status, ['succeeded', 'failed', 'cancelled'], true)) {
             return;
         }
@@ -373,18 +409,20 @@ class ApiPaiementsController extends Controller
             return;
         }
 
-        $reservation = Reservations::find($paiement->id_reservation);
+        $reservation = Reservations::whereKey($paiement->id_reservation)->lockForUpdate()->first();
 
         // La réservation reste non payée (elle n'est pas annulée automatiquement,
         // le client peut retenter un paiement).
-        $reservation?->update(['statut_paiement' => 'echoue']);
+        if ($reservation && $reservation->statut_paiement !== 'paye') {
+            $reservation->update(['statut_paiement' => 'echoue']);
+        }
     }
 
     private function annulerCommandeEtRestituerStock(Paiements $paiement, string $raison): void
     {
-        $commande = Commandes::with('lignes')->find($paiement->id_commande);
+        $commande = Commandes::with('lignes')->whereKey($paiement->id_commande)->lockForUpdate()->first();
 
-        if (!$commande || $commande->statut_commande === 'annulee') {
+        if (!$commande || $commande->statut_commande === 'annulee' || $commande->statut_paiement === 'paye') {
             return;
         }
 

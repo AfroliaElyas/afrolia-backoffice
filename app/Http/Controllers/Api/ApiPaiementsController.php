@@ -11,13 +11,12 @@ use App\Models\Reservations;
 use App\Models\UsersApp;
 use App\Services\AbonnementService;
 use App\Services\MobileMoney\MobileMoneyGatewayInterface;
+use App\Services\Stripe\StripeGatewayInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Stripe\Exception\SignatureVerificationException;
-use Stripe\PaymentIntent;
-use Stripe\Stripe;
 use Stripe\Webhook;
 use UnexpectedValueException;
 
@@ -25,7 +24,8 @@ class ApiPaiementsController extends Controller
 {
     public function __construct(
         private readonly MobileMoneyGatewayInterface $mobileMoneyGateway,
-        private readonly AbonnementService $abonnements
+        private readonly AbonnementService $abonnements,
+        private readonly StripeGatewayInterface $stripeGateway
     ) {
     }
 
@@ -175,21 +175,34 @@ class ApiPaiementsController extends Controller
 
     private function storeStripePaiement(Request $request, array $paiementBase, float $montantAutorise)
     {
-        Stripe::setApiKey(config('services.stripe.secret'));
+        // Une nouvelle tentative (timeout réseau, écran relancé...) sur la
+        // même réservation/commande ne doit jamais créer un second
+        // PaymentIntent : si une tentative Stripe est encore en cours, on la
+        // réutilise plutôt que d'exposer un deuxième moyen de débiter le
+        // client pour le même achat.
+        $existant = Paiements::where($paiementBase)
+            ->where('payment_method', 'stripe')
+            ->where('status', 'pending')
+            ->latest('id_paiement')
+            ->first();
 
-        // 🔵 1 — Créer PaymentIntent
-        // XOF est une devise "zero-decimal" pour Stripe : le montant doit être
-        // transmis tel quel, sans le multiplier par 100 (contrairement à EUR/USD).
-        // https://docs.stripe.com/currencies#zero-decimal
-        $intent = PaymentIntent::create([
-            'amount' => $montantAutorise,
-            'currency' => 'xof',
-            'payment_method_types' => ['card'],
-        ]);
+        if ($existant && $existant->payment_intent_id) {
+            $intentExistant = $this->stripeGateway->retrievePaymentIntent($existant->payment_intent_id);
 
-        // 🔵 2 — Enregistrer le paiement (status = pending)
+            if (!in_array($intentExistant['status'], ['succeeded', 'canceled'], true)) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Paiement déjà initié, en attente de confirmation',
+                    'client_secret' => $intentExistant['client_secret'],
+                    'paiement' => $existant,
+                ]);
+            }
+        }
+
+        $intent = $this->stripeGateway->createPaymentIntent($montantAutorise);
+
         $paiement = Paiements::create($paiementBase + [
-            'payment_intent_id' => $intent->id,
+            'payment_intent_id' => $intent['id'],
             'amount' => $montantAutorise,
             'currency' => 'XOF',
             'payment_method' => 'stripe',
@@ -199,7 +212,7 @@ class ApiPaiementsController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Paiement enregistré avec succès',
-            'client_secret' => $intent->client_secret,
+            'client_secret' => $intent['client_secret'],
             'paiement' => $paiement
         ]);
     }

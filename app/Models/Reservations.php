@@ -17,6 +17,7 @@ class Reservations extends Model
         'id_service',
         'date_reservation',
         'heure_reservation',
+        'duree_minutes',
         'statut',
         'prix_service',
         'montant_commission',

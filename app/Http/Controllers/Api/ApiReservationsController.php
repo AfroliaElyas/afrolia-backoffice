@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Reservations;
+use App\Models\Services;
 use App\Models\UsersApp;
 use App\Services\AbonnementService;
 use Carbon\Carbon;
@@ -142,20 +143,75 @@ class ApiReservationsController extends Controller
             'id_service' => 'required|integer|exists:services,id_service',
             'date_reservation' => 'required|date',
             'heure_reservation' => 'required',
-            'prix_service' => 'required|numeric',
-            'montant_commission' => 'sometimes|numeric',
-            'montant_total' => 'sometimes|numeric',
             'methode_paiement' => 'required|string|in:stripe,mobile_money,cash',
             'notes' => 'nullable|string',
         ]);
 
+        // id_service doit réellement appartenir à id_coiffeur : sinon un
+        // client pourrait réserver le service d'une coiffeuse en se faisant
+        // facturer/compter sur une autre.
+        $service = Services::where('id_service', $validated['id_service'])
+            ->where('id_utilisateur', $validated['id_coiffeur'])
+            ->first();
+
+        if (!$service) {
+            return response()->json([
+                'success' => false,
+                'message' => "Ce service n'appartient pas à la coiffeuse indiquée",
+            ], 422);
+        }
+
+        try {
+            $debut = Carbon::parse($validated['date_reservation'] . ' ' . $validated['heure_reservation']);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => 'Date ou heure de réservation invalide'], 422);
+        }
+
+        if ($debut->isPast()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Impossible de réserver un créneau déjà passé',
+            ], 422);
+        }
+
+        // La durée est figée au moment de la réservation (comme le prix) :
+        // si la coiffeuse modifie ensuite la durée du service, les
+        // réservations déjà prises ne doivent pas changer rétroactivement.
+        $dureeMinutes = (int) $service->minute;
+        $fin = $debut->copy()->addMinutes($dureeMinutes);
+
+        // Un créneau qui chevauche une réservation existante (non annulée)
+        // de la même coiffeuse est refusé.
+        $chevauchement = Reservations::where('id_coiffeur', $validated['id_coiffeur'])
+            ->where('date_reservation', $validated['date_reservation'])
+            ->where('statut', '!=', 'annulee')
+            ->get()
+            ->contains(function ($existante) use ($debut, $fin) {
+                $debutExistant = Carbon::parse($existante->date_reservation . ' ' . $existante->heure_reservation);
+                $finExistant = $debutExistant->copy()->addMinutes((int) ($existante->duree_minutes ?? 60));
+
+                return $debut->lt($finExistant) && $debutExistant->lt($fin);
+            });
+
+        if ($chevauchement) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ce créneau chevauche une réservation déjà existante pour cette coiffeuse',
+            ], 409);
+        }
+
         // La réservation est toujours créée pour l'utilisateur authentifié,
         // jamais pour un id_client transmis par le client.
         $validated['id_client'] = $request->user()->id_user_app;
+        $validated['duree_minutes'] = $dureeMinutes;
+
+        // Le prix facturé est toujours celui réellement configuré par la
+        // coiffeuse sur ce service, jamais une valeur transmise par le
+        // client.
+        $validated['prix_service'] = $service->prix;
 
         // La commission doit toujours refléter la formule d'abonnement
-        // actuelle de la coiffeuse (gratuit/standard/premium) : on l'ignore
-        // si le client en envoie une et on la recalcule ici, jamais l'inverse.
+        // actuelle de la coiffeuse (gratuit/standard/premium).
         $coiffeuse = UsersApp::find($validated['id_coiffeur']);
         $taux = $coiffeuse
             ? $this->abonnements->tauxCommissionPourCoiffeuse($coiffeuse)

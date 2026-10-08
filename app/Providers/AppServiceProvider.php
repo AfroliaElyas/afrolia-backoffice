@@ -7,6 +7,8 @@ use App\Services\Ia\AnthropicClaudeClient;
 use App\Services\Ia\ClaudeClientInterface;
 use App\Services\MobileMoney\GenericMobileMoneyGateway;
 use App\Services\MobileMoney\MobileMoneyGatewayInterface;
+use App\Services\Stripe\RealStripeGateway;
+use App\Services\Stripe\StripeGatewayInterface;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,6 +24,10 @@ class AppServiceProvider extends ServiceProvider
             apiKey: config('services.anthropic.api_key'),
         ));
         $this->app->bind(ClaudeClientInterface::class, AnthropicClaudeClient::class);
+
+        $this->app->bind(StripeGatewayInterface::class, fn () => new RealStripeGateway(
+            secretKey: (string) config('services.stripe.secret'),
+        ));
     }
 
     /**

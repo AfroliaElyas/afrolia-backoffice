@@ -170,4 +170,63 @@ class StripeWebhookTest extends TestCase
         $this->assertSame('failed', $paiement->fresh()->status);
         $this->assertSame('echoue', Reservations::find($paiement->id_reservation)->statut_paiement);
     }
+
+    private function notifier(Paiements $paiement, string $type): void
+    {
+        $payload = json_encode([
+            'id' => 'evt_regression', 'type' => $type,
+            'data' => ['object' => ['id' => $paiement->payment_intent_id]],
+        ]);
+        $this->call('POST', '/api/stripe/webhook', [], [], [], [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_STRIPE_SIGNATURE' => $this->signerPayload($payload),
+        ], $payload)->assertStatus(200);
+    }
+
+    public function test_relivraison_du_webhook_ne_cree_pas_deux_gains(): void
+    {
+        $paiement = $this->creerReservationAvecPaiementPending();
+        $this->notifier($paiement, 'payment_intent.succeeded');
+        $this->notifier($paiement, 'payment_intent.succeeded');
+        $this->assertDatabaseCount('gains', 1);
+    }
+
+    public function test_changer_la_formule_ne_change_pas_le_gain_reserve(): void
+    {
+        $paiement = $this->creerReservationAvecPaiementPending();
+        $reservation = Reservations::find($paiement->id_reservation);
+        DB::table('users_app')->where('id_user_app', $reservation->id_coiffeur)
+            ->update(['formule_abonnement' => 'premium']);
+        $this->notifier($paiement, 'payment_intent.succeeded');
+        $gain = DB::table('gains')->where('id_reservation', $reservation->id_reservation)->first();
+        $this->assertEquals(10000, (float) $gain->montant_net);
+        $this->assertEquals(1500, (float) $gain->montant_commission);
+    }
+
+    public function test_echec_d_une_autre_tentative_ne_declasse_pas_la_reservation_payee(): void
+    {
+        $paiement = $this->creerReservationAvecPaiementPending();
+        $autre = Paiements::create([
+            'id_reservation' => $paiement->id_reservation,
+            'payment_intent_id' => 'pi_other_attempt', 'amount' => 11500,
+            'currency' => 'XOF', 'payment_method' => 'stripe', 'status' => 'pending',
+        ]);
+        $this->notifier($paiement, 'payment_intent.succeeded');
+        $this->notifier($autre, 'payment_intent.payment_failed');
+        $this->assertSame('paye', Reservations::find($paiement->id_reservation)->statut_paiement);
+        $this->assertDatabaseCount('gains', 1);
+    }
+
+    public function test_deux_notifications_de_succes_pour_une_reservation_ne_doublent_pas_le_gain(): void
+    {
+        $paiement = $this->creerReservationAvecPaiementPending();
+        $autre = Paiements::create([
+            'id_reservation' => $paiement->id_reservation,
+            'payment_intent_id' => 'pi_second_success', 'amount' => 11500,
+            'currency' => 'XOF', 'payment_method' => 'stripe', 'status' => 'pending',
+        ]);
+        $this->notifier($paiement, 'payment_intent.succeeded');
+        $this->notifier($autre, 'payment_intent.succeeded');
+        $this->assertDatabaseCount('gains', 1);
+    }
 }

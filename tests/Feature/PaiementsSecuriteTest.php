@@ -32,4 +32,16 @@ class PaiementsSecuriteTest extends TestCase
 
         $this->assertSame('pending', $paiement->fresh()->status);
     }
+
+    public function test_un_paiement_ne_peut_pas_cibler_deux_achats(): void
+    {
+        $client = UsersApp::create([
+            'name' => 'Client', 'last_name' => 'Test', 'phone' => '0700000031', 'password' => 'x', 'role' => 'user',
+        ]);
+        Sanctum::actingAs($client);
+        $this->postJson('/api/paiements', [
+            'montant' => 5000, 'id_reservation' => 1, 'id_commande' => 1,
+        ])->assertStatus(422);
+        $this->assertDatabaseCount('paiements', 0);
+    }
 }

@@ -14,7 +14,6 @@ class Services extends Model
         'prix',
         'minute',
         'description',
-        'commission',
         'id_utilisateur',
         'id_speciale',
     ];
@@ -28,7 +27,6 @@ class Services extends Model
     // côté Flutter (champs typés num). Même correctif que sur Produits::prix.
     protected $casts = [
         'prix' => 'float',
-        'commission' => 'float',
     ];
 
     public function utilisateur()

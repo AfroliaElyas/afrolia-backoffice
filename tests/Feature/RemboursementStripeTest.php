@@ -27,7 +27,7 @@ class RemboursementStripeTest extends TestCase
             'libelle' => 'Tresses', 'created_at' => now(), 'updated_at' => now(),
         ]);
         $service = DB::table('services')->insertGetId([
-            'prix' => 10000, 'minute' => 60, 'commission' => 500,
+            'prix' => 10000, 'minute' => 60,
             'id_utilisateur' => $coiffeuse->id_user_app, 'id_speciale' => $specialite,
             'created_at' => now(), 'updated_at' => now(),
         ]);

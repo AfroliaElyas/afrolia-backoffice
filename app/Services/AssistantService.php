@@ -25,10 +25,8 @@ class AssistantService
      */
     private function promptSysteme(): string
     {
-        $prixStandard = $this->formaterFcfa($this->abonnements->prix('standard'));
         $prixPremium = $this->formaterFcfa($this->abonnements->prix('premium'));
         $commissionGratuit = $this->formaterPourcentage($this->abonnements->tauxCommission('gratuit'));
-        $commissionStandard = $this->formaterPourcentage($this->abonnements->tauxCommission('standard'));
         $commissionPremium = $this->formaterPourcentage($this->abonnements->tauxCommission('premium'));
 
         return <<<PROMPT
@@ -41,7 +39,6 @@ class AssistantService
 
         Formules d'abonnement disponibles pour les coiffeuses :
         - Gratuite : 0 FCFA/mois, commission de {$commissionGratuit} sur les ventes et réservations.
-        - Standard : {$prixStandard}/mois, commission de {$commissionStandard}.
         - Premium : {$prixPremium}/mois, commission de {$commissionPremium}.
 
         Règles :

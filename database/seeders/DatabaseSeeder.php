@@ -22,7 +22,6 @@ class DatabaseSeeder extends Seeder
         // ]);
 
         DB::table('parametres')->insert([
-            ['cle' => 'commission_defaut', 'valeur' => '15', 'description' => 'Commission par défaut en % appliquée aux nouveaux services', 'created_at' => now(), 'updated_at' => now()],
             ['cle' => 'frais_annulation', 'valeur' => '0', 'description' => 'Frais d\'annulation en % du montant du service', 'created_at' => now(), 'updated_at' => now()],
         ]);
     }

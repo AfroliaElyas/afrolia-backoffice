@@ -15,7 +15,7 @@ class PreleverAbonnementsMensuels extends Command
     public function handle(AbonnementService $abonnements): int
     {
         $coiffeuses = UsersApp::where('role', 'hair')
-            ->whereIn('formule_abonnement', ['standard', 'premium'])
+            ->where('formule_abonnement', 'premium')
             ->whereNotNull('prochain_prelevement_le')
             ->where('prochain_prelevement_le', '<=', now())
             ->get();

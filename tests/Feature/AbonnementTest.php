@@ -54,17 +54,17 @@ class AbonnementTest extends TestCase
         $this->crediterGain($coiffeuse, 5000);
 
         Sanctum::actingAs($coiffeuse);
-        $response = $this->putJson("/api/abonnement/{$coiffeuse->id_user_app}", ['formule' => 'standard']);
+        $response = $this->putJson("/api/abonnement/{$coiffeuse->id_user_app}", ['formule' => 'premium']);
 
         $response->assertStatus(200);
 
         $coiffeuse->refresh();
-        $this->assertSame('standard', $coiffeuse->formule_abonnement);
+        $this->assertSame('premium', $coiffeuse->formule_abonnement);
         $this->assertNotNull($coiffeuse->prochain_prelevement_le);
 
         $this->assertDatabaseHas('abonnement_paiements', [
             'id_coiffeur' => $coiffeuse->id_user_app,
-            'formule' => 'standard',
+            'formule' => 'premium',
             'montant' => 4500,
             'statut' => 'reussi',
         ]);
@@ -76,7 +76,7 @@ class AbonnementTest extends TestCase
         $this->crediterGain($coiffeuse, 1000);
 
         Sanctum::actingAs($coiffeuse);
-        $response = $this->putJson("/api/abonnement/{$coiffeuse->id_user_app}", ['formule' => 'standard']);
+        $response = $this->putJson("/api/abonnement/{$coiffeuse->id_user_app}", ['formule' => 'premium']);
 
         $response->assertStatus(422);
 
@@ -84,7 +84,7 @@ class AbonnementTest extends TestCase
         $this->assertSame('gratuit', $coiffeuse->formule_abonnement);
         $this->assertDatabaseHas('abonnement_paiements', [
             'id_coiffeur' => $coiffeuse->id_user_app,
-            'formule' => 'standard',
+            'formule' => 'premium',
             'statut' => 'echec',
         ]);
     }
@@ -107,7 +107,7 @@ class AbonnementTest extends TestCase
         $this->assertDatabaseHas('abonnement_paiements', [
             'id_coiffeur' => $coiffeuse->id_user_app,
             'formule' => 'premium',
-            'montant' => 8000,
+            'montant' => 4500,
             'statut' => 'reussi',
         ]);
     }
@@ -118,7 +118,7 @@ class AbonnementTest extends TestCase
         $this->crediterGain($coiffeuse, 1000);
 
         $coiffeuse->update([
-            'formule_abonnement' => 'standard',
+            'formule_abonnement' => 'premium',
             'prochain_prelevement_le' => now()->subDay(),
         ]);
 
@@ -135,7 +135,7 @@ class AbonnementTest extends TestCase
         $this->crediterGain($coiffeuse, 10000);
 
         $coiffeuse->update([
-            'formule_abonnement' => 'standard',
+            'formule_abonnement' => 'premium',
             'prochain_prelevement_le' => now()->addDays(10),
         ]);
 
@@ -173,8 +173,8 @@ class AbonnementTest extends TestCase
         ]);
 
         $response->assertStatus(201);
-        // Formule Premium => commission de 0 %.
-        $response->assertJsonPath('data.montant_commission', 0);
-        $response->assertJsonPath('data.montant_total', 5000);
+        // Formule Premium => commission de 3 %.
+        $response->assertJsonPath('data.montant_commission', 150);
+        $response->assertJsonPath('data.montant_total', 5150);
     }
 }

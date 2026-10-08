@@ -48,7 +48,6 @@ class ApiServicesController extends Controller
             '*.prix' => 'required|numeric',
             '*.minute' => 'required|integer',
             '*.description' => 'required|string',
-            '*.commission' => 'required|numeric',
             '*.id_speciale' => 'required|integer|exists:specialites,id_specialite',
         ];
 
@@ -74,7 +73,6 @@ class ApiServicesController extends Controller
                 'prix' => $serviceData['prix'],
                 'minute' => $serviceData['minute'],
                 'description' => $serviceData['description'],
-                'commission' => $serviceData['commission'],
                 'id_speciale' => $serviceData['id_speciale'],
             ]);
         }
@@ -111,7 +109,6 @@ class ApiServicesController extends Controller
             'prix' => 'sometimes|required|numeric',
             'minute' => 'sometimes|required|integer',
             'description' => 'sometimes|required|string',
-            'commission' => 'sometimes|required|numeric',
             'id_speciale' => 'sometimes|required|integer|exists:specialites,id_specialite',
         ];
 

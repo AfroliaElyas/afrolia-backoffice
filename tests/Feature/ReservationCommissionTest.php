@@ -73,7 +73,6 @@ class ReservationCommissionTest extends TestCase
         return DB::table('services')->insertGetId([
             'prix' => $prix,
             'minute' => 60,
-            'commission' => $prix * 0.15, // valeur figée à la création du service, volontairement ignorée par la réservation
             'id_utilisateur' => $idCoiffeur,
             'id_speciale' => $specialite,
             'created_at' => now(),
@@ -117,25 +116,6 @@ class ReservationCommissionTest extends TestCase
         $response->assertJsonPath('data.montant_total', 10500);
     }
 
-    public function test_la_commission_reservation_reflete_la_formule_standard(): void
-    {
-        $coiffeuse = $this->creerCoiffeuse('standard');
-        $client = $this->creerClient();
-        $service = $this->creerService($coiffeuse->id_user_app, 10000);
-
-        Sanctum::actingAs($client);
-        $response = $this->postJson('/api/reservations', $this->corpsReservation(
-            $client->id_user_app,
-            $coiffeuse->id_user_app,
-            $service,
-            10000
-        ));
-
-        $response->assertStatus(201);
-        $response->assertJsonPath('data.montant_commission', 300);
-        $response->assertJsonPath('data.montant_total', 10300);
-    }
-
     public function test_la_commission_reservation_reflete_la_formule_premium(): void
     {
         $coiffeuse = $this->creerCoiffeuse('premium');
@@ -151,8 +131,8 @@ class ReservationCommissionTest extends TestCase
         ));
 
         $response->assertStatus(201);
-        $response->assertJsonPath('data.montant_commission', 0);
-        $response->assertJsonPath('data.montant_total', 10000);
+        $response->assertJsonPath('data.montant_commission', 300);
+        $response->assertJsonPath('data.montant_total', 10300);
     }
 
     public function test_le_paiement_utilise_le_montant_reel_de_la_reservation_pas_celui_envoye_par_le_client(): void
@@ -171,7 +151,8 @@ class ReservationCommissionTest extends TestCase
         ));
 
         $idReservation = $creation->json('data.id_reservation');
-        $this->assertSame(10000, $creation->json('data.montant_total'));
+        // Formule Premium (3 %) : 10000 + 300 de commission.
+        $this->assertSame(10300, $creation->json('data.montant_total'));
 
         // Le client envoie un montant totalement différent (ex. calcul local
         // périmé à 15 %, ou tentative de manipulation) : le serveur doit
@@ -188,10 +169,10 @@ class ReservationCommissionTest extends TestCase
 
         $this->assertDatabaseHas('paiements', [
             'id_reservation' => $idReservation,
-            'amount' => 10000,
+            'amount' => 10300,
         ]);
 
         $reservation = Reservations::find($idReservation);
-        $this->assertEquals(10000, (float) $reservation->montant_total);
+        $this->assertEquals(10300, (float) $reservation->montant_total);
     }
 }

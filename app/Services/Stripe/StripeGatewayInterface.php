@@ -19,4 +19,11 @@ interface StripeGatewayInterface
      * @return array{id: string, client_secret: string, status: string}
      */
     public function retrievePaymentIntent(string $paymentIntentId): array;
+
+    /**
+     * Rembourse (totalement ou partiellement) un paiement déjà réussi.
+     *
+     * @return array{id: string, status: string}
+     */
+    public function refund(string $paymentIntentId, float $montant): array;
 }

@@ -2,12 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Stripe\StripeGatewayInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class RemboursementController extends Controller
 {
+    public function __construct(private readonly StripeGatewayInterface $stripeGateway)
+    {
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -86,7 +92,10 @@ class RemboursementController extends Controller
     }
 
     /**
-     * Traiter un remboursement (marquer comme remboursé).
+     * Traiter un remboursement : rembourse réellement le paiement auprès du
+     * prestataire avant de marquer la réservation comme remboursée — ne
+     * jamais se contenter de changer le statut en base sans que l'argent
+     * soit réellement retourné au client.
      */
     public function traiter(string $id)
     {
@@ -96,18 +105,49 @@ class RemboursementController extends Controller
             return back()->withErrors(['Réservation introuvable.']);
         }
 
+        $paiement = DB::table('paiements')
+            ->where('id_reservation', $id)
+            ->where('status', 'succeeded')
+            ->latest('id_paiement')
+            ->first();
+
+        if (!$paiement) {
+            return back()->withErrors(['Aucun paiement réussi trouvé pour cette réservation.']);
+        }
+
+        if ($paiement->payment_method === 'stripe') {
+            if (!$paiement->payment_intent_id) {
+                return back()->withErrors(['Ce paiement Stripe ne référence aucun PaymentIntent, remboursement impossible automatiquement.']);
+            }
+
+            try {
+                $this->stripeGateway->refund($paiement->payment_intent_id, (float) $paiement->amount);
+            } catch (\Throwable $e) {
+                Log::error('Échec du remboursement Stripe', ['id_paiement' => $paiement->id_paiement, 'erreur' => $e->getMessage()]);
+
+                return back()->withErrors(['Le remboursement Stripe a échoué : ' . $e->getMessage()]);
+            }
+        } else {
+            // Mobile Money : aucune intégration réelle n'existe encore
+            // (voir GenericMobileMoneyGateway) — impossible de rembourser
+            // automatiquement tant que Jèko n'est pas branché.
+            return back()->withErrors([
+                'Ce paiement a été effectué par Mobile Money : aucun remboursement automatique n\'est disponible pour le moment. Contactez le client et traitez le remboursement directement avec l\'opérateur.',
+            ]);
+        }
+
         DB::table('reservations')
             ->where('id_reservation', $id)
             ->update(['statut_paiement' => 'rembourse']);
 
         DB::table('paiements')
-            ->where('id_reservation', $id)
+            ->where('id_paiement', $paiement->id_paiement)
             ->update([
                 'status'       => 'refunded',
                 'processed_at' => now(),
             ]);
 
-        return back()->with('succes', 'Le remboursement a été traité.');
+        return back()->with('succes', 'Le remboursement a été traité et le client remboursé sur Stripe.');
     }
 
     /**

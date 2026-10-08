@@ -3,6 +3,7 @@
 namespace App\Services\Stripe;
 
 use Stripe\PaymentIntent;
+use Stripe\Refund;
 use Stripe\Stripe;
 
 class RealStripeGateway implements StripeGatewayInterface
@@ -32,6 +33,20 @@ class RealStripeGateway implements StripeGatewayInterface
         Stripe::setApiKey($this->secretKey);
 
         return $this->versTableau(PaymentIntent::retrieve($paymentIntentId));
+    }
+
+    public function refund(string $paymentIntentId, float $montant): array
+    {
+        Stripe::setApiKey($this->secretKey);
+
+        // Même règle que pour la création : XOF est une devise
+        // zéro-décimale, le montant est transmis tel quel.
+        $refund = Refund::create([
+            'payment_intent' => $paymentIntentId,
+            'amount' => $montant,
+        ]);
+
+        return ['id' => $refund->id, 'status' => $refund->status];
     }
 
     private function versTableau(PaymentIntent $intent): array

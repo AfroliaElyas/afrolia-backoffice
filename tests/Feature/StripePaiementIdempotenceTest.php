@@ -51,6 +51,11 @@ class StripePaiementIdempotenceTest extends TestCase
                     'status' => $this->statutAuRetrieve,
                 ];
             }
+
+            public function refund(string $paymentIntentId, float $montant): array
+            {
+                return ['id' => 're_fake', 'status' => 'succeeded'];
+            }
         };
 
         $this->app->instance(StripeGatewayInterface::class, $faux);

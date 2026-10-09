@@ -10,7 +10,14 @@ interface MobileMoneyGatewayInterface
      * Démarre une collecte auprès de l'opérateur et renvoie une référence
      * de transaction à stocker sur le paiement (provider_transaction_id).
      *
-     * @return array{reference: string, status: string}
+     * redirect_url et jeko_payment_request_id sont spécifiques aux
+     * connecteurs qui, comme Jèko, fonctionnent par redirection : le
+     * premier est l'URL vers laquelle rediriger la cliente/le client pour
+     * finaliser le paiement, le second sert à interroger le statut plus
+     * tard (voir JekoGateway::verifierStatut). Absents/null pour un
+     * connecteur qui n'en a pas besoin.
+     *
+     * @return array{reference: string, status: string, redirect_url?: ?string, jeko_payment_request_id?: ?string}
      */
     public function initiate(Paiements $paiement, string $operateur, string $telephone): array;
 
@@ -18,4 +25,16 @@ interface MobileMoneyGatewayInterface
      * Vérifie l'authenticité d'une notification webhook reçue de l'agrégateur.
      */
     public function verifyWebhookSignature(string $payload, ?string $signature): bool;
+
+    /**
+     * Rembourse réellement un paiement Mobile Money vers son numéro
+     * d'origine. Doit lever une exception si l'opération n'a pas pu être
+     * effectuée (connecteur non configuré, numéro/opérateur invalide,
+     * refus du fournisseur) — jamais prétendre un remboursement qui n'a
+     * pas eu lieu.
+     *
+     * @param array{nom: string, telephone: string, operateur: string} $destinataire
+     * @return array{id: ?string, status: string}
+     */
+    public function refund(array $destinataire, float $montant, string $reference): array;
 }

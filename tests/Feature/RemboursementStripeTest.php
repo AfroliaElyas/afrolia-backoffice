@@ -6,6 +6,7 @@ use App\Models\Paiements;
 use App\Models\Reservations;
 use App\Models\User;
 use App\Models\UsersApp;
+use App\Services\MobileMoney\MobileMoneyGatewayInterface;
 use App\Services\Stripe\StripeGatewayInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +16,7 @@ class RemboursementStripeTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function creerReservationAnnuleeEtPayee(string $methode = 'stripe'): Reservations
+    private function creerReservationAnnuleeEtPayee(string $methode = 'stripe', array $mobileMoney = []): Reservations
     {
         $coiffeuse = UsersApp::create([
             'name' => 'Coiffeuse', 'last_name' => 'Test', 'phone' => '0700000070', 'password' => 'x', 'role' => 'hair',
@@ -53,6 +54,8 @@ class RemboursementStripeTest extends TestCase
             'amount' => 10500,
             'currency' => 'XOF',
             'payment_method' => $methode,
+            'mobile_money_operateur' => $mobileMoney['operateur'] ?? null,
+            'mobile_money_telephone' => $mobileMoney['telephone'] ?? null,
             'status' => 'succeeded',
         ]);
 
@@ -135,10 +138,93 @@ class RemboursementStripeTest extends TestCase
         ]);
     }
 
-    public function test_un_paiement_mobile_money_n_est_pas_rembourse_automatiquement(): void
+    public function test_un_paiement_mobile_money_sans_numero_d_origine_n_est_pas_rembourse_automatiquement(): void
     {
         $admin = User::factory()->create();
         $reservation = $this->creerReservationAnnuleeEtPayee('mobile_money');
+
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/traiter")
+            ->assertRedirect();
+
+        $this->assertSame('paye', $reservation->fresh()->statut_paiement);
+        $this->assertDatabaseHas('paiements', [
+            'id_reservation' => $reservation->id_reservation,
+            'status' => 'succeeded',
+        ]);
+    }
+
+    public function test_un_paiement_mobile_money_est_reellement_rembourse_via_jeko(): void
+    {
+        $faux = new class implements MobileMoneyGatewayInterface {
+            public ?array $dernierDestinataire = null;
+            public ?float $dernierMontant = null;
+
+            public function initiate(\App\Models\Paiements $paiement, string $operateur, string $telephone): array
+            {
+                return ['reference' => 'MM-X', 'status' => 'pending'];
+            }
+
+            public function verifyWebhookSignature(string $payload, ?string $signature): bool
+            {
+                return false;
+            }
+
+            public function refund(array $destinataire, float $montant, string $reference): array
+            {
+                $this->dernierDestinataire = $destinataire;
+                $this->dernierMontant = $montant;
+
+                return ['id' => 'wth_test', 'status' => 'pending'];
+            }
+        };
+        $this->app->instance(MobileMoneyGatewayInterface::class, $faux);
+
+        $admin = User::factory()->create();
+        $reservation = $this->creerReservationAnnuleeEtPayee('mobile_money', [
+            'operateur' => 'wave',
+            'telephone' => '+2250701234567',
+        ]);
+
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/traiter")
+            ->assertRedirect();
+
+        $this->assertSame('+2250701234567', $faux->dernierDestinataire['telephone']);
+        $this->assertSame('wave', $faux->dernierDestinataire['operateur']);
+        $this->assertSame(10500.0, $faux->dernierMontant);
+        $this->assertSame('rembourse', $reservation->fresh()->statut_paiement);
+        $this->assertDatabaseHas('paiements', [
+            'id_reservation' => $reservation->id_reservation,
+            'status' => 'refunded',
+        ]);
+    }
+
+    public function test_un_echec_du_transfert_jeko_ne_marque_pas_le_remboursement_comme_fait(): void
+    {
+        $faux = new class implements MobileMoneyGatewayInterface {
+            public function initiate(\App\Models\Paiements $paiement, string $operateur, string $telephone): array
+            {
+                return ['reference' => 'MM-X', 'status' => 'pending'];
+            }
+
+            public function verifyWebhookSignature(string $payload, ?string $signature): bool
+            {
+                return false;
+            }
+
+            public function refund(array $destinataire, float $montant, string $reference): array
+            {
+                throw new \RuntimeException('Échec du transfert Jèko : 400 insufficient_balance');
+            }
+        };
+        $this->app->instance(MobileMoneyGatewayInterface::class, $faux);
+
+        $admin = User::factory()->create();
+        $reservation = $this->creerReservationAnnuleeEtPayee('mobile_money', [
+            'operateur' => 'wave',
+            'telephone' => '+2250701234567',
+        ]);
 
         $this->actingAs($admin)
             ->post("/remboursements/{$reservation->id_reservation}/traiter")

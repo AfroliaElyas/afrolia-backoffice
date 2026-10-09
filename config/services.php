@@ -44,18 +44,20 @@ return [
         'webhook_secret' => env('MOBILE_MONEY_WEBHOOK_SECRET'),
     ],
 
-    // Agrégateur Mobile Money retenu (Jèko). En-têtes d'authentification et
-    // signature des webhooks confirmés (X-API-KEY / X-API-KEY-ID,
-    // HMAC-SHA256 hexadécimal du corps brut via l'en-tête Jeko-Signature) ;
-    // base_url, store_id, le secret de webhook et le format exact du corps
-    // de chaque événement restent à documenter avant une implémentation
-    // complète de JekoGateway (voir App\Services\MobileMoney\JekoGateway).
+    // Agrégateur Mobile Money retenu (Jèko). Voir App\Services\MobileMoney\JekoGateway
+    // pour l'implémentation complète (création de paiement, vérification de
+    // statut, vérification de signature webhook).
     'jeko' => [
         'api_key' => env('JEKO_API_KEY'),
         'api_key_id' => env('JEKO_API_KEY_ID'),
         'store_id' => env('JEKO_STORE_ID'),
         'webhook_secret' => env('JEKO_WEBHOOK_SECRET'),
-        'base_url' => env('JEKO_BASE_URL'),
+        'base_url' => env('JEKO_BASE_URL', 'https://api.jeko.africa'),
+        // Liens profonds (deep links) de l'application mobile vers lesquels
+        // Jèko redirige après paiement : pas besoin d'hébergement web public
+        // pour ceux-ci (seul le webhook a besoin d'une URL HTTPS publique).
+        'success_url' => env('JEKO_SUCCESS_URL', 'afrolia://paiement/succes'),
+        'error_url' => env('JEKO_ERROR_URL', 'afrolia://paiement/echec'),
     ],
 
     'anthropic' => [

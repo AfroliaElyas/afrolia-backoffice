@@ -34,6 +34,11 @@ class ReservationCommissionTest extends TestCase
             {
                 return true;
             }
+
+            public function refund(array $destinataire, float $montant, string $reference): array
+            {
+                return ['id' => 'wth_fake', 'status' => 'pending'];
+            }
         };
 
         $this->app->instance(MobileMoneyGatewayInterface::class, $faux);

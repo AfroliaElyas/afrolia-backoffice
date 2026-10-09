@@ -35,4 +35,11 @@ class GenericMobileMoneyGateway implements MobileMoneyGatewayInterface
 
         return hash_equals($expected, $signature);
     }
+
+    public function refund(array $destinataire, float $montant, string $reference): array
+    {
+        throw new \RuntimeException(
+            'Remboursement Mobile Money indisponible : aucun agrégateur Mobile Money n\'est configuré.'
+        );
+    }
 }

@@ -8,10 +8,14 @@ use App\Models\Paiements;
  * Connecteur Jèko (agrégateur Mobile Money retenu pour Afrolia).
  *
  * Vérification de signature et lecture des webhooks confirmées par la
- * documentation Jèko ("Introduction aux Webhooks" et "Événements") et
- * implémentées ci-dessous : chaque livraison est signée par un HMAC-SHA256
- * du corps brut (non décodé), encodé en hexadécimal, placé dans l'en-tête
- * Jeko-Signature ; l'en-tête Jeko-Event dit quel type d'événement est reçu.
+ * documentation Jèko ("Introduction aux Webhooks", "Intégration des
+ * Webhooks" et "Événements") et implémentées ci-dessous : chaque livraison
+ * est signée par un HMAC-SHA256 du corps brut (non décodé), encodé en
+ * hexadécimal, placé dans l'en-tête Jeko-Signature ; l'en-tête Jeko-Event
+ * dit quel type d'événement est reçu. Le secret de webhook (différent des
+ * clés API) est copié depuis le Dashboard Business, Paramètres > API &
+ * Webhooks, une fois l'URL (HTTPS obligatoire) enregistrée là-bas — une
+ * seule URL par magasin, une pour l'entreprise.
  *
  * initiate() n'est volontairement PAS implémentable pour l'instant : la
  * documentation de création d'un paiement (Jèko Checkout) n'a pas encore
@@ -69,11 +73,20 @@ class JekoGateway implements MobileMoneyGatewayInterface
      * si ce modèle change). Ce corps est la transaction elle-même, sans
      * champ "event" (contrairement aux événements d'escrow).
      *
-     * `reference` vient de transactionDetails.reference : candidat le plus
-     * probable pour retrouver notre propre Paiements, mais non confirmé
-     * tant que la doc Jèko Checkout (qui dit ce que nous envoyons à la
-     * création) n'est pas fournie — ne pas l'utiliser pour faire
-     * correspondre un paiement sans cette confirmation.
+     * D'après "Intégration des Webhooks" : TRANSACTION_COMPLETED part pour
+     * un encaissement réussi (sauf escrow → ESCROW_HELD à la place), un
+     * reversement réussi, ET un reversement échoué (statut "error" dans ce
+     * cas). Un encaissement qui échoue n'envoie en revanche AUCUN webhook —
+     * sa détection demandera d'interroger la demande de paiement
+     * directement (voir la page "Gérer les échecs", pas encore fournie),
+     * pas seulement d'attendre une notification.
+     *
+     * `reference` vient de transactionDetails.reference (toujours décrit
+     * comme optionnel) : candidat le plus probable pour retrouver notre
+     * propre Paiements, mais non confirmé tant que la doc Jèko Checkout
+     * (qui dit ce que nous envoyons à la création) n'est pas fournie — ne
+     * pas l'utiliser pour faire correspondre un paiement sans cette
+     * confirmation.
      *
      * @return array{
      *   id_transaction_jeko: string,

@@ -53,6 +53,33 @@ class JekoGatewayEvenementsTest extends TestCase
         $this->assertSame('01a0b1c2-d3e4-7f89-a0b1-c2d3e4f5a6b7', $resultat['store_id']);
     }
 
+    public function test_un_reversement_echoue_envoie_bien_transaction_completed_avec_statut_error(): void
+    {
+        $gateway = new JekoGateway('peu importe ici');
+
+        // D'après "Intégration des Webhooks" : contrairement à un paiement
+        // qui échoue (aucun webhook), un reversement qui échoue envoie bien
+        // TRANSACTION_COMPLETED, avec transactionType=transfer et status=error.
+        $corps = json_decode(<<<'JSON'
+        {
+          "id": "txn_9999999999",
+          "amount": { "amount": 5000, "currency": "XOF" },
+          "fees": { "amount": 0, "currency": "XOF" },
+          "status": "error",
+          "paymentMethod": "orange",
+          "transactionType": "transfer",
+          "storeId": "01a0b1c2-d3e4-7f89-a0b1-c2d3e4f5a6b7",
+          "transactionDetails": { "reference": "REV-2024-001" }
+        }
+        JSON, true);
+
+        $resultat = $gateway->interpreterTransactionCompletee($corps);
+
+        $this->assertSame('error', $resultat['statut']);
+        $this->assertSame('transfer', $resultat['type']);
+        $this->assertSame('REV-2024-001', $resultat['reference']);
+    }
+
     public function test_un_corps_incomplet_ne_declenche_aucune_erreur(): void
     {
         $gateway = new JekoGateway('peu importe ici');

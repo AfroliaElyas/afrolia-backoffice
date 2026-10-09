@@ -61,9 +61,6 @@ Route::middleware('auth')->group(function () {
     Route::get('view-profile', function () {
         return view('users.view-profile');
     });
-    Route::get('conditions', function () {
-        return view('conditions.condition');
-    });
     //{{ url()->previous() }}
     // rapports
     Route::get('transaction', function () {

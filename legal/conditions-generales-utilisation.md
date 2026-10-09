@@ -72,4 +72,4 @@ Ces conditions peuvent être mises à jour. Toute modification importante vous s
 
 ## 13. Nous contacter
 
-[E-mail] — [Téléphone] — [Adresse]
+[E-mail à venir] — [Téléphone, optionnel]

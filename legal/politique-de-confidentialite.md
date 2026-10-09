@@ -2,7 +2,7 @@
 
 > **BROUILLON — ne pas publier tel quel.** Ce texte a été écrit à partir des fonctionnalités réelles de l'application (voir le code), mais doit être relu et validé par toi, et idéalement par un professionnel du droit, avant d'être montré à une seule cliente ou coiffeuse. Les informations entre crochets `[...]` sont des informations sur l'entreprise que je n'ai pas et que tu dois compléter ou corriger.
 >
-> **Pourquoi ce document existe** : l'ancien contenu trouvé dans le projet (page `/conditions` du back-office, supprimée dans ce même changement) décrivait une application de pharmacie — médicaments, pharmacies partenaires, portefeuille électronique — avec le nom "Afrolia Expertise SARL" et l'e-mail `infos@pharma-consults.com`. Tu as confirmé que **Afrolia Expertise SARL est bien le vrai nom de l'entreprise** — réutilisé ci-dessous. L'adresse et l'e-mail restent entre crochets : l'e-mail `pharma-consults.com` ne peut pas être le bon (domaine d'une autre activité), et je préfère te laisser confirmer l'adresse plutôt que de supposer qu'elle est correcte elle aussi.
+> **Pourquoi ce document existe** : l'ancien contenu trouvé dans le projet (page `/conditions` du back-office, supprimée dans ce même changement) décrivait une application de pharmacie — médicaments, pharmacies partenaires, portefeuille électronique — avec le nom "Afrolia Expertise SARL" et l'e-mail `infos@pharma-consults.com`. Tu as confirmé que **Afrolia Expertise SARL est bien le vrai nom de l'entreprise** — réutilisé ci-dessous. L'adresse trouvée dans l'ancien texte n'était pas la bonne non plus (tu ne sais pas d'où elle venait) : retirée. Dès que tu as créé l'e-mail de contact d'Afrolia, envoie-le-moi pour que je le mette ici.
 
 **Date d'effet :** [à compléter]
 
@@ -10,9 +10,8 @@
 
 **Afrolia Expertise SARL**, éditrice de l'application Afrolia, met en relation des clientes et des coiffeuses/salons de coiffure en Côte d'Ivoire.
 
-- **Siège social :** [adresse complète — confirmer si "537, Rue D29 – Abidjan" est correct]
-- **Contact pour toute question sur vos données :** [e-mail dédié — pas pharma-consults.com]
-- **Téléphone :** [numéro]
+- **Contact pour toute question sur vos données :** [e-mail dédié — à venir]
+- **Téléphone :** [numéro, optionnel]
 
 ## 2. Quelles données nous collectons
 
@@ -82,4 +81,4 @@ Nous pouvons mettre à jour ce document. Toute modification importante vous sera
 
 ## 10. Nous contacter
 
-[E-mail] — [Téléphone] — [Adresse]
+[E-mail à venir] — [Téléphone, optionnel]

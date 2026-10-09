@@ -4,14 +4,19 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\UsersApp;
+use App\Services\Sms\GenericSmsGateway;
+use App\Services\Sms\SmsGatewayInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class ApiUtilisateursController extends Controller
 {
+    public function __construct(private readonly SmsGatewayInterface $smsGateway)
+    {
+    }
+
     public function login(Request $request)
     {
         $rules = [
@@ -244,19 +249,34 @@ class ApiUtilisateursController extends Controller
             ], 422);
         }
 
+        // Tant qu'aucun fournisseur SMS réel n'est branché, le code ne
+        // peut atteindre personne : refuser explicitement plutôt que de
+        // prétendre qu'un SMS a été envoyé (même principe que le 503 du
+        // connecteur Mobile Money générique).
+        if ($this->smsGateway instanceof GenericSmsGateway) {
+            return response()->json([
+                'success' => false,
+                'message' => "L'envoi de SMS est temporairement indisponible.",
+            ], 503);
+        }
+
         $utilisateur = UsersApp::where('phone', $request->phone)->first();
 
         // Générer un OTP aléatoire, valable un temps limité (voir
         // resetPasswordWithOtp) : un code qui traîne dans un log ou un SMS
         // ne doit pas rester utilisable indéfiniment.
         $otp = rand(100000, 999999);
+
+        if (!$this->smsGateway->envoyer($utilisateur->phone, "Votre code Afrolia : {$otp}")) {
+            return response()->json([
+                'success' => false,
+                'message' => "L'envoi du SMS a échoué, veuillez réessayer.",
+            ], 503);
+        }
+
         $utilisateur->otp = $otp;
         $utilisateur->otp_created_at = now();
         $utilisateur->save();
-
-        // TODO : Envoyer le code OTP via SMS
-        // Exemple de log
-        Log::info("OTP pour {$utilisateur->phone} : $otp");
 
         return response()->json([
             'success' => true,

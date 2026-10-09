@@ -1,6 +1,6 @@
 # Conditions Générales d'Utilisation — Afrolia
 
-> **BROUILLON — ne pas publier tel quel.** Comme pour la politique de confidentialité, ce texte doit être relu, complété (informations entre crochets `[...]`) et idéalement validé par un professionnel du droit avant d'être montré à une utilisatrice. Il décrit le fonctionnement réel de l'application tel qu'il existe aujourd'hui dans le code.
+> **BROUILLON — ne pas publier tel quel.** Comme pour la politique de confidentialité, ce texte doit être relu, complété (informations entre crochets `[...]`) et idéalement validé par un professionnel du droit avant d'être montré à une utilisatrice. Il décrit le fonctionnement réel de l'application tel qu'il existe aujourd'hui dans le code. Raison sociale confirmée : Afrolia Expertise SARL.
 
 **Date d'effet :** [à compléter]
 
@@ -56,7 +56,7 @@ Afrolia se réserve le droit de suspendre ou de fermer un compte en cas de non-r
 
 ## 9. Propriété intellectuelle
 
-L'application, son contenu et sa marque appartiennent à [nom de l'entreprise]. Les avis, photos et descriptions publiés par les utilisatrices restent leur propriété, mais vous nous autorisez à les afficher dans l'application.
+L'application, son contenu et sa marque appartiennent à Afrolia Expertise SARL. Les avis, photos et descriptions publiés par les utilisatrices restent leur propriété, mais vous nous autorisez à les afficher dans l'application.
 
 ## 10. Limitation de responsabilité
 

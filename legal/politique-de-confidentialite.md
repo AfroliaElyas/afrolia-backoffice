@@ -2,16 +2,16 @@
 
 > **BROUILLON — ne pas publier tel quel.** Ce texte a été écrit à partir des fonctionnalités réelles de l'application (voir le code), mais doit être relu et validé par toi, et idéalement par un professionnel du droit, avant d'être montré à une seule cliente ou coiffeuse. Les informations entre crochets `[...]` sont des informations sur l'entreprise que je n'ai pas et que tu dois compléter ou corriger.
 >
-> **Pourquoi ce document existe** : l'ancien contenu trouvé dans le projet (page `/conditions` du back-office, supprimée dans ce même changement) décrivait une application de pharmacie — médicaments, pharmacies partenaires, portefeuille électronique — avec le nom "Afrolia Expertise SARL" et l'e-mail `infos@pharma-consults.com`. Ce n'était visiblement pas pour Afrolia (coiffure). **Dis-moi si "Afrolia Expertise SARL" est bien le vrai nom de ton entreprise, ou si c'était aussi un reste d'un autre projet** — je ne l'ai pas réutilisé ci-dessous par précaution.
+> **Pourquoi ce document existe** : l'ancien contenu trouvé dans le projet (page `/conditions` du back-office, supprimée dans ce même changement) décrivait une application de pharmacie — médicaments, pharmacies partenaires, portefeuille électronique — avec le nom "Afrolia Expertise SARL" et l'e-mail `infos@pharma-consults.com`. Tu as confirmé que **Afrolia Expertise SARL est bien le vrai nom de l'entreprise** — réutilisé ci-dessous. L'adresse et l'e-mail restent entre crochets : l'e-mail `pharma-consults.com` ne peut pas être le bon (domaine d'une autre activité), et je préfère te laisser confirmer l'adresse plutôt que de supposer qu'elle est correcte elle aussi.
 
 **Date d'effet :** [à compléter]
 
 ## 1. Qui sommes-nous ?
 
-[Nom légal de l'entreprise], éditrice de l'application Afrolia, met en relation des clientes et des coiffeuses/salons de coiffure en Côte d'Ivoire.
+**Afrolia Expertise SARL**, éditrice de l'application Afrolia, met en relation des clientes et des coiffeuses/salons de coiffure en Côte d'Ivoire.
 
-- **Siège social :** [adresse complète]
-- **Contact pour toute question sur vos données :** [e-mail dédié, par exemple contact@afrolia.ci]
+- **Siège social :** [adresse complète — confirmer si "537, Rue D29 – Abidjan" est correct]
+- **Contact pour toute question sur vos données :** [e-mail dédié — pas pharma-consults.com]
 - **Téléphone :** [numéro]
 
 ## 2. Quelles données nous collectons

@@ -18,6 +18,7 @@ class Paiements extends Model
         'currency',
         'payment_method',
         'provider_transaction_id',
+        'jeko_payment_request_id',
         'status',
         'failure_reason',
         'processed_at',

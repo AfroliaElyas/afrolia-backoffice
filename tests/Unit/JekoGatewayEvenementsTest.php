@@ -11,9 +11,19 @@ use PHPUnit\Framework\TestCase;
  */
 class JekoGatewayEvenementsTest extends TestCase
 {
+    private function gateway(): JekoGateway
+    {
+        return new JekoGateway(
+            apiKey: 'peu importe ici',
+            apiKeyId: 'peu importe ici',
+            storeId: 'peu importe ici',
+            webhookSecret: 'peu importe ici',
+        );
+    }
+
     public function test_un_corps_transaction_completee_reussie_est_correctement_interprete(): void
     {
-        $gateway = new JekoGateway('peu importe ici');
+        $gateway = $this->gateway();
 
         // Exemple exact de la documentation Jèko ("Événements").
         $corps = json_decode(<<<'JSON'
@@ -55,7 +65,7 @@ class JekoGatewayEvenementsTest extends TestCase
 
     public function test_un_reversement_echoue_envoie_bien_transaction_completed_avec_statut_error(): void
     {
-        $gateway = new JekoGateway('peu importe ici');
+        $gateway = $this->gateway();
 
         // D'après "Intégration des Webhooks" : contrairement à un paiement
         // qui échoue (aucun webhook), un reversement qui échoue envoie bien
@@ -82,7 +92,7 @@ class JekoGatewayEvenementsTest extends TestCase
 
     public function test_un_corps_incomplet_ne_declenche_aucune_erreur(): void
     {
-        $gateway = new JekoGateway('peu importe ici');
+        $gateway = $this->gateway();
 
         $resultat = $gateway->interpreterTransactionCompletee([]);
 

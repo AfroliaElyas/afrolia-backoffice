@@ -3,28 +3,31 @@
 namespace App\Services\MobileMoney;
 
 use App\Models\Paiements;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 /**
  * Connecteur Jèko (agrégateur Mobile Money retenu pour Afrolia).
  *
- * Vérification de signature et lecture des webhooks confirmées par la
- * documentation Jèko ("Introduction aux Webhooks", "Intégration des
- * Webhooks" et "Événements") et implémentées ci-dessous : chaque livraison
- * est signée par un HMAC-SHA256 du corps brut (non décodé), encodé en
- * hexadécimal, placé dans l'en-tête Jeko-Signature ; l'en-tête Jeko-Event
- * dit quel type d'événement est reçu. Le secret de webhook (différent des
- * clés API) est copié depuis le Dashboard Business, Paramètres > API &
- * Webhooks, une fois l'URL (HTTPS obligatoire) enregistrée là-bas — une
- * seule URL par magasin, une pour l'entreprise.
+ * Toutes les pages nécessaires ont été fournies : "Introduction aux
+ * Webhooks", "Intégration des Webhooks", "Événements" et "Paiement en ligne
+ * (Jèko Checkout)".
  *
- * initiate() n'est volontairement PAS implémentable pour l'instant : la
- * documentation de création d'un paiement (Jèko Checkout) n'a pas encore
- * été fournie, et notamment le champ exact qui transporte notre propre
- * référence de paiement (candidat probable d'après "Événements" :
- * transactionDetails.reference, à confirmer). Ne jamais deviner ce format.
- * Cette classe n'est donc pas branchée comme connecteur actif (voir
- * AppServiceProvider, qui garde GenericMobileMoneyGateway) tant qu'elle
- * n'est pas complète.
+ * Webhooks : chaque livraison est signée par un HMAC-SHA256 du corps brut
+ * (non décodé), encodé en hexadécimal, placé dans l'en-tête Jeko-Signature ;
+ * l'en-tête Jeko-Event dit quel type d'événement est reçu. Le secret de
+ * webhook (différent des clés API) est copié depuis le Dashboard Business,
+ * Paramètres > API & Webhooks, une fois l'URL (HTTPS obligatoire) enregistrée
+ * là-bas — une seule URL par magasin, une pour l'entreprise.
+ *
+ * Paiement : POST {base_url}/partner_api/payment_requests en mode "redirect"
+ * crée une demande de paiement et renvoie une redirectUrl vers laquelle
+ * rediriger la cliente/le client ; successUrl/errorUrl acceptent un lien
+ * profond (deep link) de l'application mobile, donc cet appel ne nécessite
+ * pas d'hébergement web public — seule la réception du webhook a besoin
+ * d'une URL HTTPS publique. GET .../payment_requests/{id} permet de vérifier
+ * le statut d'une demande — seul moyen de détecter un paiement (pas un
+ * reversement) qui a échoué, puisqu'aucun webhook n'est envoyé dans ce cas.
  */
 class JekoGateway implements MobileMoneyGatewayInterface
 {
@@ -40,19 +43,111 @@ class JekoGateway implements MobileMoneyGatewayInterface
     public const EVENT_ESCROW_REFUNDED = 'ESCROW_REFUNDED';
     public const EVENT_COMPLIANCE_VERIFICATION_COMPLETED = 'COMPLIANCE_VERIFICATION_COMPLETED';
 
-    public function __construct(private readonly ?string $webhookSecret)
-    {
+    // paymentMethod acceptés par Jèko (doc "Paiement en ligne").
+    public const OPERATEURS_VALIDES = ['wave', 'orange', 'mtn', 'moov', 'djamo', 'jeko', 'bank'];
+
+    public function __construct(
+        private readonly ?string $apiKey,
+        private readonly ?string $apiKeyId,
+        private readonly ?string $storeId,
+        private readonly ?string $webhookSecret,
+        private readonly string $baseUrl = 'https://api.jeko.africa',
+        private readonly string $successUrl = 'afrolia://paiement/succes',
+        private readonly string $errorUrl = 'afrolia://paiement/echec',
+    ) {
     }
 
     /**
-     * @throws \RuntimeException tant que la documentation Jèko Checkout
-     *         (endpoint, requête, réponse) n'a pas été fournie.
+     * Crée une demande de paiement "redirect" chez Jèko.
+     *
+     * IMPORTANT — unité de amountCents non confirmée par la documentation :
+     * on envoie ici le montant FCFA tel quel, PAS multiplié par 100 (comme
+     * pour Stripe ailleurs dans ce projet, le XOF étant une devise sans
+     * sous-unité). Les deux interprétations respectent la contrainte
+     * documentée ("multiple de 100, minimum 100"), donc ceci DOIT être
+     * vérifié avec un vrai paiement de test avant la mise en production —
+     * ne jamais supposer que c'est correct sans ce test.
+     *
+     * @return array{reference: string, status: string, redirect_url: ?string, jeko_payment_request_id: ?string}
      */
     public function initiate(Paiements $paiement, string $operateur, string $telephone): array
     {
-        throw new \RuntimeException(
-            "JekoGateway::initiate() n'est pas encore implémentable : la documentation de création de paiement (Jèko Checkout) n'a pas encore été fournie."
-        );
+        if (empty($this->apiKey) || empty($this->apiKeyId) || empty($this->storeId)) {
+            throw new \RuntimeException(
+                "JekoGateway n'est pas configuré (clé API, clé API ID ou identifiant de magasin manquant)."
+            );
+        }
+
+        $methode = strtolower($operateur);
+        if (!in_array($methode, self::OPERATEURS_VALIDES, true)) {
+            throw new \InvalidArgumentException("Moyen de paiement Jèko inconnu : {$operateur}");
+        }
+
+        $reference = 'AFR-' . strtoupper(Str::random(12));
+
+        $reponse = Http::withHeaders([
+            'X-API-KEY' => $this->apiKey,
+            'X-API-KEY-ID' => $this->apiKeyId,
+        ])->post("{$this->baseUrl}/partner_api/payment_requests", [
+            'storeId' => $this->storeId,
+            'amountCents' => (int) round($paiement->amount),
+            'currency' => 'XOF',
+            'reference' => $reference,
+            'paymentDetails' => [
+                'type' => 'redirect',
+                'data' => [
+                    'paymentMethod' => $methode,
+                    'successUrl' => $this->successUrl,
+                    'errorUrl' => $this->errorUrl,
+                ],
+            ],
+        ]);
+
+        if ($reponse->failed()) {
+            throw new \RuntimeException(
+                'Échec de la création du paiement Jèko : ' . $reponse->status() . ' ' . $reponse->body()
+            );
+        }
+
+        $corps = $reponse->json();
+
+        return [
+            'reference' => $reference,
+            'status' => (string) ($corps['status'] ?? 'pending'),
+            'redirect_url' => $corps['redirectUrl'] ?? null,
+            'jeko_payment_request_id' => $corps['id'] ?? null,
+        ];
+    }
+
+    /**
+     * Interroge l'état d'une demande de paiement Jèko. Seul moyen de
+     * détecter un paiement (pas un reversement) qui a échoué, puisqu'aucun
+     * webhook n'est envoyé dans ce cas précis — à utiliser en secours si le
+     * webhook n'arrive pas (doc Jèko : "webhooks comme source de vérité,
+     * interrogation du statut comme solution de repli").
+     *
+     * @return array{statut: string, transaction: ?array, raison_erreur: ?string}
+     */
+    public function verifierStatut(string $paymentRequestId): array
+    {
+        $reponse = Http::withHeaders([
+            'X-API-KEY' => $this->apiKey,
+            'X-API-KEY-ID' => $this->apiKeyId,
+        ])->get("{$this->baseUrl}/partner_api/payment_requests/{$paymentRequestId}");
+
+        if ($reponse->failed()) {
+            throw new \RuntimeException(
+                'Échec de la vérification du statut Jèko : ' . $reponse->status() . ' ' . $reponse->body()
+            );
+        }
+
+        $corps = $reponse->json();
+
+        return [
+            'statut' => (string) ($corps['status'] ?? ''),
+            'transaction' => $corps['transaction'] ?? null,
+            'raison_erreur' => $corps['errorReason'] ?? null,
+        ];
     }
 
     public function verifyWebhookSignature(string $payload, ?string $signature): bool
@@ -77,16 +172,12 @@ class JekoGateway implements MobileMoneyGatewayInterface
      * un encaissement réussi (sauf escrow → ESCROW_HELD à la place), un
      * reversement réussi, ET un reversement échoué (statut "error" dans ce
      * cas). Un encaissement qui échoue n'envoie en revanche AUCUN webhook —
-     * sa détection demandera d'interroger la demande de paiement
-     * directement (voir la page "Gérer les échecs", pas encore fournie),
-     * pas seulement d'attendre une notification.
+     * sa détection passe par verifierStatut() ci-dessus, pas seulement par
+     * l'attente d'une notification.
      *
-     * `reference` vient de transactionDetails.reference (toujours décrit
-     * comme optionnel) : candidat le plus probable pour retrouver notre
-     * propre Paiements, mais non confirmé tant que la doc Jèko Checkout
-     * (qui dit ce que nous envoyons à la création) n'est pas fournie — ne
-     * pas l'utiliser pour faire correspondre un paiement sans cette
-     * confirmation.
+     * `reference` vient de transactionDetails.reference : confirmé par la
+     * doc "Paiement en ligne" comme étant exactement la référence que nous
+     * envoyons nous-mêmes à la création (voir initiate() ci-dessus).
      *
      * @return array{
      *   id_transaction_jeko: string,
@@ -107,7 +198,6 @@ class JekoGateway implements MobileMoneyGatewayInterface
             'reference' => $corps['transactionDetails']['reference'] ?? null,
             // pending | success | error
             'statut' => (string) ($corps['status'] ?? ''),
-            // Unité (FCFA ou centimes) à confirmer avec la doc Jèko Checkout.
             'montant' => (int) ($corps['amount']['amount'] ?? 0),
             'devise' => (string) ($corps['amount']['currency'] ?? ''),
             'frais' => (int) ($corps['fees']['amount'] ?? 0),

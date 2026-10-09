@@ -10,6 +10,7 @@ use App\Models\Produits;
 use App\Models\Reservations;
 use App\Models\UsersApp;
 use App\Services\AbonnementService;
+use App\Services\MobileMoney\JekoGateway;
 use App\Services\MobileMoney\MobileMoneyGatewayInterface;
 use App\Services\Stripe\StripeGatewayInterface;
 use Illuminate\Http\Request;
@@ -233,14 +234,29 @@ class ApiPaiementsController extends Controller
             'status' => 'pending',
         ]);
 
-        $result = $this->mobileMoneyGateway->initiate(
-            $paiement,
-            $request->input('operateur'),
-            $request->input('telephone')
-        );
+        try {
+            $result = $this->mobileMoneyGateway->initiate(
+                $paiement,
+                $request->input('operateur'),
+                $request->input('telephone')
+            );
+        } catch (\InvalidArgumentException $e) {
+            $paiement->update(['status' => 'failed', 'failure_reason' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\RuntimeException $e) {
+            Log::error('Échec initiate() mobile money', ['error' => $e->getMessage()]);
+            $paiement->update(['status' => 'failed', 'failure_reason' => 'Erreur du fournisseur de paiement']);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Impossible de contacter le fournisseur de paiement mobile money. Veuillez réessayer.',
+            ], 502);
+        }
 
         $paiement->update([
             'provider_transaction_id' => $result['reference'],
+            'jeko_payment_request_id' => $result['jeko_payment_request_id'] ?? null,
             'status' => $result['status'] ?? 'pending',
         ]);
 
@@ -248,6 +264,9 @@ class ApiPaiementsController extends Controller
             'success' => true,
             'message' => 'Paiement mobile money initié, en attente de confirmation',
             'reference' => $result['reference'],
+            // URL de redirection Jèko : à ouvrir côté app pour que
+            // la cliente/le client effectue le paiement sur son opérateur.
+            'redirect_url' => $result['redirect_url'] ?? null,
             'paiement' => $paiement,
         ]);
     }
@@ -294,7 +313,7 @@ class ApiPaiementsController extends Controller
     public function mobileMoneyWebhook(Request $request)
     {
         $payload = $request->getContent();
-        $signature = $request->header('X-MobileMoney-Signature');
+        $signature = $request->header(JekoGateway::HEADER_SIGNATURE);
 
         if (!$this->mobileMoneyGateway->verifyWebhookSignature($payload, $signature)) {
             Log::warning('Webhook Mobile Money : signature invalide');
@@ -302,26 +321,29 @@ class ApiPaiementsController extends Controller
             return response()->json(['error' => 'Signature invalide'], 400);
         }
 
-        $validator = Validator::make($request->all(), [
-            'reference' => 'required|string',
-            'statut' => 'required|string|in:SUCCESS,FAILED,CANCELLED',
-        ]);
-        if ($validator->fails()) {
-            return response()->json(['error' => 'Notification de paiement invalide'], 422);
+        // Seul TRANSACTION_COMPLETED est exploité pour l'instant : Afrolia
+        // encaisse directement sur son propre magasin, sans escrow ni
+        // Service Provider (voir JekoGateway::interpreterTransactionCompletee).
+        if ($request->header(JekoGateway::HEADER_EVENT) !== JekoGateway::EVENT_TRANSACTION_COMPLETED) {
+            return response()->json(['status' => 'ok']);
         }
 
-        $reference = $request->input('reference');
-        $statut = $request->input('statut');
+        if (!$this->mobileMoneyGateway instanceof JekoGateway) {
+            return response()->json(['status' => 'ok']);
+        }
 
-        $paiement = Paiements::where('provider_transaction_id', $reference)->first();
+        $transaction = $this->mobileMoneyGateway->interpreterTransactionCompletee((array) $request->json()->all());
+
+        $paiement = Paiements::where('provider_transaction_id', $transaction['reference'])->first();
 
         if (!$paiement) {
             return response()->json(['status' => 'ok']);
         }
 
-        match ($statut) {
-            'SUCCESS' => $this->markPaiementSucceeded($paiement),
-            'FAILED', 'CANCELLED' => $this->markPaiementFailed($paiement, "Paiement mobile money: {$statut}"),
+        match ($transaction['statut']) {
+            'success' => $this->markPaiementSucceeded($paiement),
+            'error' => $this->markPaiementFailed($paiement, 'Paiement mobile money (Jèko) : échec'),
+            // pending ou valeur inconnue : rien à faire, on attend la suite.
             default => null,
         };
 

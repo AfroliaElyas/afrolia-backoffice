@@ -128,12 +128,10 @@
                             <tr>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <img height="80" width="80" src="$item->photo_utilisateur" alt=""
-                                            class="flex-shrink-0 me-12 radius-8">
                                         <h6 class="text-md mb-0 fw-medium flex-grow-1">
-                                            Yapi n'guessan kouassi theodore
+                                            {{ $item->name }}
                                             <br>
-                                            +225 0707070707
+                                            {{ $item->email }}
                                         </h6>
                                     </div>
                                 </td>
@@ -386,12 +384,10 @@
                                 <tr>
                                     <td>
                                         <div class="d-flex align-items-center">
-                                            <img height="80" width="80" src="$item->photo_utilisateur"
-                                                alt="" class="flex-shrink-0 me-12 radius-8">
                                             <h6 class="text-md mb-0 fw-medium flex-grow-1">
-                                                Yapi n'guessan kouassi theodore
+                                                {{ $item->name }}
                                                 <br>
-                                                +225 0707070707
+                                                {{ $item->email }}
                                             </h6>
                                         </div>
                                     </td>

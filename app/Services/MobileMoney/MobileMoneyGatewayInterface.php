@@ -25,4 +25,16 @@ interface MobileMoneyGatewayInterface
      * Vérifie l'authenticité d'une notification webhook reçue de l'agrégateur.
      */
     public function verifyWebhookSignature(string $payload, ?string $signature): bool;
+
+    /**
+     * Rembourse réellement un paiement Mobile Money vers son numéro
+     * d'origine. Doit lever une exception si l'opération n'a pas pu être
+     * effectuée (connecteur non configuré, numéro/opérateur invalide,
+     * refus du fournisseur) — jamais prétendre un remboursement qui n'a
+     * pas eu lieu.
+     *
+     * @param array{nom: string, telephone: string, operateur: string} $destinataire
+     * @return array{id: ?string, status: string}
+     */
+    public function refund(array $destinataire, float $montant, string $reference): array;
 }

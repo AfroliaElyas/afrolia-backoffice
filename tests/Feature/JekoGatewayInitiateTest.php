@@ -54,7 +54,7 @@ class JekoGatewayInitiateTest extends TestCase
                 && $request->hasHeader('X-API-KEY', 'cle_api_test')
                 && $request->hasHeader('X-API-KEY-ID', 'cle_api_id_test')
                 && $request['storeId'] === 'store_test'
-                && $request['amountCents'] === 5000
+                && $request['amountCents'] === 500000
                 && $request['currency'] === 'XOF'
                 && $request['paymentDetails']['type'] === 'redirect'
                 && $request['paymentDetails']['data']['paymentMethod'] === 'wave'
@@ -95,5 +95,70 @@ class JekoGatewayInitiateTest extends TestCase
         $this->assertSame('error', $resultat['statut']);
         $this->assertSame('insufficient_funds', $resultat['raison_erreur']);
         $this->assertSame('txn_1', $resultat['transaction']['id']);
+    }
+
+    public function test_refund_cree_un_contact_puis_un_transfert_avec_le_bon_montant_en_centimes(): void
+    {
+        Http::fake([
+            'https://api.jeko.africa/partner_api/contacts' => Http::response([
+                'id' => 'contact_123',
+            ], 200),
+            'https://api.jeko.africa/partner_api/transfers' => Http::response([
+                'id' => 'wth_abc123',
+                'status' => 'pending',
+            ], 200),
+        ]);
+
+        $resultat = $this->gateway()->refund(
+            destinataire: ['nom' => 'Aïcha Koné', 'telephone' => '+2250701234567', 'operateur' => 'wave'],
+            montant: 10500,
+            reference: 'REMB-1-ABCDEF',
+        );
+
+        $this->assertSame('wth_abc123', $resultat['id']);
+        $this->assertSame('pending', $resultat['status']);
+
+        Http::assertSent(function ($request) {
+            return $request->url() === 'https://api.jeko.africa/partner_api/contacts'
+                && $request['name'] === 'Aïcha Koné'
+                && $request['paymentMethod'] === 'wave'
+                && $request['identifier']['number'] === '+2250701234567';
+        });
+
+        Http::assertSent(function ($request) {
+            return $request->url() === 'https://api.jeko.africa/partner_api/transfers'
+                && $request['storeId'] === 'store_test'
+                && $request['contactId'] === 'contact_123'
+                && $request['amountCents'] === 1050000
+                && $request['currency'] === 'XOF'
+                && $request['reference'] === 'REMB-1-ABCDEF';
+        });
+    }
+
+    public function test_refund_leve_une_exception_si_jeko_refuse_le_transfert(): void
+    {
+        Http::fake([
+            'https://api.jeko.africa/partner_api/contacts' => Http::response(['id' => 'contact_123'], 200),
+            'https://api.jeko.africa/partner_api/transfers' => Http::response(['error' => 'insufficient_balance'], 400),
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+
+        $this->gateway()->refund(
+            destinataire: ['nom' => 'Aïcha Koné', 'telephone' => '+2250701234567', 'operateur' => 'wave'],
+            montant: 10500,
+            reference: 'REMB-1-ABCDEF',
+        );
+    }
+
+    public function test_refund_refuse_un_operateur_non_mobile_money(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        $this->gateway()->refund(
+            destinataire: ['nom' => 'Aïcha Koné', 'telephone' => '+2250701234567', 'operateur' => 'bank'],
+            montant: 10500,
+            reference: 'REMB-1-ABCDEF',
+        );
     }
 }

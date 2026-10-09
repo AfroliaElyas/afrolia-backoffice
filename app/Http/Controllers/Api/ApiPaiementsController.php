@@ -231,6 +231,8 @@ class ApiPaiementsController extends Controller
             'amount' => $montantAutorise,
             'currency' => 'XOF',
             'payment_method' => 'mobile_money',
+            'mobile_money_operateur' => strtolower((string) $request->input('operateur')),
+            'mobile_money_telephone' => $request->input('telephone'),
             'status' => 'pending',
         ]);
 

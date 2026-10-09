@@ -2,16 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\MobileMoney\MobileMoneyGatewayInterface;
 use App\Services\Stripe\StripeGatewayInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class RemboursementController extends Controller
 {
-    public function __construct(private readonly StripeGatewayInterface $stripeGateway)
-    {
+    public function __construct(
+        private readonly StripeGatewayInterface $stripeGateway,
+        private readonly MobileMoneyGatewayInterface $mobileMoneyGateway
+    ) {
     }
 
     /**
@@ -96,6 +100,13 @@ class RemboursementController extends Controller
      * prestataire avant de marquer la réservation comme remboursée — ne
      * jamais se contenter de changer le statut en base sans que l'argent
      * soit réellement retourné au client.
+     *
+     * Limite connue pour Mobile Money : le transfert Jèko est asynchrone
+     * (statut initial "pending", confirmé success/error plus tard par
+     * webhook). On marque ici "rembourse" dès que Jèko accepte la demande
+     * (pas d'erreur immédiate) ; un échec détecté après coup par le webhook
+     * de transfert n'est pas encore reconnecté à cette réservation/ce
+     * paiement — à corriger si ce cas se présente en pratique.
      */
     public function traiter(string $id)
     {
@@ -127,12 +138,38 @@ class RemboursementController extends Controller
 
                 return back()->withErrors(['Le remboursement Stripe a échoué : ' . $e->getMessage()]);
             }
+        } elseif ($paiement->payment_method === 'mobile_money') {
+            if (!$paiement->mobile_money_telephone || !$paiement->mobile_money_operateur) {
+                return back()->withErrors([
+                    'Ce paiement Mobile Money ne précise pas de numéro/opérateur d\'origine, remboursement automatique impossible.',
+                ]);
+            }
+
+            $client = DB::table('users_app')->where('id_user_app', $reservation->id_client)->first();
+            $nomClient = trim(($client->name ?? '') . ' ' . ($client->last_name ?? '')) ?: 'Client Afrolia';
+
+            try {
+                $resultat = $this->mobileMoneyGateway->refund(
+                    destinataire: [
+                        'nom' => $nomClient,
+                        'telephone' => $paiement->mobile_money_telephone,
+                        'operateur' => $paiement->mobile_money_operateur,
+                    ],
+                    montant: (float) $paiement->amount,
+                    reference: 'REMB-' . $paiement->id_paiement . '-' . Str::upper(Str::random(6))
+                );
+
+                if (($resultat['status'] ?? null) === 'error') {
+                    throw new \RuntimeException('Jèko a refusé le transfert de remboursement.');
+                }
+            } catch (\Throwable $e) {
+                Log::error('Échec du remboursement Mobile Money', ['id_paiement' => $paiement->id_paiement, 'erreur' => $e->getMessage()]);
+
+                return back()->withErrors(['Le remboursement Mobile Money a échoué : ' . $e->getMessage()]);
+            }
         } else {
-            // Mobile Money : aucune intégration réelle n'existe encore
-            // (voir GenericMobileMoneyGateway) — impossible de rembourser
-            // automatiquement tant que Jèko n'est pas branché.
             return back()->withErrors([
-                'Ce paiement a été effectué par Mobile Money : aucun remboursement automatique n\'est disponible pour le moment. Contactez le client et traitez le remboursement directement avec l\'opérateur.',
+                'Moyen de paiement non pris en charge pour un remboursement automatique.',
             ]);
         }
 
@@ -147,7 +184,7 @@ class RemboursementController extends Controller
                 'processed_at' => now(),
             ]);
 
-        return back()->with('succes', 'Le remboursement a été traité et le client remboursé sur Stripe.');
+        return back()->with('succes', 'Le remboursement a été traité et le client a été remboursé.');
     }
 
     /**

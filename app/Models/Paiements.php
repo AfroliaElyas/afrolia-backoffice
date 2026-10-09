@@ -19,6 +19,8 @@ class Paiements extends Model
         'payment_method',
         'provider_transaction_id',
         'jeko_payment_request_id',
+        'mobile_money_operateur',
+        'mobile_money_telephone',
         'status',
         'failure_reason',
         'processed_at',

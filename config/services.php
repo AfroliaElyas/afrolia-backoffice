@@ -44,6 +44,17 @@ return [
         'webhook_secret' => env('MOBILE_MONEY_WEBHOOK_SECRET'),
     ],
 
+    // Agrégateur Mobile Money retenu (Jèko). En-têtes d'authentification
+    // confirmés (X-API-KEY / X-API-KEY-ID) ; base_url, store_id et le
+    // format exact des webhooks restent à documenter avant toute
+    // implémentation réelle de JekoGateway.
+    'jeko' => [
+        'api_key' => env('JEKO_API_KEY'),
+        'api_key_id' => env('JEKO_API_KEY_ID'),
+        'store_id' => env('JEKO_STORE_ID'),
+        'base_url' => env('JEKO_BASE_URL'),
+    ],
+
     'anthropic' => [
         'api_key' => env('ANTHROPIC_API_KEY'),
     ],

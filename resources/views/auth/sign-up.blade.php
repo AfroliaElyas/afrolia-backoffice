@@ -31,6 +31,7 @@
     <link rel="stylesheet" href="{{ URL::asset('') }}assets/css/lib/slick.css">
     <!-- main css -->
     <link rel="stylesheet" href="{{ URL::asset('') }}assets/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
 </head>
 
 <body>
@@ -44,9 +45,10 @@
         <div class="auth-right py-32 px-24 d-flex flex-column justify-content-center">
             <div class="max-w-464-px mx-auto w-100">
                 <div>
-                    <a href="index.html" class="mb-40 max-w-290-px">
-                        <img src="{{ URL::asset('') }}assets/images/logo.png" alt="">
-                    </a>
+                    <h3 class="mb-40 max-w-290-px"
+                        style="color: #92400E; font-family: 'Pacifico', cursive; font-size: 32px;">
+                        Afrolia
+                    </h3>
                     <h4 class="mb-12">Inscrivez-vous</h4>
                     <p class="mb-32 text-secondary-light text-lg">Bienvenue ! Veuillez saisir vos coordonnées</p>
                 </div>

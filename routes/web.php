@@ -27,6 +27,15 @@ Route::get('/', function () {
     return view('auth.sign-in');
 });
 
+// Page de présentation publique d'Afrolia (pas d'authentification requise).
+// Volontairement pas sur "/" : cette racine reste la connexion back-office.
+// À déplacer sur le domaine public une fois l'hébergement choisi — voir si
+// "/" doit alors devenir cette page et la connexion admin partir sur un
+// sous-chemin dédié (ex. /admin).
+Route::get('/accueil', function () {
+    return view('site.accueil');
+});
+
 // Authentification
 Route::get('sign-up', function () {
     return view('auth.sign-up');

@@ -556,6 +556,11 @@ footer ul a:hover{color:#fff}
       <div>
         <h5>Suivez-nous</h5>
         <div class="social-row">
+          <a href="https://www.facebook.com/profile.php?id=61579847484402" target="_blank" rel="noopener" aria-label="Facebook">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13.5 21v-8h2.7l.4-3.1h-3.1V8c0-.9.25-1.5 1.55-1.5H16.7V3.7C16.4 3.65 15.4 3.55 14.2 3.55c-2.4 0-4.05 1.45-4.05 4.15V9.9H7.4V13h2.75v8h3.35z"/>
+            </svg>
+          </a>
           <a href="https://instagram.com/afrolia7" target="_blank" rel="noopener" aria-label="Instagram">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <rect x="3" y="3" width="18" height="18" rx="5"/>

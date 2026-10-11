@@ -618,7 +618,7 @@ footer ul a:hover{color:#fff}
   <section class="wrap">
     <div class="section-head">
       <span class="eyebrow">Qui sommes-nous</span>
-      <h2>Afrolia Expertise SARL</h2>
+      <h2>Afrolia Expertise SARLU</h2>
     </div>
     <div class="track" style="max-width:640px;margin:0 auto">
       <p style="color:var(--fg-mute);font-size:0.98rem">
@@ -718,7 +718,7 @@ footer ul a:hover{color:#fff}
       </div>
     </div>
     <div class="footer-bottom">
-      <p>© {{ date('Y') }} Afrolia Expertise SARL — Côte d'Ivoire</p>
+      <p>© {{ date('Y') }} Afrolia Expertise SARLU — Côte d'Ivoire</p>
       <p>Tous droits réservés</p>
     </div>
   </div>

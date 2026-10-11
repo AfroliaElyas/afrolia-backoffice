@@ -387,9 +387,11 @@ class ApiPaiementsController extends Controller
 
         // Utiliser les montants de la réservation : une modification de
         // formule entre réservation et paiement ne doit pas changer le gain.
+        // La retenue (commission Afrolia + frais de paiement) est déduite
+        // du gain de la coiffeuse, la cliente ayant payé le prix affiché.
         $montant_brut = $paiement->amount;
-        $montant_net = $reservation->prix_service;
         $commission = $reservation->montant_commission;
+        $montant_net = $reservation->prix_service - $commission;
 
         Gains::create([
             'id_coiffeur' => $reservation->id_coiffeur,

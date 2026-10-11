@@ -117,8 +117,8 @@ class ReservationCommissionTest extends TestCase
         ));
 
         $response->assertStatus(201);
-        $response->assertJsonPath('data.montant_commission', 500);
-        $response->assertJsonPath('data.montant_total', 10500);
+        $response->assertJsonPath('data.montant_commission', 800);
+        $response->assertJsonPath('data.montant_total', 10000);
     }
 
     public function test_la_commission_reservation_reflete_la_formule_premium(): void
@@ -136,8 +136,8 @@ class ReservationCommissionTest extends TestCase
         ));
 
         $response->assertStatus(201);
-        $response->assertJsonPath('data.montant_commission', 300);
-        $response->assertJsonPath('data.montant_total', 10300);
+        $response->assertJsonPath('data.montant_commission', 600);
+        $response->assertJsonPath('data.montant_total', 10000);
     }
 
     public function test_le_paiement_utilise_le_montant_reel_de_la_reservation_pas_celui_envoye_par_le_client(): void
@@ -156,12 +156,13 @@ class ReservationCommissionTest extends TestCase
         ));
 
         $idReservation = $creation->json('data.id_reservation');
-        // Formule Premium (3 %) : 10000 + 300 de commission.
-        $this->assertSame(10300, $creation->json('data.montant_total'));
+        // La cliente paie le prix affiché, sans supplément : la commission
+        // (Premium, 6 %) est déduite des gains de la coiffeuse, pas ajoutée.
+        $this->assertSame(10000, $creation->json('data.montant_total'));
 
         // Le client envoie un montant totalement différent (ex. calcul local
-        // périmé à 15 %, ou tentative de manipulation) : le serveur doit
-        // l'ignorer et facturer le montant réel de la réservation.
+        // périmé, ou tentative de manipulation) : le serveur doit l'ignorer
+        // et facturer le montant réel de la réservation.
         $paiement = $this->postJson('/api/paiements', [
             'montant' => 11500,
             'id_reservation' => $idReservation,
@@ -174,10 +175,10 @@ class ReservationCommissionTest extends TestCase
 
         $this->assertDatabaseHas('paiements', [
             'id_reservation' => $idReservation,
-            'amount' => 10300,
+            'amount' => 10000,
         ]);
 
         $reservation = Reservations::find($idReservation);
-        $this->assertEquals(10300, (float) $reservation->montant_total);
+        $this->assertEquals(10000, (float) $reservation->montant_total);
     }
 }

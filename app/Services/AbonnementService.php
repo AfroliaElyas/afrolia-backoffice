@@ -22,14 +22,33 @@ class AbonnementService
     public function tauxCommission(string $formule): float
     {
         return match ($formule) {
-            'premium' => $this->parametre('commission_premium', 3) / 100,
-            default => $this->parametre('commission_gratuit', 5) / 100,
+            'premium' => $this->parametre('commission_premium', 6) / 100,
+            default => $this->parametre('commission_gratuit', 8) / 100,
         };
     }
 
     public function tauxCommissionPourCoiffeuse(UsersApp $coiffeuse): float
     {
         return $this->tauxCommission($coiffeuse->formule_abonnement ?: 'gratuit');
+    }
+
+    /**
+     * Taux de la boutique (produits), distinct de celui des prestations :
+     * la boutique n'a pas été incluse dans le passage à une retenue totale
+     * sur les gains, elle garde son ancien fonctionnement (commission
+     * ajoutée au prix payé par la cliente) jusqu'à décision contraire.
+     */
+    public function tauxCommissionBoutique(string $formule): float
+    {
+        return match ($formule) {
+            'premium' => $this->parametre('commission_boutique_premium', 3) / 100,
+            default => $this->parametre('commission_boutique_gratuit', 5) / 100,
+        };
+    }
+
+    public function tauxCommissionBoutiquePourCoiffeuse(UsersApp $coiffeuse): float
+    {
+        return $this->tauxCommissionBoutique($coiffeuse->formule_abonnement ?: 'gratuit');
     }
 
     /**

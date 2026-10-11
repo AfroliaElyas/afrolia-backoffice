@@ -16,7 +16,7 @@ class RemboursementStripeTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function creerReservationAnnuleeEtPayee(string $methode = 'stripe', array $mobileMoney = []): Reservations
+    private function creerReservationAnnuleeEtPayee(string $methode = 'stripe', array $mobileMoney = [], string $annulePar = 'client'): Reservations
     {
         $coiffeuse = UsersApp::create([
             'name' => 'Coiffeuse', 'last_name' => 'Test', 'phone' => '0700000070', 'password' => 'x', 'role' => 'hair',
@@ -33,6 +33,9 @@ class RemboursementStripeTest extends TestCase
             'created_at' => now(), 'updated_at' => now(),
         ]);
 
+        // La cliente paie le prix affiché (10 000), sans supplément : la
+        // commission est une retenue sur les gains de la coiffeuse, jamais
+        // un montant payé en plus.
         $reservation = Reservations::create([
             'numero_reservation' => 'RES-TEST-' . uniqid(),
             'id_client' => $client->id_user_app,
@@ -42,16 +45,17 @@ class RemboursementStripeTest extends TestCase
             'heure_reservation' => '10:00',
             'statut' => 'annulee',
             'statut_paiement' => 'paye',
+            'annule_par' => $annulePar,
             'prix_service' => 10000,
             'montant_commission' => 500,
-            'montant_total' => 10500,
+            'montant_total' => 10000,
             'methode_paiement' => $methode,
         ]);
 
         Paiements::create([
             'id_reservation' => $reservation->id_reservation,
             'payment_intent_id' => $methode === 'stripe' ? 'pi_test_remboursement' : null,
-            'amount' => 10500,
+            'amount' => 10000,
             'currency' => 'XOF',
             'payment_method' => $methode,
             'mobile_money_operateur' => $mobileMoney['operateur'] ?? null,
@@ -96,12 +100,50 @@ class RemboursementStripeTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame('pi_test_remboursement', $faux->dernierPaymentIntent);
-        $this->assertSame(10500.0, $faux->dernierMontant);
+        // Annulation par la cliente : elle supporte la commission Afrolia,
+        // qui reste due (10000 - 500 de commission).
+        $this->assertSame(9500.0, $faux->dernierMontant);
         $this->assertSame('rembourse', $reservation->fresh()->statut_paiement);
         $this->assertDatabaseHas('paiements', [
             'id_reservation' => $reservation->id_reservation,
             'status' => 'refunded',
         ]);
+    }
+
+    public function test_remboursement_integral_si_l_annulation_vient_de_la_coiffeuse(): void
+    {
+        $faux = new class implements StripeGatewayInterface {
+            public ?float $dernierMontant = null;
+
+            public function createPaymentIntent(float $montant): array
+            {
+                return ['id' => 'pi_x', 'client_secret' => 'secret_x', 'status' => 'requires_payment_method'];
+            }
+
+            public function retrievePaymentIntent(string $paymentIntentId): array
+            {
+                return ['id' => $paymentIntentId, 'client_secret' => 'secret_x', 'status' => 'succeeded'];
+            }
+
+            public function refund(string $paymentIntentId, float $montant): array
+            {
+                $this->dernierMontant = $montant;
+
+                return ['id' => 're_test', 'status' => 'succeeded'];
+            }
+        };
+        $this->app->instance(StripeGatewayInterface::class, $faux);
+
+        $admin = User::factory()->create();
+        $reservation = $this->creerReservationAnnuleeEtPayee('stripe', [], 'coiffeur');
+
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/traiter")
+            ->assertRedirect();
+
+        // Annulation par la coiffeuse : la cliente ne supporte aucun frais,
+        // elle est remboursée intégralement.
+        $this->assertSame(10000.0, $faux->dernierMontant);
     }
 
     public function test_un_echec_stripe_ne_marque_pas_le_remboursement_comme_fait(): void
@@ -192,7 +234,9 @@ class RemboursementStripeTest extends TestCase
 
         $this->assertSame('+2250701234567', $faux->dernierDestinataire['telephone']);
         $this->assertSame('wave', $faux->dernierDestinataire['operateur']);
-        $this->assertSame(10500.0, $faux->dernierMontant);
+        // Annulation par la cliente (valeur par défaut du fixture) : elle
+        // supporte la commission Afrolia (10000 - 500).
+        $this->assertSame(9500.0, $faux->dernierMontant);
         $this->assertSame('rembourse', $reservation->fresh()->statut_paiement);
         $this->assertDatabaseHas('paiements', [
             'id_reservation' => $reservation->id_reservation,

@@ -557,7 +557,7 @@ footer ul a:hover{color:#fff}
     <div class="section-head">
       <span class="eyebrow">Côté coiffeuses</span>
       <h2>Développez votre activité, à votre rythme</h2>
-      <p>Commencez gratuitement, passez à la formule Premium quand vous voulez.</p>
+      <p>Commencez gratuitement, passez à la formule Premium quand vous voulez. La cliente paie toujours le prix affiché, sans supplément.</p>
     </div>
     <div class="pricing">
       <div class="price-card">
@@ -566,7 +566,7 @@ footer ul a:hover{color:#fff}
         <ul>
           <li>Profil professionnel complet</li>
           <li>Agenda et réservations illimitées</li>
-          <li>5 % de commission par prestation payée</li>
+          <li>8 % de frais retenus sur vos gains par prestation réalisée (commission Afrolia et frais de paiement inclus)</li>
         </ul>
       </div>
       <div class="price-card featured">
@@ -574,7 +574,7 @@ footer ul a:hover{color:#fff}
         <div class="amount">4 500 <small>FCFA / mois</small></div>
         <ul>
           <li>Tout ce qui est inclus dans Gratuit</li>
-          <li>Commission réduite à 3 % par prestation</li>
+          <li>Frais réduits à 6 % par prestation réalisée</li>
           <li>Résiliable à tout moment</li>
         </ul>
       </div>

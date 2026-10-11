@@ -127,6 +127,6 @@ class CustomAuthController extends Controller
     {
         Session::flush();
         Auth::logout();
-        return Redirect('/');
+        return Redirect('/admin');
     }
 }

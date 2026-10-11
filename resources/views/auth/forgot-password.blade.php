@@ -61,11 +61,11 @@
                         data-bs-toggle="modal" data-bs-target="#exampleModal">Continuer</button>
 
                     <div class="text-center">
-                        <a href="{{ url('') }}" class="text-primary-600 fw-bold mt-24">Retour à la connexion</a>
+                        <a href="{{ url('admin') }}" class="text-primary-600 fw-bold mt-24">Retour à la connexion</a>
                     </div>
 
                     <div class="mt-120 text-center text-sm">
-                        <p class="mb-0">Vous avez déjà un compte? <a href="{{ url('') }}"
+                        <p class="mb-0">Vous avez déjà un compte? <a href="{{ url('admin') }}"
                                 class="text-primary-600 fw-semibold"> Se connecter</a></p>
                     </div>
                 </form>

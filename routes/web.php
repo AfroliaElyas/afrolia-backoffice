@@ -20,20 +20,18 @@ use Illuminate\Support\Facades\Route;
 Route::post('custom-login', [CustomAuthController::class, 'customLogin']);
 Route::get('logout', [CustomAuthController::class, 'signOut'])->name('logout');
 
+// Page de présentation publique d'Afrolia (pas d'authentification requise),
+// sur le domaine public afrolia-app.com. La connexion back-office est passée
+// sur /admin pour laisser la racine à cette page.
 Route::get('/', function () {
+    return view('site.accueil');
+});
+
+Route::get('/admin', function () {
     if (Auth::check()) {
         return redirect()->intended('index');
     }
     return view('auth.sign-in');
-});
-
-// Page de présentation publique d'Afrolia (pas d'authentification requise).
-// Volontairement pas sur "/" : cette racine reste la connexion back-office.
-// À déplacer sur le domaine public une fois l'hébergement choisi — voir si
-// "/" doit alors devenir cette page et la connexion admin partir sur un
-// sous-chemin dédié (ex. /admin).
-Route::get('/accueil', function () {
-    return view('site.accueil');
 });
 
 // Authentification

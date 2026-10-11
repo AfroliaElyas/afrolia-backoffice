@@ -11,7 +11,7 @@
   --surface:#FFFFFF;
   --fg:#92400E;
   --fg-soft:#B45309;
-  --fg-mute:#C2793F;
+  --fg-mute:#A35A29;
   --accent:#EA580C;
   --accent2:#F59C0B;
   --border:#FDE68A;
@@ -74,7 +74,7 @@ header.top{
 }
 
 .hero{
-  padding-block:56px 48px;
+  padding-block:40px 32px;
   text-align:center;
   display:flex;
   flex-direction:column;
@@ -111,8 +111,8 @@ header.top{
 .btn.primary{background:var(--accent);color:#fff}
 .btn.ghost{background:transparent;color:var(--fg);border-color:var(--border)}
 
-section{padding-block:52px}
-.section-head{text-align:center;max-width:46ch;margin:0 auto 36px}
+section{padding-block:40px}
+.section-head{text-align:center;max-width:46ch;margin:0 auto 26px}
 .section-head .eyebrow{
   display:block;
   font-size:0.72rem;
@@ -250,12 +250,12 @@ details.faq p{padding-bottom:18px;color:var(--fg-mute);font-size:0.9rem}
   background:var(--header-bg);
   color:var(--header-fg);
   border-radius:24px;
-  padding:44px 28px;
+  padding:32px 24px;
   text-align:center;
   display:flex;flex-direction:column;align-items:center;gap:16px;
 }
 .contact h2{color:var(--header-fg);font-size:clamp(1.4rem,4vw,1.9rem)}
-.contact p{color:rgba(255,255,255,.75);max-width:40ch}
+.contact p{color:rgba(255,255,255,.82);max-width:40ch}
 .copy-row{
   display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;
 }
@@ -277,7 +277,7 @@ details.faq p{padding-bottom:18px;color:var(--fg-mute);font-size:0.9rem}
 .values .card{text-align:center}
 .values .icon{margin-inline:auto;background:var(--accent);color:#fff;font-size:1.3rem}
 
-footer{background:var(--header-bg);color:var(--header-fg);padding-block:48px 24px}
+footer{background:var(--header-bg);color:var(--header-fg);padding-block:32px 18px}
 .footer-grid{
   display:grid;gap:32px;
   grid-template-columns:1.4fr 1fr 1fr 1fr;
@@ -297,18 +297,29 @@ footer{background:var(--header-bg);color:var(--header-fg);padding-block:48px 24p
 .footer-brand{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .footer-brand img{width:28px;height:28px}
 .footer-brand span{font-family:"Fraunces",serif;font-weight:600;font-size:1.1rem}
-footer .tagline{color:rgba(255,255,255,.65);font-size:0.88rem;max-width:30ch}
+footer .tagline{color:rgba(255,255,255,.82);font-size:0.88rem;max-width:30ch}
 footer h5{color:rgba(255,255,255,.9);font-size:0.78rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
 footer ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
-footer ul a, footer ul span{color:rgba(255,255,255,.65);text-decoration:none;font-size:0.88rem}
+footer ul a, footer ul span{color:rgba(255,255,255,.82);text-decoration:none;font-size:0.88rem}
 footer ul a:hover{color:#fff}
-.legal-soon{font-size:0.72rem;color:rgba(255,255,255,.4);margin-top:2px}
+.legal-soon{font-size:0.72rem;color:rgba(255,255,255,.75);margin-top:2px}
 .footer-bottom{
   border-top:1px solid rgba(255,255,255,.12);
-  margin-top:36px;padding-top:20px;
+  margin-top:28px;padding-top:16px;
   text-align:center;
 }
-.footer-bottom p{color:rgba(255,255,255,.55);font-size:0.8rem;margin-bottom:4px}
+.footer-bottom p{color:rgba(255,255,255,.82);font-size:0.8rem;margin-bottom:4px}
+
+@media (max-width:600px){
+  .hero{padding-block:32px 24px}
+  section{padding-block:32px}
+  .section-head{margin-bottom:20px}
+  .tracks{gap:20px}
+  .contact{padding:28px 20px}
+  footer{padding-block:28px 16px}
+  .footer-grid{gap:24px}
+  .footer-bottom{margin-top:22px;padding-top:14px}
+}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap">

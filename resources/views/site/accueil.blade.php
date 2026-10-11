@@ -149,8 +149,43 @@ section{padding-block:52px}
   display:flex;align-items:center;justify-content:center;
   font-size:0.78rem;font-weight:700;color:var(--fg-soft);
 }
+.step-body{flex:1;min-width:0}
 .step-body h4{font-size:0.98rem;font-weight:700;margin-bottom:3px}
 .step-body p{font-size:0.88rem;color:var(--fg-mute)}
+
+.phone-mock{flex:none;width:88px;border:3px solid var(--fg);border-radius:16px;background:var(--fg);padding:3px 3px 6px}
+.phone-mock .notch{width:26px;height:4px;border-radius:3px;background:rgba(255,255,255,.3);margin:3px auto 4px}
+.phone-screen{background:var(--surface);border-radius:11px;padding:8px 7px;display:flex;flex-direction:column;gap:6px;min-height:150px}
+.phone-screen .m-bar{font-size:0.52rem;font-weight:800;color:var(--fg);text-align:center;line-height:1.2}
+.phone-screen .m-input{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 5px;font-size:0.4rem;color:var(--fg-mute);line-height:1.2}
+.phone-screen .m-row{display:flex;align-items:center;gap:5px}
+.phone-screen .m-avatar{flex:none;width:14px;height:14px;border-radius:50%;background:var(--border)}
+.phone-screen .m-lines{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.phone-screen .m-line{height:4px;border-radius:2px;background:var(--border)}
+.phone-screen .m-line.w70{width:70%}
+.phone-screen .m-line.w60{width:60%}
+.phone-screen .m-line.w50{width:50%}
+.phone-screen .m-line.w40{width:40%}
+.phone-screen .m-line.w30{width:30%}
+.phone-screen .m-line.muted{background:rgba(146,64,14,.18)}
+.phone-screen .m-chips{display:flex;gap:4px;justify-content:center;margin-top:2px}
+.phone-screen .m-chip{width:12px;height:12px;border-radius:50%}
+.phone-screen .m-amount{text-align:center;margin-top:1px}
+.phone-screen .m-amount .label{font-size:0.38rem;color:var(--fg-mute)}
+.phone-screen .m-amount .value{font-size:0.62rem;font-weight:700;color:var(--fg)}
+.phone-screen .m-btn{background:var(--accent);color:#fff;border-radius:99px;font-size:0.4rem;font-weight:700;text-align:center;padding:4px 3px;margin-top:auto}
+.phone-screen .m-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.phone-screen .m-cal span{aspect-ratio:1;border-radius:2px;background:var(--border)}
+.phone-screen .m-cal span.on{background:var(--accent2)}
+.phone-screen .m-legend{display:flex;gap:4px;font-size:0.36rem;color:var(--fg-mute);align-items:center}
+.phone-screen .m-dot{width:6px;height:6px;border-radius:50%;flex:none}
+.phone-screen .m-price-row{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.phone-screen .m-price-row .m-line{flex:1}
+.phone-screen .m-price{font-size:0.4rem;color:var(--fg-mute);flex:none}
+.phone-screen .m-actions{display:flex;gap:4px;margin-top:auto}
+.phone-screen .m-actions span{flex:1;text-align:center;border-radius:99px;padding:3px 2px;font-size:0.36rem;font-weight:700}
+.phone-screen .m-actions .refuse{border:1px solid var(--border);color:var(--fg-mute)}
+.phone-screen .m-actions .confirm{background:var(--accent);color:#fff}
 
 .cards{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
 .card{
@@ -323,6 +358,15 @@ footer ul a:hover{color:#fff}
             <h4>Cherchez une coiffeuse ou un coiffeur</h4>
             <p>Recherchez par nom ou autour de vous, dans votre ville.</p>
           </div>
+          <div class="phone-mock">
+            <div class="notch"></div>
+            <div class="phone-screen">
+              <div class="m-bar">Recherche</div>
+              <div class="m-input">🔍 Rechercher par nom...</div>
+              <div class="m-row"><span class="m-avatar"></span><div class="m-lines"><span class="m-line w70"></span><span class="m-line w40 muted"></span></div></div>
+              <div class="m-row"><span class="m-avatar"></span><div class="m-lines"><span class="m-line w50"></span><span class="m-line w30 muted"></span></div></div>
+            </div>
+          </div>
         </div>
         <div class="step">
           <span class="num">2</span>
@@ -330,12 +374,35 @@ footer ul a:hover{color:#fff}
             <h4>Comparez les profils</h4>
             <p>Prestations, tarifs, disponibilités et avis clients avant de réserver.</p>
           </div>
+          <div class="phone-mock">
+            <div class="notch"></div>
+            <div class="phone-screen">
+              <div class="m-bar">Profil</div>
+              <div class="m-row"><span class="m-avatar"></span><div class="m-lines"><span class="m-line w60"></span><span class="m-line w40 muted"></span></div></div>
+              <div class="m-price-row"><span class="m-line w40"></span><span class="m-price">—</span></div>
+              <div class="m-price-row"><span class="m-line w50"></span><span class="m-price">—</span></div>
+            </div>
+          </div>
         </div>
         <div class="step">
           <span class="num">3</span>
           <div class="step-body">
             <h4>Réservez et payez en sécurité</h4>
             <p>Par carte bancaire ou Mobile Money (Wave, Orange, MTN, Moov, Djamo), directement dans l'application.</p>
+          </div>
+          <div class="phone-mock">
+            <div class="notch"></div>
+            <div class="phone-screen">
+              <div class="m-bar">Mobile Money</div>
+              <div class="m-chips">
+                <span class="m-chip" style="background:#00A9E0"></span>
+                <span class="m-chip" style="background:#FF6600"></span>
+                <span class="m-chip" style="background:#FFCC00"></span>
+                <span class="m-chip" style="background:#0066B3"></span>
+              </div>
+              <div class="m-amount"><div class="label">Montant à payer</div><div class="value">—</div></div>
+              <div class="m-btn">Payer</div>
+            </div>
           </div>
         </div>
       </div>
@@ -347,6 +414,15 @@ footer ul a:hover{color:#fff}
             <h4>Créez votre profil professionnel</h4>
             <p>Gratuitement : vos prestations, vos tarifs, vos photos.</p>
           </div>
+          <div class="phone-mock">
+            <div class="notch"></div>
+            <div class="phone-screen">
+              <div class="m-bar">Mes tarifs et services</div>
+              <div class="m-price-row"><span class="m-line w50"></span><span class="m-price">—</span></div>
+              <div class="m-price-row"><span class="m-line w60"></span><span class="m-price">—</span></div>
+              <div class="m-btn">+ Ajouter</div>
+            </div>
+          </div>
         </div>
         <div class="step">
           <span class="num">2</span>
@@ -354,12 +430,31 @@ footer ul a:hover{color:#fff}
             <h4>Gérez votre agenda</h4>
             <p>Vos disponibilités se mettent à jour en temps réel dans l'application.</p>
           </div>
+          <div class="phone-mock">
+            <div class="notch"></div>
+            <div class="phone-screen">
+              <div class="m-bar">Disponibilités</div>
+              <div class="m-cal">
+                <span class="on"></span><span class="on"></span><span></span><span class="on"></span><span></span><span class="on"></span><span></span>
+                <span></span><span class="on"></span><span class="on"></span><span></span><span class="on"></span><span></span><span class="on"></span>
+              </div>
+              <div class="m-legend"><span class="m-dot" style="background:var(--accent2)"></span>Disponible</div>
+            </div>
+          </div>
         </div>
         <div class="step">
           <span class="num">3</span>
           <div class="step-body">
             <h4>Recevez vos réservations</h4>
             <p>Acceptez les demandes et développez votre clientèle.</p>
+          </div>
+          <div class="phone-mock">
+            <div class="notch"></div>
+            <div class="phone-screen">
+              <div class="m-bar">En attente</div>
+              <div class="m-row"><span class="m-avatar"></span><div class="m-lines"><span class="m-line w60"></span><span class="m-line w40 muted"></span></div></div>
+              <div class="m-actions"><span class="refuse">Refuser</span><span class="confirm">Confirmer</span></div>
+            </div>
           </div>
         </div>
       </div>

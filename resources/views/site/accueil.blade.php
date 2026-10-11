@@ -573,7 +573,7 @@ footer ul a:hover{color:#fff}
         <ul>
           <li>Profil professionnel complet</li>
           <li>Agenda et réservations illimitées</li>
-          <li>8 % de frais retenus sur vos gains par prestation réalisée (commission Afrolia et frais de paiement inclus)</li>
+          <li>8 % de frais totaux retenus sur vos gains par prestation réalisée</li>
         </ul>
       </div>
       <div class="price-card featured">
@@ -581,7 +581,7 @@ footer ul a:hover{color:#fff}
         <div class="amount">4 500 <small>FCFA / mois</small></div>
         <ul>
           <li>Tout ce qui est inclus dans Gratuit</li>
-          <li>Frais réduits à 6 % par prestation réalisée</li>
+          <li>Frais totaux réduits à 6 % par prestation réalisée</li>
           <li>Résiliable à tout moment</li>
         </ul>
       </div>

@@ -34,6 +34,8 @@ class UsersApp extends Model implements AuthenticatableContract
         'longitude',
         'derniere_maj_position',
         'deplacement_domicile',
+        'payout_telephone',
+        'payout_operateur',
     ];
 
     protected $table = 'users_app';

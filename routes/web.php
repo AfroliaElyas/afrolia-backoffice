@@ -14,6 +14,7 @@ use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\TarifController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\UtilisateursController;
+use App\Http\Controllers\VersementController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -84,6 +85,12 @@ Route::middleware('auth')->group(function () {
     Route::resource('remboursement', RemboursementController::class);
     Route::post('remboursements/{id}/traiter', [RemboursementController::class, 'traiter'])->name('remboursements.traiter');
     Route::post('remboursements/{id}/rejeter', [RemboursementController::class, 'rejeter'])->name('remboursements.rejeter');
+
+    Route::get('versements', [VersementController::class, 'index'])->name('versements');
+    Route::post('versements/coiffeuse/{idCoiffeur}/infos', [VersementController::class, 'definirInfosVersement'])->name('versements.infos');
+    Route::post('versements/preparer/{idCoiffeur}', [VersementController::class, 'preparer'])->name('versements.preparer');
+    Route::post('versements/{id}/confirmer', [VersementController::class, 'confirmer'])->name('versements.confirmer');
+    Route::post('versements/{id}/annuler', [VersementController::class, 'annuler'])->name('versements.annuler');
 
     // Tarifs
     Route::get('tarifs', [TarifController::class, 'index'])->name('tarifs');

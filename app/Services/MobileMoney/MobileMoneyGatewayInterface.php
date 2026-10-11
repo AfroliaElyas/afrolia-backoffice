@@ -37,4 +37,16 @@ interface MobileMoneyGatewayInterface
      * @return array{id: ?string, status: string}
      */
     public function refund(array $destinataire, float $montant, string $reference): array;
+
+    /**
+     * Verse réellement des gains à une coiffeuse sur son numéro Mobile
+     * Money. Même mécanique que refund() (un transfert Jèko), mais une
+     * opération distincte dans son intention et son suivi : jamais
+     * déclenchée automatiquement, toujours à l'initiative explicite d'un
+     * admin (voir VersementController).
+     *
+     * @param array{nom: string, telephone: string, operateur: string} $destinataire
+     * @return array{id: ?string, status: string}
+     */
+    public function verser(array $destinataire, float $montant, string $reference): array;
 }

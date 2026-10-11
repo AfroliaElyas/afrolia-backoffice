@@ -219,6 +219,11 @@ class RemboursementStripeTest extends TestCase
 
                 return ['id' => 'wth_test', 'status' => 'pending'];
             }
+
+            public function verser(array $destinataire, float $montant, string $reference): array
+            {
+                return ['id' => 'wth_test', 'status' => 'pending'];
+            }
         };
         $this->app->instance(MobileMoneyGatewayInterface::class, $faux);
 
@@ -258,6 +263,11 @@ class RemboursementStripeTest extends TestCase
             }
 
             public function refund(array $destinataire, float $montant, string $reference): array
+            {
+                throw new \RuntimeException('Échec du transfert Jèko : 400 insufficient_balance');
+            }
+
+            public function verser(array $destinataire, float $montant, string $reference): array
             {
                 throw new \RuntimeException('Échec du transfert Jèko : 400 insufficient_balance');
             }

@@ -110,7 +110,7 @@
                         <span class="bg-base z-1 px-4">Ou</span>
                     </div>
                     <div class="mt-32 text-center text-sm">
-                        <p class="mb-0">Vous avez déjà un compte? <a href="{{ url('') }}"
+                        <p class="mb-0">Vous avez déjà un compte? <a href="{{ url('admin') }}"
                                 class="text-primary-600 fw-semibold">Se connecter</a></p>
                     </div>
                 </form>

@@ -53,11 +53,6 @@ Route::middleware('auth')->group(function () {
     Route::post('users/{id}/reactivate', [UtilisateursController::class, 'reactivate'])->name('users.reactivate');
 
     Route::resource('hair', HairController::class);
-    // Route::get('hair', [HairController::class, 'index'])->name('hair.index');
-    Route::post('hair', [HairController::class, 'store'])->name('hair.store');
-    Route::get('hair/{id}', [HairController::class, 'show'])->name('hair.show');
-    Route::put('hair/{id}', [HairController::class, 'update'])->name('hair.update');
-    Route::delete('hair/{id}', [HairController::class, 'destroy'])->name('hair.destroy');
     Route::post('hair/{id}/suspend', [HairController::class, 'suspend'])->name('hair.suspend');
     Route::post('hair/{id}/reactivate', [HairController::class, 'reactivate'])->name('hair.reactivate');
 

@@ -288,6 +288,7 @@ footer ul a:hover{color:#fff}
     </div>
     <nav class="nav-links">
       <a href="#comment-ca-marche">Comment ça marche</a>
+      <a href="#boutique">Boutique</a>
       <a href="#coiffeuses">Pour les coiffeuses</a>
       <a href="#faq">FAQ</a>
     </nav>
@@ -382,14 +383,40 @@ footer ul a:hover{color:#fff}
         <p>Les avis laissés après chaque prestation vous aident à choisir en confiance.</p>
       </div>
       <div class="card">
-        <div class="icon">🛍️</div>
-        <h4>Boutique intégrée</h4>
-        <p>Certaines coiffeuses vendent aussi leurs produits capillaires directement dans l'application.</p>
-      </div>
-      <div class="card">
         <div class="icon">💬</div>
         <h4>Un assistant pour vous aider</h4>
         <p>Posez vos questions à l'assistant intégré pour vous orienter dans l'application.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="boutique" class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Boutique</span>
+      <h2>Vos produits capillaires préférés, à portée de main</h2>
+      <p>Chaque coiffeuse peut ouvrir sa propre boutique dans l'application, en plus de ses prestations.</p>
+    </div>
+    <div class="track" style="max-width:640px;margin:0 auto">
+      <div class="step">
+        <span class="num">1</span>
+        <div class="step-body">
+          <h4>Parcourez les produits de votre coiffeuse</h4>
+          <p>Shampoings, soins, accessoires : chaque coiffeuse présente ses propres produits, avec prix et stock disponible.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="num">2</span>
+        <div class="step-body">
+          <h4>Commandez et payez en toute sécurité</h4>
+          <p>Même paiement que pour une réservation : par carte bancaire ou Mobile Money, directement dans l'application.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="num">3</span>
+        <div class="step-body">
+          <h4>Suivez votre commande jusqu'à la livraison</h4>
+          <p>Commande confirmée, expédiée puis livrée par la coiffeuse — suivi visible à chaque étape dans l'application.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -513,6 +540,7 @@ footer ul a:hover{color:#fff}
         <h5>Navigation</h5>
         <ul>
           <li><a href="#comment-ca-marche">Comment ça marche</a></li>
+          <li><a href="#boutique">Boutique</a></li>
           <li><a href="#coiffeuses">Pour les coiffeuses</a></li>
           <li><a href="#faq">FAQ</a></li>
           <li><a href="#contact">Contact</a></li>

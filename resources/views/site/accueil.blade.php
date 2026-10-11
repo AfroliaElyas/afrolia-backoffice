@@ -205,12 +205,6 @@ section{padding-block:40px}
 .phone-screen .m-actions .refuse{border:1px solid var(--border);color:var(--fg-mute)}
 .phone-screen .m-actions .confirm{background:var(--accent);color:#fff}
 
-.gallery-grid{display:grid;gap:16px;grid-template-columns:repeat(3,1fr)}
-.gallery-photo{border-radius:18px;overflow:hidden;aspect-ratio:3/4;border:1px solid var(--border)}
-.gallery-photo img{width:100%;height:100%;object-fit:cover}
-@media (max-width:700px){.gallery-grid{grid-template-columns:1fr 1fr}}
-@media (max-width:460px){.gallery-grid{grid-template-columns:1fr}}
-
 .duo-photos{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .duo-photos img{border-radius:16px;aspect-ratio:3/4;object-fit:cover;width:100%}
 
@@ -382,7 +376,7 @@ footer ul a:hover{color:#fff}
       </div>
     </div>
     <div class="hero-photo">
-      <img src="{{ asset('images/site/coiffure-hero.jpg') }}" alt="Une coiffeuse tresse les cheveux de sa cliente" loading="eager">
+      <img src="{{ asset('images/site/coiffure-tresses.jpg') }}" alt="Une coiffeuse tresse les cheveux de sa cliente" loading="eager">
     </div>
   </section>
 
@@ -501,18 +495,6 @@ footer ul a:hover{color:#fff}
           </div>
         </div>
       </div>
-    </div>
-  </section>
-
-  <section class="wrap">
-    <div class="section-head">
-      <span class="eyebrow">En images</span>
-      <h2>Des coiffures, de vraies clientes</h2>
-    </div>
-    <div class="gallery-grid">
-      <div class="gallery-photo"><img src="{{ asset('images/site/coiffure-salon.jpg') }}" alt="Une coiffeuse tresse sa cliente dans un salon" loading="lazy"></div>
-      <div class="gallery-photo"><img src="{{ asset('images/site/coiffure-tresses.jpg') }}" alt="Coiffeuse réalisant des tresses" loading="lazy"></div>
-      <div class="gallery-photo"><img src="{{ asset('images/site/coiffure-portrait.jpg') }}" alt="Portrait d'une cliente avec de longues tresses" loading="lazy"></div>
     </div>
   </section>
 

@@ -1,6 +1,8 @@
 # Conditions Générales d'Utilisation — Afrolia
 
-> **BROUILLON — ne pas publier tel quel.** Comme pour la politique de confidentialité, ce texte doit être relu, complété (informations entre crochets `[...]`) et idéalement validé par un professionnel du droit avant d'être montré à une utilisatrice. Il décrit le fonctionnement réel de l'application tel qu'il existe aujourd'hui dans le code. Raison sociale confirmée : Afrolia Expertise SARL.
+> **BROUILLON — ne pas publier tel quel.** Ce texte doit être relu, complété (informations entre crochets `[...]`) et idéalement validé par un professionnel du droit avant d'être montré à une utilisatrice. Il décrit le fonctionnement réel de l'application tel qu'il existe aujourd'hui dans le code.
+
+**Éditeur :** AFROLIA SARLU, société de droit ivoirien, RCCM n° CI-ABJ-03-2026-B13-12606, dont le siège social est situé à Abidjan, Cocody, Angré 8ᵉ tranche, à 200 mètres du Carrefour Mandela, lot 125, îlot 15, Côte d'Ivoire.
 
 **Date d'effet :** [à compléter]
 
@@ -10,7 +12,7 @@ Afrolia est une application mobile qui met en relation des clientes et des coiff
 
 ## 2. Qui peut utiliser Afrolia
 
-- Il faut avoir [18 ans / l'âge de la majorité légale — à confirmer] pour créer un compte.
+- L'inscription est réservée aux personnes âgées de **18 ans révolus**.
 - Chaque compte est associé à un numéro de téléphone, vérifié par un code envoyé par SMS.
 - Vous êtes responsable de l'exactitude des informations que vous fournissez et de la confidentialité de votre accès au compte.
 
@@ -27,49 +29,56 @@ Afrolia est une **plateforme de mise en relation**, pas elle-même un salon de c
 - Le prix affiché au moment de réserver est celui réellement fixé par la coiffeuse pour ce service ; il ne peut pas être modifié par la cliente.
 - La durée du rendez-vous est figée au moment de la réservation : si la coiffeuse modifie ensuite la durée de sa prestation, cela ne change pas les rendez-vous déjà pris.
 - Un créneau déjà réservé chez une coiffeuse ne peut pas être réservé par une autre cliente en même temps.
-- **Annulation :** [à définir — conditions d'annulation, délai, éventuels frais retenus. Le système technique le permet déjà (paramètre "frais d'annulation"), mais ce frais est actuellement à 0 % ; dis-moi la règle que tu veux appliquer.]
 
-## 5. Paiement
+## 5. Tarifs
+
+Les coiffeuses choisissent librement entre deux formules :
+- **Formule Gratuite** : aucun abonnement mensuel, **8 % de frais totaux** par prestation réalisée.
+- **Formule Premium** : abonnement de **4 500 FCFA / mois**, **6 % de frais totaux** par prestation réalisée, mise en avant dans les résultats de recherche.
+
+La cliente paie toujours uniquement le prix affiché du service, sans frais supplémentaires ; les frais sont prélevés sur les gains de la coiffeuse. Le changement de formule est prélevé sur le solde disponible de la coiffeuse ; en cas de solde insuffisant au renouvellement mensuel, la coiffeuse repasse automatiquement en formule Gratuite.
+
+## 6. Paiement
 
 - Les paiements par carte bancaire sont traités par **Stripe**.
 - Les paiements Mobile Money (Wave, Orange Money, MTN Mobile Money, Moov Money) sont traités par **Jèko**.
-- Le montant total payé comprend le prix de la prestation ou du produit, plus une commission de la plateforme. Le taux de cette commission dépend de la formule d'abonnement choisie par la coiffeuse (actuellement : Gratuite 5 %, Premium 3 %, pour 4 500 FCFA/mois).
 - Afrolia ne stocke jamais vos coordonnées bancaires.
-- En cas d'annulation après paiement, le remboursement est traité [selon la méthode de paiement initiale — automatique pour Stripe ; pour le Mobile Money, voir le point en cours d'intégration avec Jèko].
 
-## 6. Abonnement des coiffeuses
+## 7. Annulation et remboursement
 
-Les coiffeuses choisissent librement entre :
-- **Formule Gratuite** : aucun abonnement mensuel, commission de 5 % par vente
-- **Formule Premium** : 4 500 FCFA par mois, commission de 3 % par vente, mise en avant dans les résultats de recherche
+En cas d'annulation d'une réservation déjà payée :
+- **si la cliente annule**, elle est remboursée du prix payé, diminué des frais applicables à sa formule (8 % ou 6 %) ;
+- **si la coiffeuse annule**, elle supporte ces frais et la cliente est remboursée intégralement.
 
-Le changement de formule est prélevé sur le solde disponible de la coiffeuse. En cas de solde insuffisant au renouvellement mensuel, la coiffeuse repasse automatiquement en formule Gratuite.
+## 8. Versement des gains aux coiffeuses
 
-## 7. Avis et litiges
+[À compléter — les modalités de versement des gains par Mobile Money sont en cours de finalisation]
+
+## 9. Avis et litiges
 
 - Une cliente peut laisser un avis uniquement après une prestation terminée, une seule fois par réservation.
 - En cas de désaccord entre une cliente et une coiffeuse, un signalement peut être fait depuis l'application ; Afrolia examine la situation [décrire le processus réel : délai de réponse, qui tranche, etc.].
 
-## 8. Suspension et résiliation de compte
+## 10. Suspension, résiliation et suppression de compte
 
-Afrolia se réserve le droit de suspendre ou de fermer un compte en cas de non-respect de ces conditions, de fraude avérée ou d'usage abusif de l'application. Vous pouvez demander la suppression de votre compte à tout moment en nous contactant.
+Afrolia se réserve le droit de suspendre ou de fermer un compte en cas de non-respect de ces conditions, de fraude avérée ou d'usage abusif de l'application. Vous pouvez supprimer votre compte à tout moment directement depuis l'application.
 
-## 9. Propriété intellectuelle
+## 11. Propriété intellectuelle
 
-L'application, son contenu et sa marque appartiennent à Afrolia Expertise SARL. Les avis, photos et descriptions publiés par les utilisatrices restent leur propriété, mais vous nous autorisez à les afficher dans l'application.
+L'application, son contenu et sa marque appartiennent à AFROLIA SARLU. Les avis, photos et descriptions publiés par les utilisatrices restent leur propriété, mais vous nous autorisez à les afficher dans l'application.
 
-## 10. Limitation de responsabilité
+## 12. Limitation de responsabilité
 
-Afrolia met tout en œuvre pour assurer le bon fonctionnement de l'application, sans garantir une disponibilité continue ou une absence totale d'erreur. Afrolia n'est pas responsable des dommages résultant de l'utilisation de l'application en dehors de ce qu'elle contrôle directement (ex. qualité d'une prestation réalisée par une coiffeuse indépendante).
+Afrolia met tout en œuvre pour assurer le bon fonctionnement de l'application, sans garantir une disponibilité continue ou une absence totale d'erreur. Afrolia n'est pas responsable des dommages résultant de l'utilisation de l'application en dehors de ce qu'elle contrôle directement (ex. qualité d'une prestation réalisée par une coiffeuse indépendante). [⚠ Formulation à faire vérifier par un juriste]
 
-## 11. Droit applicable
+## 13. Droit applicable
 
-Les présentes conditions sont soumises au droit ivoirien. Tout litige relatif à leur interprétation ou leur exécution relève des tribunaux compétents de Côte d'Ivoire.
+Les présentes conditions sont soumises au droit ivoirien. Tout litige relatif à leur interprétation ou leur exécution relève des tribunaux compétents de [à compléter — ville/juridiction].
 
-## 12. Modification des conditions
+## 14. Modification des conditions
 
 Ces conditions peuvent être mises à jour. Toute modification importante vous sera signalée dans l'application avant de prendre effet.
 
-## 13. Nous contacter
+## 15. Nous contacter
 
 afroliaofficiel@gmail.com — [Téléphone, optionnel]

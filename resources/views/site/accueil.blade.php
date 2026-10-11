@@ -75,11 +75,29 @@ header.top{
 
 .hero{
   padding-block:40px 32px;
+  display:grid;
+  gap:28px;
+  align-items:center;
+}
+.hero-content{
   text-align:center;
   display:flex;
   flex-direction:column;
   align-items:center;
   gap:18px;
+}
+.hero-photo{
+  border-radius:24px;
+  overflow:hidden;
+  box-shadow:0 24px 44px -24px rgba(146,64,14,.4);
+  aspect-ratio:4/3;
+}
+.hero-photo img{width:100%;height:100%;object-fit:cover}
+@media (min-width:760px){
+  .hero{grid-template-columns:1.05fr 0.95fr}
+  .hero-content{align-items:flex-start;text-align:left;order:1}
+  .hero-ctas{justify-content:flex-start}
+  .hero-photo{aspect-ratio:3/4;order:2}
 }
 .hero img.logo{width:92px;height:92px}
 .badge{
@@ -186,6 +204,15 @@ section{padding-block:40px}
 .phone-screen .m-actions span{flex:1;text-align:center;border-radius:99px;padding:3px 2px;font-size:0.36rem;font-weight:700}
 .phone-screen .m-actions .refuse{border:1px solid var(--border);color:var(--fg-mute)}
 .phone-screen .m-actions .confirm{background:var(--accent);color:#fff}
+
+.gallery-grid{display:grid;gap:16px;grid-template-columns:repeat(3,1fr)}
+.gallery-photo{border-radius:18px;overflow:hidden;aspect-ratio:3/4;border:1px solid var(--border)}
+.gallery-photo img{width:100%;height:100%;object-fit:cover}
+@media (max-width:700px){.gallery-grid{grid-template-columns:1fr 1fr}}
+@media (max-width:460px){.gallery-grid{grid-template-columns:1fr}}
+
+.duo-photos{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.duo-photos img{border-radius:16px;aspect-ratio:3/4;object-fit:cover;width:100%}
 
 .cards{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
 .card{
@@ -344,13 +371,18 @@ footer ul a:hover{color:#fff}
 
 <main>
   <section class="hero wrap">
-    <img class="logo" src="{{ asset('images/afrolia-logo.png') }}" alt="Afrolia">
-    <span class="badge">Lancement à venir en Côte d'Ivoire</span>
-    <h1>Trouvez et réservez votre coiffeuse, simplement</h1>
-    <p class="lede">Afrolia met en relation les clientes et les coiffeuses/coiffeurs indépendants en Côte d'Ivoire : comparez les profils, réservez en ligne et payez en toute sécurité.</p>
-    <div class="hero-ctas">
-      <a class="btn primary" href="#contact">Être prévenue du lancement</a>
-      <a class="btn ghost" href="#comment-ca-marche">Voir comment ça marche</a>
+    <div class="hero-content">
+      <img class="logo" src="{{ asset('images/afrolia-logo.png') }}" alt="Afrolia">
+      <span class="badge">Lancement à venir en Côte d'Ivoire</span>
+      <h1>Trouvez et réservez votre coiffeuse, simplement</h1>
+      <p class="lede">Afrolia met en relation les clientes et les coiffeuses/coiffeurs indépendants en Côte d'Ivoire : comparez les profils, réservez en ligne et payez en toute sécurité.</p>
+      <div class="hero-ctas">
+        <a class="btn primary" href="#contact">Être prévenue du lancement</a>
+        <a class="btn ghost" href="#comment-ca-marche">Voir comment ça marche</a>
+      </div>
+    </div>
+    <div class="hero-photo">
+      <img src="{{ asset('images/site/coiffure-hero.jpg') }}" alt="Une coiffeuse tresse les cheveux de sa cliente" loading="eager">
     </div>
   </section>
 
@@ -474,6 +506,18 @@ footer ul a:hover{color:#fff}
 
   <section class="wrap">
     <div class="section-head">
+      <span class="eyebrow">En images</span>
+      <h2>Des coiffures, de vraies clientes</h2>
+    </div>
+    <div class="gallery-grid">
+      <div class="gallery-photo"><img src="{{ asset('images/site/coiffure-salon.jpg') }}" alt="Une coiffeuse tresse sa cliente dans un salon" loading="lazy"></div>
+      <div class="gallery-photo"><img src="{{ asset('images/site/coiffure-tresses.jpg') }}" alt="Coiffeuse réalisant des tresses" loading="lazy"></div>
+      <div class="gallery-photo"><img src="{{ asset('images/site/coiffure-portrait.jpg') }}" alt="Portrait d'une cliente avec de longues tresses" loading="lazy"></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="section-head">
       <span class="eyebrow">Côté clientes</span>
       <h2>Pensé pour réserver l'esprit tranquille</h2>
     </div>
@@ -588,6 +632,10 @@ footer ul a:hover{color:#fff}
       <p style="color:var(--fg-mute);font-size:0.98rem">
         Afrolia est une application mobile qui met en relation des clientes et des coiffeuses/coiffeurs indépendants en Côte d'Ivoire, pour la prise de rendez-vous et l'achat de produits de coiffure. Notre objectif : rendre la réservation d'une prestation de coiffure aussi simple qu'un rendez-vous pris en quelques clics, pour les clientes comme pour les professionnelles.
       </p>
+      <div class="duo-photos" style="margin-top:22px">
+        <img src="{{ asset('images/site/coiffure-trio-1.jpg') }}" alt="Trois clientes avec des coiffures afro différentes" loading="lazy" style="object-position:25% 55%">
+        <img src="{{ asset('images/site/coiffure-trio-2.jpg') }}" alt="Trois clientes, cheveux afro naturels et tresses colorées" loading="lazy">
+      </div>
     </div>
   </section>
 

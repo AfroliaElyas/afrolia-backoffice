@@ -48,6 +48,14 @@ class ApiUtilisateursController extends Controller
                 ], 401);
             }
 
+            if ($utilisateur->phone_verified_at === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Numéro de téléphone non vérifié.",
+                    'data' => ['phone' => $utilisateur->phone],
+                ], 403);
+            }
+
             // Un jeton par connexion : permet de révoquer une session précise
             // (déconnexion) sans affecter les autres appareils connectés.
             $token = $utilisateur->createToken('mobile')->plainTextToken;
@@ -110,6 +118,13 @@ class ApiUtilisateursController extends Controller
             ], 422);
         }
 
+        if ($this->smsGateway instanceof GenericSmsGateway) {
+            return response()->json([
+                'success' => false,
+                'message' => "L'inscription nécessite une vérification par SMS, actuellement indisponible. Veuillez réessayer plus tard.",
+            ], 503);
+        }
+
         $utilisateur = new UsersApp();
         $utilisateur->name = $request->nom;
         $utilisateur->last_name = $request->prenom;
@@ -117,24 +132,90 @@ class ApiUtilisateursController extends Controller
         $utilisateur->email = $request->email;
         $utilisateur->role = $request->role;
         $utilisateur->password = Hash::make($request->password);
-        if ($utilisateur->save()) {
-            $token = $utilisateur->createToken('mobile')->plainTextToken;
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Vous êtes inscrit avec succès',
-                'data' => [
-                    'id' => $utilisateur->id_user_app,
-                    'role' => $utilisateur->role,
-                    'token' => $token,
-                ],
-            ]);
-        } else {
+        if (!$utilisateur->save()) {
             return response()->json([
                 'success' => false,
                 'message' => "Une erreur s'est produite. Veuillez recommencer.",
             ], 401);
         }
+
+        $otp = rand(100000, 999999);
+
+        if (!$this->smsGateway->envoyer($utilisateur->phone, "Votre code de vérification Afrolia : {$otp}")) {
+            // Le numéro n'étant pas unique sans le compte, on le supprime
+            // pour permettre une nouvelle tentative d'inscription avec le
+            // même numéro plutôt que de laisser un compte non vérifiable.
+            $utilisateur->delete();
+
+            return response()->json([
+                'success' => false,
+                'message' => "L'envoi du SMS de vérification a échoué, veuillez réessayer.",
+            ], 503);
+        }
+
+        $utilisateur->otp = $otp;
+        $utilisateur->otp_created_at = now();
+        $utilisateur->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Un code de vérification a été envoyé par SMS.',
+            'data' => [
+                'phone' => $utilisateur->phone,
+            ],
+        ]);
+    }
+
+    public function verifierInscription(Request $request)
+    {
+        $rules = [
+            'phone' => 'required|exists:users_app,phone',
+            'otp' => 'required',
+        ];
+
+        $messages = [
+            'phone.required' => 'Veuillez saisir votre numéro de téléphone.',
+            'phone.exists' => 'Le numéro de téléphone n\'est pas enregistré.',
+            'otp.required' => 'Veuillez saisir le code reçu par SMS.',
+        ];
+
+        $validator = Validator::make($request->all(), $rules, $messages);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($validator->errors()->all()),
+            ], 422);
+        }
+
+        $utilisateur = UsersApp::where('phone', $request->phone)
+            ->where('otp', $request->otp)
+            ->first();
+
+        if (!$utilisateur || $utilisateur->otp_created_at === null || $utilisateur->otp_created_at->addMinutes(10)->isPast()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Code invalide ou expiré',
+            ], 401);
+        }
+
+        $utilisateur->phone_verified_at = now();
+        $utilisateur->otp = null;
+        $utilisateur->otp_created_at = null;
+        $utilisateur->save();
+
+        $token = $utilisateur->createToken('mobile')->plainTextToken;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Numéro vérifié avec succès',
+            'data' => [
+                'id' => $utilisateur->id_user_app,
+                'role' => $utilisateur->role,
+                'token' => $token,
+            ],
+        ]);
     }
 
     public function logout(Request $request)

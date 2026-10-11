@@ -21,6 +21,7 @@ class AuthentificationApiTest extends TestCase
             'phone' => $phone,
             'password' => Hash::make('motdepasse'),
             'role' => $role,
+            'phone_verified_at' => now(),
         ]);
     }
 

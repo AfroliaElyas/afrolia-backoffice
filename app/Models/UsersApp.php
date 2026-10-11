@@ -27,6 +27,7 @@ class UsersApp extends Model implements AuthenticatableContract
         'role',
         'otp',
         'otp_created_at',
+        'phone_verified_at',
         'statut',
         'formule_abonnement',
         'prochain_prelevement_le',
@@ -49,6 +50,7 @@ class UsersApp extends Model implements AuthenticatableContract
         'derniere_maj_position' => 'datetime',
         'deplacement_domicile' => 'boolean',
         'otp_created_at' => 'datetime',
+        'phone_verified_at' => 'datetime',
     ];
 
     public function reservationsClient()

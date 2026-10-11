@@ -33,6 +33,8 @@ use Illuminate\Support\Facades\Route;
 Route::post('login', [ApiUtilisateursController::class, 'login'])
     ->middleware('throttle:5,1');
 Route::post('register', [ApiUtilisateursController::class, 'register']);
+Route::post('verify-register', [ApiUtilisateursController::class, 'verifierInscription'])
+    ->middleware('throttle:5,1');
 Route::post('otp', [ApiUtilisateursController::class, 'demanderOtpReset'])
     ->middleware('throttle:5,1');
 Route::post('reset', [ApiUtilisateursController::class, 'resetPasswordWithOtp'])

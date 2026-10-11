@@ -32,8 +32,8 @@ return new class extends Migration
             $table->timestamp('confirme_le')->nullable();
             $table->timestamp('termine_le')->nullable();
 
-            $table->enum('statut_remboursement', ['aucun', 'en_attente', 'traite', 'rejete'])->default('aucun')->after('statut_paiement');
-            $table->text('raison_rejet_remboursement')->nullable()->after('statut_remboursement');
+            $table->enum('statut_remboursement', ['aucun', 'en_attente', 'traite', 'rejete'])->default('aucun');
+            $table->text('raison_rejet_remboursement')->nullable();
 
             $table->foreign('id_client')->references('id_user_app')->on('users_app')->onDelete('cascade');
             $table->foreign('id_coiffeur')->references('id_user_app')->on('users_app')->onDelete('cascade');

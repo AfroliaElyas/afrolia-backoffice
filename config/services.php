@@ -64,4 +64,14 @@ return [
         'api_key' => env('ANTHROPIC_API_KEY'),
     ],
 
+    // Envoi des SMS (codes OTP). Voir App\Services\Sms\TwilioSmsGateway.
+    // TWILIO_FROM doit être un sender ID alphanumérique (ex. "AFROLIA")
+    // pré-enregistré auprès de Twilio pour la Côte d'Ivoire : le réseau MTN
+    // refuse les SMS envoyés depuis un simple numéro.
+    'twilio' => [
+        'account_sid' => env('TWILIO_ACCOUNT_SID'),
+        'auth_token' => env('TWILIO_AUTH_TOKEN'),
+        'from' => env('TWILIO_FROM'),
+    ],
+
 ];

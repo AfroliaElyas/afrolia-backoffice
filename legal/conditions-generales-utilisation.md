@@ -13,7 +13,7 @@ Afrolia est une application mobile qui met en relation des clientes et des coiff
 ## 2. Qui peut utiliser Afrolia
 
 - L'inscription est réservée aux personnes âgées de **18 ans révolus**.
-- Chaque compte est associé à un numéro de téléphone, vérifié par un code envoyé par SMS.
+- Chaque compte est associé à un numéro de téléphone. [À noter : la vérification du numéro par SMS à l'inscription n'est pas encore en place dans l'application — seule la réinitialisation du mot de passe envoie un code par SMS pour l'instant. À corriger ici une fois le choix fait : soit ajouter la vérification à l'inscription, soit retirer cette phrase si elle n'est pas prévue.]
 - Vous êtes responsable de l'exactitude des informations que vous fournissez et de la confidentialité de votre accès au compte.
 
 ## 3. Le rôle d'Afrolia

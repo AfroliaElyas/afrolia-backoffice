@@ -88,7 +88,7 @@ class ApiCommandesController extends Controller
                 }
 
                 $coiffeuse = UsersApp::find($request->id_coiffeur);
-                $taux = $coiffeuse ? $this->abonnements->tauxCommissionPourCoiffeuse($coiffeuse) : $this->abonnements->tauxCommission('gratuit');
+                $taux = $coiffeuse ? $this->abonnements->tauxCommissionBoutiquePourCoiffeuse($coiffeuse) : $this->abonnements->tauxCommissionBoutique('gratuit');
 
                 $montantCommission = round($montantProduits * $taux, 2);
                 $montantTotal = $montantProduits + $montantCommission;

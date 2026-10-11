@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Gains;
 use App\Models\Reservations;
 use App\Models\Services;
 use App\Models\UsersApp;
@@ -217,8 +218,11 @@ class ApiReservationsController extends Controller
             ? $this->abonnements->tauxCommissionPourCoiffeuse($coiffeuse)
             : $this->abonnements->tauxCommission('gratuit');
 
+        // La retenue (commission Afrolia + frais de paiement) est déduite
+        // des gains de la coiffeuse, jamais ajoutée au prix payé par la
+        // cliente : elle paie exactement le prix affiché du service.
         $validated['montant_commission'] = round($validated['prix_service'] * $taux, 2);
-        $validated['montant_total'] = $validated['prix_service'] + $validated['montant_commission'];
+        $validated['montant_total'] = $validated['prix_service'];
 
         // Génération du numero_reservation unique
         do {
@@ -266,16 +270,56 @@ class ApiReservationsController extends Controller
             'statut' => 'sometimes|in:annulee',
             'notes' => 'nullable|string',
             'raison_annulation' => 'nullable|string',
-            'annule_par' => 'nullable|in:client,coiffeur,admin'
         ]);
 
+        // annule_par détermine qui supporte la commission Afrolia en cas
+        // d'annulation (voir annulerGainsPourReservation ci-dessous) :
+        // jamais une valeur transmise par le client, toujours "client" ici
+        // puisque c'est lui qui déclenche cette annulation.
+        if (($validated['statut'] ?? null) === 'annulee') {
+            $validated['annule_par'] = 'client';
+            $validated['annule_le'] = now();
+        }
+
         $reservation->update($validated);
+
+        if (($validated['statut'] ?? null) === 'annulee') {
+            $this->annulerGainsPourReservation($reservation);
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Réservation mise à jour avec succès',
             'data' => $reservation
         ]);
+    }
+
+    /**
+     * Annule le gain déjà enregistré pour une réservation payée puis
+     * annulée (le paiement crée systématiquement un gain "en_attente" dès
+     * sa réussite, avant même que la prestation ait lieu) :
+     * - annulation par la cliente : la commission Afrolia reste due, la
+     *   coiffeuse ne touche rien puisqu'elle n'a pas travaillé (gain mis à
+     *   0, statut "annulee").
+     * - annulation par la coiffeuse : la commission reste due mais c'est
+     *   elle qui la supporte, déduite de ses gains (gain mis à
+     *   -montant_commission, qui se résorbe sur ses prochains versements).
+     * N'a aucun effet si la réservation n'a jamais été payée (aucun gain à
+     * annuler).
+     */
+    private function annulerGainsPourReservation(Reservations $reservation): void
+    {
+        $gain = Gains::where('id_reservation', $reservation->id_reservation)->first();
+
+        if (!$gain) {
+            return;
+        }
+
+        if ($reservation->annule_par === 'coiffeur') {
+            $gain->update(['montant_net' => -$gain->montant_commission, 'statut' => 'en_attente']);
+        } else {
+            $gain->update(['montant_net' => 0, 'statut' => 'annulee']);
+        }
     }
 
     // ✅ 4. Suppression d’une réservation
@@ -351,6 +395,8 @@ class ApiReservationsController extends Controller
             'annule_par' => 'coiffeur',
             'raison_annulation' => $request->input('raison', 'Aucune raison spécifiée')
         ]);
+
+        $this->annulerGainsPourReservation($reservation);
 
         return response()->json([
             'success' => true,

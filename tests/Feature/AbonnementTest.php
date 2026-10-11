@@ -45,7 +45,7 @@ class AbonnementTest extends TestCase
         $this->getJson("/api/abonnement/{$coiffeuse->id_user_app}")
             ->assertStatus(200)
             ->assertJsonPath('data.formule_abonnement', 'gratuit')
-            ->assertJsonPath('data.commission_actuelle', 5);
+            ->assertJsonPath('data.commission_actuelle', 8);
     }
 
     public function test_le_changement_vers_une_formule_payante_preleve_le_solde_disponible(): void

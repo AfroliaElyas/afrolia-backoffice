@@ -67,14 +67,14 @@ class StripeWebhookTest extends TestCase
             'heure_reservation' => '10:00',
             'prix_service' => 10000,
             'montant_commission' => 1500,
-            'montant_total' => 11500,
+            'montant_total' => 10000,
             'methode_paiement' => 'stripe',
         ]);
 
         return Paiements::create([
             'id_reservation' => $reservation->id_reservation,
             'payment_intent_id' => 'pi_test_123',
-            'amount' => 11500,
+            'amount' => 10000,
             'currency' => 'XOF',
             'payment_method' => 'stripe',
             'status' => 'pending',
@@ -198,7 +198,7 @@ class StripeWebhookTest extends TestCase
             ->update(['formule_abonnement' => 'premium']);
         $this->notifier($paiement, 'payment_intent.succeeded');
         $gain = DB::table('gains')->where('id_reservation', $reservation->id_reservation)->first();
-        $this->assertEquals(10000, (float) $gain->montant_net);
+        $this->assertEquals(8500, (float) $gain->montant_net);
         $this->assertEquals(1500, (float) $gain->montant_commission);
     }
 
@@ -207,7 +207,7 @@ class StripeWebhookTest extends TestCase
         $paiement = $this->creerReservationAvecPaiementPending();
         $autre = Paiements::create([
             'id_reservation' => $paiement->id_reservation,
-            'payment_intent_id' => 'pi_other_attempt', 'amount' => 11500,
+            'payment_intent_id' => 'pi_other_attempt', 'amount' => 10000,
             'currency' => 'XOF', 'payment_method' => 'stripe', 'status' => 'pending',
         ]);
         $this->notifier($paiement, 'payment_intent.succeeded');
@@ -221,7 +221,7 @@ class StripeWebhookTest extends TestCase
         $paiement = $this->creerReservationAvecPaiementPending();
         $autre = Paiements::create([
             'id_reservation' => $paiement->id_reservation,
-            'payment_intent_id' => 'pi_second_success', 'amount' => 11500,
+            'payment_intent_id' => 'pi_second_success', 'amount' => 10000,
             'currency' => 'XOF', 'payment_method' => 'stripe', 'status' => 'pending',
         ]);
         $this->notifier($paiement, 'payment_intent.succeeded');

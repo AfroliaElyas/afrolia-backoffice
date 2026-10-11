@@ -126,13 +126,21 @@ class RemboursementController extends Controller
             return back()->withErrors(['Aucun paiement réussi trouvé pour cette réservation.']);
         }
 
+        // La commission Afrolia reste due en cas d'annulation : si c'est la
+        // cliente qui annule, elle la supporte (remboursée du prix moins la
+        // commission) ; si c'est la coiffeuse, la cliente est remboursée
+        // intégralement.
+        $montantARembourser = $reservation->annule_par === 'coiffeur'
+            ? (float) $paiement->amount
+            : (float) $paiement->amount - (float) $reservation->montant_commission;
+
         if ($paiement->payment_method === 'stripe') {
             if (!$paiement->payment_intent_id) {
                 return back()->withErrors(['Ce paiement Stripe ne référence aucun PaymentIntent, remboursement impossible automatiquement.']);
             }
 
             try {
-                $this->stripeGateway->refund($paiement->payment_intent_id, (float) $paiement->amount);
+                $this->stripeGateway->refund($paiement->payment_intent_id, $montantARembourser);
             } catch (\Throwable $e) {
                 Log::error('Échec du remboursement Stripe', ['id_paiement' => $paiement->id_paiement, 'erreur' => $e->getMessage()]);
 
@@ -155,7 +163,7 @@ class RemboursementController extends Controller
                         'telephone' => $paiement->mobile_money_telephone,
                         'operateur' => $paiement->mobile_money_operateur,
                     ],
-                    montant: (float) $paiement->amount,
+                    montant: $montantARembourser,
                     reference: 'REMB-' . $paiement->id_paiement . '-' . Str::upper(Str::random(6))
                 );
 

@@ -48,13 +48,13 @@ Vos données ne sont jamais vendues ni louées. Elles peuvent être transmises u
 - **Stripe** : pour traiter les paiements par carte bancaire
 - **Jèko** : pour traiter les paiements, remboursements et versements Mobile Money
 - **Anthropic** : pour faire fonctionner l'assistant (section 4)
-- **DigitalOcean** : notre hébergeur technique ([région du serveur à compléter])
+- **DigitalOcean** : notre hébergeur technique (serveur situé à Francfort, Allemagne)
 - **[Fournisseur SMS à préciser]** : pour l'envoi des codes de vérification par SMS
 - Les autorités compétentes, si la loi nous y oblige
 
 Les coiffeuses et clientes voient mutuellement certaines informations nécessaires au bon déroulement d'une prestation (nom, photo, note moyenne, avis publiés).
 
-Certains de ces prestataires (Stripe, Anthropic, et DigitalOcean selon la région du serveur) peuvent traiter des données en dehors de la Côte d'Ivoire. [⚠ Point à faire vérifier par un juriste, notamment au regard de la loi ivoirienne n° 2013-450 relative à la protection des données personnelles et de l'ARTCI]
+Certains de ces prestataires (Stripe, Anthropic, et DigitalOcean dont le serveur est situé en Allemagne) traitent des données en dehors de la Côte d'Ivoire, au sein de l'Union européenne pour l'hébergement. [⚠ Point à faire vérifier par un juriste, notamment au regard de la loi ivoirienne n° 2013-450 relative à la protection des données personnelles et de l'ARTCI]
 
 ## 6. Combien de temps nous conservons vos données
 

@@ -80,6 +80,12 @@
                                 class="ri-circle-fill circle-icon text-danger-main w-auto"></i>
                             Remboursements</a>
                     </li>
+                    <li class="{{ Route::is('versements') ? 'active-page' : '' }}">
+                        <a href="{{ url('versements') }}"
+                            class="{{ Route::is('versements') ? 'active-page' : '' }}"><i
+                                class="ri-circle-fill circle-icon text-danger-main w-auto"></i>
+                            Versements aux coiffeuses</a>
+                    </li>
                     <li class="{{ Route::is('tarifs') ? 'active-page' : '' }}">
                         <a href="{{ url('tarifs') }}" class="{{ Route::is('tarifs') ? 'active-page' : '' }}">
                             <i class="ri-circle-fill circle-icon text-danger-main w-auto"></i>

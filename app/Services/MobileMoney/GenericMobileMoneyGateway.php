@@ -42,4 +42,11 @@ class GenericMobileMoneyGateway implements MobileMoneyGatewayInterface
             'Remboursement Mobile Money indisponible : aucun agrégateur Mobile Money n\'est configuré.'
         );
     }
+
+    public function verser(array $destinataire, float $montant, string $reference): array
+    {
+        throw new \RuntimeException(
+            'Versement Mobile Money indisponible : aucun agrégateur Mobile Money n\'est configuré.'
+        );
+    }
 }

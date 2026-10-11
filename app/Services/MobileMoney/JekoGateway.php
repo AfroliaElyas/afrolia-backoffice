@@ -220,27 +220,49 @@ class JekoGateway implements MobileMoneyGatewayInterface
      */
     public function refund(array $destinataire, float $montant, string $reference): array
     {
+        return $this->transferer($destinataire, $montant, $reference, 'Remboursement Afrolia', 'remboursement');
+    }
+
+    /**
+     * Verse les gains d'une coiffeuse sur son numéro Mobile Money. Même
+     * mécanique que refund() (POST /partner_api/transfers après création
+     * du contact) : seule la description envoyée à Jèko diffère.
+     *
+     * @param array{nom: string, telephone: string, operateur: string} $destinataire
+     * @return array{id: ?string, status: string}
+     */
+    public function verser(array $destinataire, float $montant, string $reference): array
+    {
+        return $this->transferer($destinataire, $montant, $reference, 'Versement des gains Afrolia', 'versement');
+    }
+
+    /**
+     * @param array{nom: string, telephone: string, operateur: string} $destinataire
+     * @return array{id: ?string, status: string}
+     */
+    private function transferer(array $destinataire, float $montant, string $reference, string $description, string $libelleErreur): array
+    {
         $this->verifierConfiguration();
 
         $operateur = strtolower($destinataire['operateur'] ?? '');
         if (!in_array($operateur, self::OPERATEURS_MOBILE_MONEY, true)) {
-            throw new \InvalidArgumentException("Opérateur Mobile Money inconnu pour le remboursement : {$operateur}");
+            throw new \InvalidArgumentException("Opérateur Mobile Money inconnu pour le {$libelleErreur} : {$operateur}");
         }
 
-        $contactId = $this->creerContact($destinataire['nom'] ?? 'Client Afrolia', $operateur, $destinataire['telephone']);
+        $contactId = $this->creerContact($destinataire['nom'] ?? 'Afrolia', $operateur, $destinataire['telephone']);
 
         $reponse = Http::withHeaders($this->enTetes())->post("{$this->baseUrl}/partner_api/transfers", [
             'storeId' => $this->storeId,
             'contactId' => $contactId,
             'amountCents' => $this->versCentimes($montant),
             'currency' => 'XOF',
-            'description' => 'Remboursement Afrolia',
+            'description' => $description,
             'reference' => $reference,
         ]);
 
         if ($reponse->failed()) {
             throw new \RuntimeException(
-                'Échec du remboursement Jèko : ' . $reponse->status() . ' ' . $reponse->body()
+                "Échec du {$libelleErreur} Jèko : " . $reponse->status() . ' ' . $reponse->body()
             );
         }
 

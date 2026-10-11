@@ -287,7 +287,11 @@ details.faq p{padding-bottom:18px;color:var(--fg-mute);font-size:0.9rem}
   padding:10px 18px;
   font-size:0.92rem;
   font-weight:600;
+  color:inherit;
+  text-decoration:none;
+  display:inline-block;
 }
+.email-pill:hover{background:rgba(255,255,255,.16)}
 .copy-btn{
   background:var(--accent);
   color:#fff;border:none;border-radius:99px;
@@ -332,14 +336,17 @@ footer ul a:hover{color:#fff}
 .footer-bottom p{color:rgba(255,255,255,.82);font-size:0.8rem;margin-bottom:4px}
 
 @media (max-width:600px){
-  .hero{padding-block:32px 24px}
-  section{padding-block:32px}
-  .section-head{margin-bottom:20px}
-  .tracks{gap:20px}
-  .contact{padding:28px 20px}
-  footer{padding-block:28px 16px}
-  .footer-grid{gap:24px}
-  .footer-bottom{margin-top:22px;padding-top:14px}
+  .hero{padding-block:24px 18px}
+  section{padding-block:20px}
+  .section-head{margin-bottom:16px}
+  .tracks{gap:16px}
+  .contact{padding:24px 18px}
+  footer{padding-block:24px 14px}
+  .footer-grid{gap:20px}
+  .footer-bottom{margin-top:18px;padding-top:12px}
+  .hero-photo{margin-top:4px}
+  .duo-photos{margin-top:14px !important}
+  .gallery-grid{gap:12px}
 }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -579,6 +586,9 @@ footer ul a:hover{color:#fff}
         </ul>
       </div>
     </div>
+    <p style="color:var(--fg-mute);font-size:0.85rem;text-align:center;max-width:46ch;margin:18px auto 0">
+      En cas d'annulation, des frais restent applicables : la commission Afrolia reste due, à la charge de la personne responsable de l'annulation (cliente ou coiffeuse). Détails dans nos conditions générales.
+    </p>
   </section>
 
   <section class="wrap values">
@@ -655,8 +665,8 @@ footer ul a:hover{color:#fff}
       <h2>Une question, une envie de collaborer ?</h2>
       <p>Écrivez-nous, nous vous répondons rapidement.</p>
       <div class="copy-row">
-        <span class="email-pill" id="email-text">afroliaofficiel@gmail.com</span>
-        <button class="copy-btn" id="copy-btn">Copier l'e-mail</button>
+        <a class="email-pill" id="email-text" href="mailto:afroliaofficiel@gmail.com">afroliaofficiel@gmail.com</a>
+        <button class="copy-btn" id="copy-btn" type="button">Copier l'e-mail</button>
       </div>
     </div>
   </section>

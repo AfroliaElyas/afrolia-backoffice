@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\UsersApp;
+use App\Services\SuppressionCompteBloqueeException;
+use App\Services\SuppressionCompteService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -239,11 +241,11 @@ class UtilisateursController extends Controller
     {
         $user = UsersApp::where('role', 'user')->findOrFail($id);
 
-        if ($user->photo) {
-            Storage::disk('public')->delete($user->photo);
+        try {
+            (new SuppressionCompteService())->supprimer($user);
+        } catch (SuppressionCompteBloqueeException $e) {
+            return back()->withErrors([$e->getMessage()]);
         }
-
-        $user->delete();
 
         return back()->with('succes', 'La suppression a été effectuée.');
     }

@@ -73,7 +73,7 @@ Afrolia met tout en œuvre pour assurer le bon fonctionnement de l'application, 
 
 ## 13. Droit applicable
 
-Les présentes conditions sont soumises au droit ivoirien. Tout litige relatif à leur interprétation ou leur exécution relève des tribunaux compétents de [à compléter — ville/juridiction].
+Les présentes conditions sont soumises au droit ivoirien. Tout litige relatif à leur interprétation ou leur exécution relève des tribunaux compétents d'Abidjan, siège social d'AFROLIA SARLU, sous réserve des règles de compétence territoriale ou matérielle qui s'imposeraient malgré cette clause (notamment les règles protectrices pouvant bénéficier à une utilisatrice agissant en tant que consommatrice). [⚠️ Formulation à faire valider par un juriste avant publication : une clause attributive de compétence n'est pas toujours opposable à un consommateur, et sa validité peut dépendre du statut de l'utilisatrice (professionnelle ou non) et des règles de procédure civile ivoiriennes applicables.]
 
 ## 14. Modification des conditions
 

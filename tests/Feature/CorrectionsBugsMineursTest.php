@@ -38,7 +38,7 @@ class CorrectionsBugsMineursTest extends TestCase
         ]);
 
         return Reservations::create([
-            'numero_reservation' => 'RES-TEST-' . uniqid(),
+            'numero_reservation' => 'RES-' . uniqid(),
             'id_client' => $client->id_user_app,
             'id_coiffeur' => $coiffeuse->id_user_app,
             'id_service' => $service,

@@ -37,7 +37,7 @@ class RemboursementStripeTest extends TestCase
         // commission est une retenue sur les gains de la coiffeuse, jamais
         // un montant payé en plus.
         $reservation = Reservations::create([
-            'numero_reservation' => 'RES-TEST-' . uniqid(),
+            'numero_reservation' => 'RES-' . uniqid(),
             'id_client' => $client->id_user_app,
             'id_coiffeur' => $coiffeuse->id_user_app,
             'id_service' => $service,

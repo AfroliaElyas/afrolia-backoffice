@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\UsersApp;
 use App\Services\Sms\GenericSmsGateway;
 use App\Services\Sms\SmsGatewayInterface;
+use App\Services\SuppressionCompteBloqueeException;
+use App\Services\SuppressionCompteService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -358,31 +360,14 @@ class ApiUtilisateursController extends Controller
             ], 401);
         }
 
-        // Supprimer les fichiers liés (photo, recto, verso)
-        $fichiers = ['photo'];
-
-        foreach ($fichiers as $champ) {
-            if ($utilisateur->$champ) {
-                // Extrait juste le nom du fichier depuis le champ (ex: verso_20250614_011132.jpg)
-                $nomFichier = basename($utilisateur->$champ);
-
-                // Déduit le sous-dossier depuis le champ
-                $dossier = '';
-                if ($champ === 'photo') {
-                    $dossier = 'images/utilisateurs/photos/';
-                }
-
-                // Construit le chemin absolu complet
-                $cheminComplet = public_path($dossier . $nomFichier);
-
-                // Supprime le fichier s’il existe
-                if (file_exists($cheminComplet)) {
-                    unlink($cheminComplet);
-                }
-            }
+        try {
+            (new SuppressionCompteService())->supprimer($utilisateur);
+        } catch (SuppressionCompteBloqueeException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 409);
         }
-
-        $utilisateur->delete();
 
         return response()->json([
             'success' => true,

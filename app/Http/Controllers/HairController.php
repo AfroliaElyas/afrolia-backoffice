@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\UsersApp;
+use App\Services\SuppressionCompteBloqueeException;
+use App\Services\SuppressionCompteService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -292,11 +294,11 @@ class HairController extends Controller
     {
         $hair = UsersApp::where('role', 'hair')->findOrFail($id);
 
-        if ($hair->photo) {
-            Storage::disk('public')->delete($hair->photo);
+        try {
+            (new SuppressionCompteService())->supprimer($hair);
+        } catch (SuppressionCompteBloqueeException $e) {
+            return back()->withErrors([$e->getMessage()]);
         }
-
-        $hair->delete();
 
         return back()->with('succes', 'La suppression a été effectuée.');
     }

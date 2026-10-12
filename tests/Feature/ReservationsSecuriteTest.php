@@ -25,7 +25,7 @@ class ReservationsSecuriteTest extends TestCase
         ]);
 
         return Reservations::create([
-            'numero_reservation' => 'RES-TEST-' . uniqid(),
+            'numero_reservation' => 'RES-' . uniqid(),
             'id_client' => $client->id_user_app,
             'id_coiffeur' => $coiffeuse->id_user_app,
             'id_service' => $service,
@@ -85,6 +85,9 @@ class ReservationsSecuriteTest extends TestCase
         $this->assertSame('en_attente', $reservation->statut_paiement);
         $this->assertEquals(10500, $reservation->montant_total);
         $this->assertEquals(10000, $reservation->prix_service);
-        $this->assertSame('15:00', $reservation->heure_reservation);
+        // Comparaison sur l'horaire plutôt que la chaîne exacte : MySQL
+        // normalise une colonne TIME en HH:MM:SS, contrairement à SQLite
+        // qui renvoie la valeur telle qu'enregistrée.
+        $this->assertSame('15:00:00', \Carbon\Carbon::parse($reservation->heure_reservation)->format('H:i:s'));
     }
 }

@@ -32,6 +32,30 @@ class RecuperationCompteTest extends TestCase
         ], $overrides));
     }
 
+    // --- Fournisseur d'e-mail réel (Brevo, via son API HTTPS) ---
+
+    public function test_brevo_sans_cle_api_est_refuse_explicitement(): void
+    {
+        config(['mail.default' => 'brevo', 'services.brevo.key' => null]);
+        $this->creerUtilisateur(['email' => 'test@example.com', 'email_verified_at' => now()]);
+
+        $response = $this->postJson('/api/mot-de-passe/email/demander', ['email' => 'test@example.com']);
+
+        $response->assertStatus(503);
+    }
+
+    public function test_le_transport_brevo_se_construit_sans_erreur_avec_une_cle(): void
+    {
+        config(['services.brevo.key' => 'cle-de-test']);
+
+        $transport = app('mail.manager')->mailer('brevo')->getSymfonyTransport();
+
+        $this->assertInstanceOf(
+            \Symfony\Component\Mailer\Bridge\Brevo\Transport\BrevoApiTransport::class,
+            $transport,
+        );
+    }
+
     // --- Inscription : l'e-mail reste facultatif et ne bloque jamais ---
 
     public function test_inscription_avec_email_et_fournisseur_reel_envoie_la_verification(): void
@@ -286,6 +310,22 @@ class RecuperationCompteTest extends TestCase
         $response = $this->getJson('/api/codes-secours/statut');
 
         $response->assertStatus(200)->assertJsonPath('data.nombreCodesRestants', 8);
+    }
+
+    public function test_le_statut_de_securite_du_compte_ne_renvoie_jamais_le_mot_de_passe(): void
+    {
+        $utilisateur = $this->creerUtilisateur(['email' => 'verifie@example.com', 'email_verified_at' => now()]);
+        Sanctum::actingAs($utilisateur);
+        (new RecuperationCompteService())->genererCodesSecours($utilisateur);
+
+        $response = $this->getJson('/api/compte/securite/statut');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.email', 'verifie@example.com')
+            ->assertJsonPath('data.emailVerifie', true)
+            ->assertJsonPath('data.nombreCodesSecoursRestants', 8)
+            ->assertJsonMissingPath('data.password')
+            ->assertJsonMissingPath('data.otp');
     }
 
     public function test_reinitialiser_avec_un_bon_code_de_secours_fonctionne_et_le_consomme(): void

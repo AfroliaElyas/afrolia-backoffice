@@ -480,6 +480,26 @@ class ApiUtilisateursController extends Controller
     }
 
     /**
+     * État de récupération du compte connecté : adresse e-mail et son
+     * statut de vérification, et nombre de codes de secours restants —
+     * sans jamais renvoyer le mot de passe ni l'OTP (contrairement à
+     * GET /api/user qui expose le modèle brut).
+     */
+    public function statutSecuriteCompte(Request $request)
+    {
+        $utilisateur = $request->user();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'email' => $utilisateur->email,
+                'emailVerifie' => $utilisateur->email_verified_at !== null,
+                'nombreCodesSecoursRestants' => $this->recuperationCompteService->nombreCodesSecoursRestants($utilisateur),
+            ],
+        ]);
+    }
+
+    /**
      * Parcours 4 : réinitialisation sans e-mail ni SMS, via un code de
      * secours généré à l'avance pendant que la personne était connectée.
      * Si le numéro et le code ne correspondent pas ensemble à un code de

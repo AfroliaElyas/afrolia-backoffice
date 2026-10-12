@@ -13,7 +13,9 @@ use App\Services\Sms\SmsGatewayInterface;
 use App\Services\Sms\TwilioSmsGateway;
 use App\Services\Stripe\RealStripeGateway;
 use App\Services\Stripe\StripeGatewayInterface;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
+use Symfony\Component\Mailer\Bridge\Brevo\Transport\BrevoApiTransport;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -76,6 +78,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Envoi des e-mails via l'API HTTPS de Brevo (port 443) plutôt que
+        // son SMTP (port 587) : DigitalOcean bloque les ports SMTP
+        // sortants par défaut sur les droplets, ce qui fait échouer tout
+        // envoi SMTP avec un "Connection timed out".
+        Mail::extend('brevo', fn () => new BrevoApiTransport((string) config('services.brevo.key')));
     }
 }

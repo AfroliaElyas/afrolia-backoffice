@@ -65,6 +65,14 @@ return [
             'transport' => 'resend',
         ],
 
+        // Envoi via l'API HTTPS de Brevo (port 443), et non son SMTP
+        // (port 587) : DigitalOcean bloque les ports SMTP sortants par
+        // défaut sur les droplets, ce qui faisait échouer tout envoi avec
+        // un "Connection timed out". Voir AppServiceProvider::boot().
+        'brevo' => [
+            'transport' => 'brevo',
+        ],
+
         'sendmail' => [
             'transport' => 'sendmail',
             'path' => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -bs -i'),

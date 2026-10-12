@@ -92,6 +92,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('email/verifier/demander', [ApiUtilisateursController::class, 'demanderVerificationEmailCompte']);
     Route::post('codes-secours/generer', [ApiUtilisateursController::class, 'genererCodesSecours']);
     Route::get('codes-secours/statut', [ApiUtilisateursController::class, 'statutCodesSecours']);
+    Route::get('compte/securite/statut', [ApiUtilisateursController::class, 'statutSecuriteCompte']);
 
     Route::post('updateinfobasic/{id}', [ApiUserSalonController::class, 'updateInfoBasic']);
     Route::post('updatepresentation/{id}', [ApiUserSalonController::class, 'updatePresentation']);

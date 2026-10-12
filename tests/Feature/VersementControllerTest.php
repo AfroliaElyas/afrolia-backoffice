@@ -33,7 +33,7 @@ class VersementControllerTest extends TestCase
             'created_at' => now(), 'updated_at' => now(),
         ]);
         $reservation = Reservations::create([
-            'numero_reservation' => 'RES-TEST-' . uniqid(),
+            'numero_reservation' => 'RES-' . uniqid(),
             'id_client' => $client->id_user_app,
             'id_coiffeur' => $coiffeuse->id_user_app,
             'id_service' => $service,

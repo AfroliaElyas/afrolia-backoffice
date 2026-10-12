@@ -9,6 +9,7 @@ use App\Http\Controllers\LitigeController;
 use App\Http\Controllers\PaiementController;
 use App\Http\Controllers\PolitiqueController;
 use App\Http\Controllers\RapportController;
+use App\Http\Controllers\RecuperationCompteController;
 use App\Http\Controllers\RemboursementController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\TarifController;
@@ -42,6 +43,17 @@ Route::get('sign-up', function () {
 Route::get('forgot', function () {
     return view('auth.forgot-password');
 });
+
+// Pages ouvertes depuis le lien reçu par e-mail (vérification d'adresse,
+// réinitialisation de mot de passe) : consultées depuis un navigateur, pas
+// depuis l'application mobile. Limitées en fréquence pour freiner les
+// tentatives répétées de deviner un jeton.
+Route::get('verifier-email/{token}', [RecuperationCompteController::class, 'verifierEmail'])
+    ->middleware('throttle:20,1');
+Route::get('reinitialiser-mot-de-passe/{token}', [RecuperationCompteController::class, 'formulaireReinitialisation'])
+    ->middleware('throttle:20,1');
+Route::post('reinitialiser-mot-de-passe/{token}', [RecuperationCompteController::class, 'traiterReinitialisation'])
+    ->middleware('throttle:20,1');
 
 // Tout le reste du back-office (gestion des comptes, finance, litiges,
 // rapports, réglages...) exige une session admin authentifiée.

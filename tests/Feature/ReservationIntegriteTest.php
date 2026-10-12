@@ -167,7 +167,7 @@ class ReservationIntegriteTest extends TestCase
         $date = now()->addDay()->toDateString();
 
         $annulee = Reservations::create([
-            'numero_reservation' => 'RES-TEST-' . uniqid(),
+            'numero_reservation' => 'RES-' . uniqid(),
             'id_client' => $client->id_user_app,
             'id_coiffeur' => $coiffeuse->id_user_app,
             'id_service' => $service->id_service,

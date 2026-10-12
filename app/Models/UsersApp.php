@@ -19,6 +19,7 @@ class UsersApp extends Model implements AuthenticatableContract
         'last_name',
         'phone',
         'email',
+        'email_verified_at',
         'presentation',
         'commune',
         'adresse',
@@ -49,6 +50,7 @@ class UsersApp extends Model implements AuthenticatableContract
         'derniere_maj_position' => 'datetime',
         'deplacement_domicile' => 'boolean',
         'otp_created_at' => 'datetime',
+        'email_verified_at' => 'datetime',
     ];
 
     public function reservationsClient()

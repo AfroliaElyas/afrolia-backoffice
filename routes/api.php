@@ -37,6 +37,10 @@ Route::post('otp', [ApiUtilisateursController::class, 'demanderOtpReset'])
     ->middleware('throttle:5,1');
 Route::post('reset', [ApiUtilisateursController::class, 'resetPasswordWithOtp'])
     ->middleware('throttle:5,1');
+Route::post('mot-de-passe/email/demander', [ApiUtilisateursController::class, 'demanderReinitialisationParEmail'])
+    ->middleware('throttle:5,1');
+Route::post('mot-de-passe/code-secours', [ApiUtilisateursController::class, 'reinitialiserAvecCodeSecours'])
+    ->middleware('throttle:5,1');
 
 // Confidentialité
 Route::get('help', [ApiSecurityController::class, 'helps']);
@@ -84,6 +88,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('update/{id}', [ApiUtilisateursController::class, 'update']);
     Route::delete('delete/{id}', [ApiUtilisateursController::class, 'supprimerCompte']);
     Route::get('delete/{id}', [ApiUtilisateursController::class, 'supprimerCompte']);
+
+    Route::post('email/verifier/demander', [ApiUtilisateursController::class, 'demanderVerificationEmailCompte']);
+    Route::post('codes-secours/generer', [ApiUtilisateursController::class, 'genererCodesSecours']);
+    Route::get('codes-secours/statut', [ApiUtilisateursController::class, 'statutCodesSecours']);
 
     Route::post('updateinfobasic/{id}', [ApiUserSalonController::class, 'updateInfoBasic']);
     Route::post('updatepresentation/{id}', [ApiUserSalonController::class, 'updatePresentation']);

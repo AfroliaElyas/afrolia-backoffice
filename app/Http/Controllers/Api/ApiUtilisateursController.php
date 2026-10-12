@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\UsersApp;
+use App\Services\EnvoiEmailIndisponibleException;
+use App\Services\RecuperationCompteService;
 use App\Services\Sms\GenericSmsGateway;
 use App\Services\Sms\SmsGatewayInterface;
 use Illuminate\Http\Request;
@@ -13,8 +15,10 @@ use Illuminate\Support\Facades\Validator;
 
 class ApiUtilisateursController extends Controller
 {
-    public function __construct(private readonly SmsGatewayInterface $smsGateway)
-    {
+    public function __construct(
+        private readonly SmsGatewayInterface $smsGateway,
+        private readonly RecuperationCompteService $recuperationCompteService,
+    ) {
     }
 
     public function login(Request $request)
@@ -85,7 +89,7 @@ class ApiUtilisateursController extends Controller
             'nom' => 'required|string',
             'prenom' => 'required|string',
             'phone' => 'required|string|unique:users_app,phone',
-            'email' => 'nullable|string|unique:users_app,email',
+            'email' => 'nullable|email|max:100|unique:users_app,email',
             'password' => 'required',
             'role' => 'required|in:user,hair',
         ];
@@ -95,7 +99,8 @@ class ApiUtilisateursController extends Controller
             'prenom.required' => 'Veuillez saisir votre prénom.',
             'phone.required' => 'Veuillez saisir votre numéro de téléphone.',
             'phone.unique' => 'Le numéro de téléphone est deja utilisé.',
-            'email.uninque' => "L'adresse email est deja utilisé.",
+            'email.email' => "L'adresse e-mail n'est pas valide.",
+            'email.unique' => "L'adresse e-mail est déjà utilisée.",
             'password.required' => 'Veuillez saisir votre mot de passe.',
             'role.required' => 'Veuillez selectionner votre type de conpte.',
             'role.in' => 'Type de compte invalide.',
@@ -120,6 +125,20 @@ class ApiUtilisateursController extends Controller
         if ($utilisateur->save()) {
             $token = $utilisateur->createToken('mobile')->plainTextToken;
 
+            // L'e-mail reste facultatif : son absence, ou l'échec de
+            // l'envoi (fournisseur pas encore configuré), ne doit jamais
+            // empêcher l'inscription. "emailVerificationEnvoyee" indique
+            // seulement si l'app doit proposer de vérifier plus tard.
+            $emailVerificationEnvoyee = false;
+            if ($utilisateur->email) {
+                try {
+                    $this->recuperationCompteService->demanderVerificationEmail($utilisateur);
+                    $emailVerificationEnvoyee = true;
+                } catch (\Throwable $e) {
+                    $emailVerificationEnvoyee = false;
+                }
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Vous êtes inscrit avec succès',
@@ -127,6 +146,7 @@ class ApiUtilisateursController extends Controller
                     'id' => $utilisateur->id_user_app,
                     'role' => $utilisateur->role,
                     'token' => $token,
+                    'emailVerificationEnvoyee' => $emailVerificationEnvoyee,
                 ],
             ]);
         } else {
@@ -338,6 +358,176 @@ class ApiUtilisateursController extends Controller
                 'message' => "Impossible de réinitialiser votre mot de passe. Veuillez recommencer.",
             ], 401);
         }
+    }
+
+    /**
+     * Ajoute ou change l'adresse e-mail d'une personne déjà connectée, et
+     * lui envoie un lien de vérification. L'adresse reste enregistrée mais
+     * marquée non vérifiée jusqu'au clic sur ce lien : elle ne peut pas
+     * encore servir à réinitialiser un mot de passe.
+     */
+    public function demanderVerificationEmailCompte(Request $request)
+    {
+        $utilisateur = $request->user();
+
+        $rules = [
+            'email' => 'required|email|max:100|unique:users_app,email,' . $utilisateur->id_user_app . ',id_user_app',
+        ];
+
+        $messages = [
+            'email.required' => 'Veuillez saisir une adresse e-mail.',
+            'email.email' => "L'adresse e-mail n'est pas valide.",
+            'email.unique' => "Cette adresse e-mail est déjà utilisée.",
+        ];
+
+        $validator = Validator::make($request->all(), $rules, $messages);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($validator->errors()->all()),
+            ], 422);
+        }
+
+        $utilisateur->update(['email' => $request->email, 'email_verified_at' => null]);
+
+        try {
+            $this->recuperationCompteService->demanderVerificationEmail($utilisateur);
+        } catch (EnvoiEmailIndisponibleException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "L'envoi d'e-mail est temporairement indisponible. Votre adresse a été enregistrée, réessayez la vérification plus tard.",
+            ], 503);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'E-mail de vérification envoyé',
+        ]);
+    }
+
+    /**
+     * Demande un lien de réinitialisation de mot de passe par e-mail
+     * (parcours 3) : la personne doit avoir une adresse déjà vérifiée.
+     */
+    public function demanderReinitialisationParEmail(Request $request)
+    {
+        $rules = [
+            'email' => 'required|email|exists:users_app,email',
+        ];
+
+        $messages = [
+            'email.exists' => "Cette adresse e-mail n'est pas enregistrée.",
+        ];
+
+        $validator = Validator::make($request->all(), $rules, $messages);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($validator->errors()->all()),
+            ], 422);
+        }
+
+        $utilisateur = UsersApp::where('email', $request->email)->first();
+
+        if ($utilisateur->email_verified_at === null) {
+            return response()->json([
+                'success' => false,
+                'message' => "Cette adresse e-mail n'est pas encore vérifiée. Vérifiez-la depuis votre profil, ou utilisez un code de secours si vous en avez.",
+            ], 409);
+        }
+
+        try {
+            $this->recuperationCompteService->demanderReinitialisationParEmail($utilisateur);
+        } catch (EnvoiEmailIndisponibleException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "L'envoi d'e-mail est temporairement indisponible.",
+            ], 503);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'E-mail de réinitialisation envoyé',
+        ]);
+    }
+
+    /**
+     * Génère un nouveau lot de codes de secours pour la personne connectée.
+     * Les codes précédents non utilisés sont invalidés : seul ce lot reste
+     * valable. Les codes en clair ne sont renvoyés qu'ici, une seule fois.
+     */
+    public function genererCodesSecours(Request $request)
+    {
+        $codes = $this->recuperationCompteService->genererCodesSecours($request->user());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Codes de secours générés',
+            'data' => ['codes' => $codes],
+        ]);
+    }
+
+    public function statutCodesSecours(Request $request)
+    {
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'nombreCodesRestants' => $this->recuperationCompteService->nombreCodesSecoursRestants($request->user()),
+            ],
+        ]);
+    }
+
+    /**
+     * Parcours 4 : réinitialisation sans e-mail ni SMS, via un code de
+     * secours généré à l'avance pendant que la personne était connectée.
+     * Si le numéro et le code ne correspondent pas ensemble à un code de
+     * secours non utilisé, rien n'est réinitialisé : la possession du bon
+     * couple téléphone + code est la seule preuve acceptée ici.
+     */
+    public function reinitialiserAvecCodeSecours(Request $request)
+    {
+        $rules = [
+            'phone' => 'required|string',
+            'code' => 'required|string',
+            'nouveau' => 'required|string|min:8',
+        ];
+
+        $messages = [
+            'phone.required' => 'Veuillez saisir votre numéro de téléphone.',
+            'code.required' => 'Veuillez saisir un code de secours.',
+            'nouveau.required' => 'Veuillez saisir votre nouveau mot de passe.',
+            'nouveau.min' => 'Le mot de passe doit contenir au moins 8 caractères.',
+        ];
+
+        $validator = Validator::make($request->all(), $rules, $messages);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($validator->errors()->all()),
+            ], 422);
+        }
+
+        $reussi = $this->recuperationCompteService->reinitialiserAvecCodeSecours(
+            $request->phone,
+            $request->code,
+            $request->nouveau,
+            $request,
+        );
+
+        if (!$reussi) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Numéro de téléphone ou code de secours invalide.',
+            ], 401);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Mot de passe réinitialisé avec succès',
+        ]);
     }
 
     public function supprimerCompte(Request $request, $id)

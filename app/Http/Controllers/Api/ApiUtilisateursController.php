@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class ApiUtilisateursController extends Controller
 {
@@ -89,11 +90,17 @@ class ApiUtilisateursController extends Controller
 
     public function register(Request $request)
     {
+        // Un numéro/e-mail utilisé par un compte jamais vérifié (code OTP
+        // expiré sans que l'inscription soit terminée) ne doit pas bloquer
+        // définitivement une nouvelle tentative : seuls les comptes déjà
+        // vérifiés comptent pour l'unicité.
+        $estVerifie = fn ($query) => $query->whereNotNull('phone_verified_at');
+
         $rules = [
             'nom' => 'required|string',
             'prenom' => 'required|string',
-            'phone' => 'required|string|unique:users_app,phone',
-            'email' => 'nullable|string|unique:users_app,email',
+            'phone' => ['required', 'string', Rule::unique('users_app', 'phone')->where($estVerifie)],
+            'email' => ['nullable', 'string', Rule::unique('users_app', 'email')->where($estVerifie)],
             'password' => 'required',
             'role' => 'required|in:user,hair',
         ];
@@ -124,6 +131,10 @@ class ApiUtilisateursController extends Controller
                 'message' => "L'inscription nécessite une vérification par SMS, actuellement indisponible. Veuillez réessayer plus tard.",
             ], 503);
         }
+
+        // Une tentative d'inscription précédente avec ce numéro, jamais
+        // vérifiée, est abandonnée au profit de celle-ci.
+        UsersApp::where('phone', $request->phone)->whereNull('phone_verified_at')->delete();
 
         $utilisateur = new UsersApp();
         $utilisateur->name = $request->nom;
@@ -191,6 +202,7 @@ class ApiUtilisateursController extends Controller
 
         $utilisateur = UsersApp::where('phone', $request->phone)
             ->where('otp', $request->otp)
+            ->whereNull('phone_verified_at')
             ->first();
 
         if (!$utilisateur || $utilisateur->otp_created_at === null || $utilisateur->otp_created_at->addMinutes(10)->isPast()) {

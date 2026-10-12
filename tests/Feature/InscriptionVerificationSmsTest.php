@@ -132,4 +132,60 @@ class InscriptionVerificationSmsTest extends TestCase
 
         $response->assertStatus(200)->assertJsonPath('success', true);
     }
+
+    public function test_le_code_du_mot_de_passe_oublie_ne_peut_pas_servir_a_verifier_une_inscription(): void
+    {
+        $faux = $this->fauxConnecteurFonctionnel();
+        $this->app->instance(SmsGatewayInterface::class, $faux);
+
+        // Compte déjà vérifié (inscription terminée depuis longtemps).
+        $utilisateur = UsersApp::create([
+            'name' => 'Aïcha', 'last_name' => 'Koné', 'phone' => '0700000070',
+            'password' => bcrypt('motdepasse'), 'role' => 'user', 'phone_verified_at' => now(),
+        ]);
+
+        // Quelqu'un (l'utilisatrice elle-même ou un attaquant lisant le SMS)
+        // déclenche un code "mot de passe oublié" sur ce compte déjà vérifié.
+        $this->postJson('/api/otp', ['phone' => '0700000070']);
+        $otpOublie = $utilisateur->fresh()->otp;
+        $this->assertNotNull($otpOublie);
+
+        // Ce code ne doit pas pouvoir délivrer un jeton via verify-register.
+        $response = $this->postJson('/api/verify-register', ['phone' => '0700000070', 'otp' => $otpOublie]);
+
+        $response->assertStatus(401);
+    }
+
+    public function test_une_inscription_abandonnee_peut_etre_recommencee_avec_le_meme_numero(): void
+    {
+        $faux = $this->fauxConnecteurFonctionnel();
+        $this->app->instance(SmsGatewayInterface::class, $faux);
+
+        // Première tentative : code jamais saisi (ex. expiré).
+        $this->postJson('/api/register', $this->corpsInscription())->assertStatus(200);
+        $this->assertDatabaseCount('users_app', 1);
+
+        // Nouvelle tentative avec le même numéro : doit réussir, pas
+        // "numéro déjà utilisé", et remplacer la tentative abandonnée.
+        $response = $this->postJson('/api/register', $this->corpsInscription(['prenom' => 'Awa']));
+
+        $response->assertStatus(200)->assertJsonPath('success', true);
+        $this->assertDatabaseCount('users_app', 1);
+        $this->assertSame('Awa', UsersApp::where('phone', '0700000070')->first()->last_name);
+    }
+
+    public function test_une_inscription_deja_verifiee_ne_peut_pas_etre_recreee(): void
+    {
+        $faux = $this->fauxConnecteurFonctionnel();
+        $this->app->instance(SmsGatewayInterface::class, $faux);
+        UsersApp::create([
+            'name' => 'Aïcha', 'last_name' => 'Koné', 'phone' => '0700000070',
+            'password' => bcrypt('motdepasse'), 'role' => 'user', 'phone_verified_at' => now(),
+        ]);
+
+        $response = $this->postJson('/api/register', $this->corpsInscription());
+
+        $response->assertStatus(422);
+        $this->assertDatabaseCount('users_app', 1);
+    }
 }

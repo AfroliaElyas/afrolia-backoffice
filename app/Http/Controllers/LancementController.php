@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\InscriptionLancement;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -31,14 +32,19 @@ class LancementController extends Controller
 
         $email = $request->input('email');
 
-        if (InscriptionLancement::where('email', $email)->exists()) {
+        // Tente l'insertion directement plutôt qu'un exists() puis create()
+        // séparés : deux requêtes concurrentes pour la même adresse (double
+        // clic, onglet dupliqué) passeraient toutes les deux le exists(),
+        // et la seconde create() échouerait avec une erreur non gérée. La
+        // contrainte unique en base est la seule source de vérité fiable.
+        try {
+            InscriptionLancement::create(['email' => $email]);
+        } catch (UniqueConstraintViolationException) {
             return response()->json([
                 'success' => true,
                 'message' => "Vous êtes déjà inscrite, on vous préviendra dès le lancement !",
             ]);
         }
-
-        InscriptionLancement::create(['email' => $email]);
 
         return response()->json([
             'success' => true,

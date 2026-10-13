@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Afrolia</title>
 <meta name="description" content="Afrolia — réservez votre coiffeuse ou votre coiffeur en Côte d'Ivoire.">
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <style>
 :root{
   --bg:#FFF7ED;
@@ -143,8 +144,8 @@ header.top{
 }
 .store-badge svg{flex:none}
 .store-badge .txt{display:flex;flex-direction:column;line-height:1.2;text-align:left}
-.store-badge .txt strong{font-size:1rem;font-weight:700;font-family:"Manrope",sans-serif}
-.store-badge .txt small{font-size:0.75rem;letter-spacing:.02em;opacity:.9;margin-top:2px}
+.store-badge .txt strong{font-size:1rem;font-weight:700;font-family:"Manrope",sans-serif;white-space:nowrap}
+.store-badge .txt small{font-size:0.75rem;letter-spacing:.02em;opacity:.9;margin-top:2px;white-space:nowrap}
 
 section{padding-block:40px}
 .section-head{text-align:center;max-width:46ch;margin:0 auto 26px}
@@ -315,6 +316,23 @@ details.faq p{padding-bottom:18px;color:var(--fg-mute);font-size:0.9rem}
   padding:10px 18px;font-size:0.85rem;font-weight:700;cursor:pointer;
 }
 
+.lancement-form{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;max-width:420px;width:100%;margin-top:2px}
+.lancement-form input{
+  flex:1;min-width:200px;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);
+  border-radius:99px;padding:12px 18px;color:#fff;font-size:0.95rem;font-family:inherit;
+}
+.lancement-form input::placeholder{color:rgba(255,255,255,.6)}
+.lancement-form input:focus{outline:2px solid #fff;outline-offset:2px}
+.lancement-form button{
+  background:var(--accent);color:#fff;border:none;border-radius:99px;
+  padding:12px 22px;font-weight:700;font-size:0.9rem;cursor:pointer;white-space:nowrap;
+}
+.lancement-form button:disabled{opacity:.6;cursor:not-allowed}
+.lancement-feedback{font-size:0.88rem;margin:0}
+.lancement-feedback.ok{color:#BBF7D0}
+.lancement-feedback.err{color:#FECACA}
+
 .values{text-align:center}
 .values .card{text-align:center}
 .values .icon{margin-inline:auto;background:var(--accent);color:#fff;font-size:1.3rem}
@@ -383,7 +401,7 @@ footer ul a:hover{color:#fff}
       <a href="#coiffeuses">Pour les coiffeuses</a>
       <a href="#faq">FAQ</a>
     </nav>
-    <a class="nav-cta" href="#contact">Être prévenue du lancement</a>
+    <a class="nav-cta" href="#lancement">Être prévenue du lancement</a>
   </div>
 </header>
 
@@ -395,16 +413,16 @@ footer ul a:hover{color:#fff}
       <h1>Trouvez et réservez votre coiffeuse, simplement</h1>
       <p class="lede">Afrolia met en relation les clientes et les coiffeuses/coiffeurs indépendants en Côte d'Ivoire : comparez les profils, réservez en ligne et payez en toute sécurité.</p>
       <div class="hero-ctas">
-        <a class="btn primary" href="#contact">Être prévenue du lancement</a>
+        <a class="btn primary" href="#lancement">Être prévenue du lancement</a>
         <a class="btn ghost" href="#comment-ca-marche">Voir comment ça marche</a>
       </div>
       <div class="store-soon">
         <div class="store-badges">
-          <a class="store-badge" href="#contact" aria-label="Bientôt disponible sur Google Play — être prévenue du lancement">
+          <a class="store-badge" href="#lancement" aria-label="Bientôt disponible sur Google Play — être prévenue du lancement">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M3 2.6c-.3.3-.5.8-.5 1.4v16c0 .6.2 1.1.5 1.4l.1.1L12.6 12 3.1 2.5z"/><path d="M15.8 15.2 12.6 12l3.2-3.2 4.2 2.4c1.2.7 1.2 1.9 0 2.6z"/><path d="M15.8 15.2 12.6 12 3.1 21.5c.4.4 1 .4 1.8 0z"/><path d="M15.8 8.8 4.9 2.5c-.8-.4-1.4-.4-1.8 0L12.6 12z"/></svg>
             <span class="txt"><strong>Bientôt disponible</strong><small>sur Google Play</small></span>
           </a>
-          <a class="store-badge" href="#contact" aria-label="Bientôt disponible sur l'App Store — être prévenue du lancement">
+          <a class="store-badge" href="#lancement" aria-label="Bientôt disponible sur l'App Store — être prévenue du lancement">
             <svg width="23" height="23" viewBox="0 0 24 24" fill="#fff"><path d="M17.05 12.3c-.03-2.1 1.72-3.1 1.8-3.15-1-1.44-2.52-1.64-3.06-1.66-1.3-.13-2.54.76-3.2.76-.66 0-1.68-.74-2.76-.72-1.42.02-2.73.82-3.46 2.08-1.48 2.56-.38 6.35 1.06 8.43.7 1.02 1.54 2.16 2.63 2.12 1.06-.04 1.46-.68 2.74-.68 1.27 0 1.64.68 2.76.66 1.14-.02 1.86-1.03 2.56-2.06.81-1.18 1.14-2.33 1.15-2.39-.02-.01-2.2-.84-2.22-3.39z"/><path d="M14.86 5.98c.58-.71.98-1.68.87-2.66-.84.04-1.87.56-2.47 1.26-.54.63-1.02 1.63-.89 2.59.94.07 1.9-.48 2.49-1.19z"/></svg>
             <span class="txt"><strong>Bientôt disponible</strong><small>sur l'App Store</small></span>
           </a>
@@ -690,6 +708,18 @@ footer ul a:hover{color:#fff}
   </section>
 
   <section class="wrap">
+    <div id="lancement" class="contact">
+      <h2>Soyez prévenue dès le lancement</h2>
+      <p>Laissez votre e-mail, on vous écrit le jour J — rien d'autre.</p>
+      <form class="lancement-form" id="lancement-form" novalidate>
+        <input type="email" id="lancement-email" name="email" placeholder="votre@email.com" required autocomplete="email">
+        <button type="submit" id="lancement-submit">M'inscrire</button>
+      </form>
+      <p class="lancement-feedback" id="lancement-feedback" role="status" hidden></p>
+    </div>
+  </section>
+
+  <section class="wrap">
     <div id="contact" class="contact">
       <h2>Une question, une envie de collaborer ?</h2>
       <p>Écrivez-nous, nous vous répondons rapidement.</p>
@@ -754,6 +784,55 @@ footer ul a:hover{color:#fff}
 </footer>
 
 <script>
+(function(){
+  var form = document.getElementById('lancement-form');
+  var input = document.getElementById('lancement-email');
+  var submit = document.getElementById('lancement-submit');
+  var feedback = document.getElementById('lancement-feedback');
+  if (!form) return;
+
+  form.addEventListener('submit', async function(e){
+    e.preventDefault();
+    var email = input.value.trim();
+    feedback.hidden = true;
+    feedback.classList.remove('ok', 'err');
+    submit.disabled = true;
+    var texteOriginal = submit.textContent;
+    submit.textContent = 'Envoi...';
+
+    try {
+      var tokenMeta = document.querySelector('meta[name="csrf-token"]');
+      var reponse = await fetch('/lancement/inscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': tokenMeta ? tokenMeta.content : ''
+        },
+        body: JSON.stringify({ email: email })
+      });
+      var donnees = await reponse.json().catch(function(){ return {}; });
+
+      feedback.hidden = false;
+      if (reponse.ok && donnees.success) {
+        feedback.textContent = donnees.message || 'Merci ! On vous préviendra dès le lancement.';
+        feedback.classList.add('ok');
+        form.reset();
+      } else {
+        feedback.textContent = donnees.message || "Une erreur est survenue, veuillez réessayer.";
+        feedback.classList.add('err');
+      }
+    } catch (err) {
+      feedback.hidden = false;
+      feedback.textContent = "Connexion impossible, veuillez réessayer.";
+      feedback.classList.add('err');
+    } finally {
+      submit.disabled = false;
+      submit.textContent = texteOriginal;
+    }
+  });
+})();
+
 (function(){
   var btn = document.getElementById('copy-btn');
   var text = document.getElementById('email-text');

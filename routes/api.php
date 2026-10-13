@@ -29,14 +29,10 @@ use Illuminate\Support\Facades\Route;
 */
 
 // Authentification — limitées en fréquence pour freiner les tentatives
-// répétées de mot de passe ou de code OTP.
+// répétées de mot de passe ou de code de secours.
 Route::post('login', [ApiUtilisateursController::class, 'login'])
     ->middleware('throttle:5,1');
 Route::post('register', [ApiUtilisateursController::class, 'register']);
-Route::post('otp', [ApiUtilisateursController::class, 'demanderOtpReset'])
-    ->middleware('throttle:5,1');
-Route::post('reset', [ApiUtilisateursController::class, 'resetPasswordWithOtp'])
-    ->middleware('throttle:5,1');
 Route::post('mot-de-passe/email/demander', [ApiUtilisateursController::class, 'demanderReinitialisationParEmail'])
     ->middleware('throttle:5,1');
 Route::post('mot-de-passe/code-secours', [ApiUtilisateursController::class, 'reinitialiserAvecCodeSecours'])

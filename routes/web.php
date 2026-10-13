@@ -5,6 +5,7 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ConfigTarifController;
 use App\Http\Controllers\CustomAuthController;
 use App\Http\Controllers\HairController;
+use App\Http\Controllers\LancementController;
 use App\Http\Controllers\LitigeController;
 use App\Http\Controllers\PaiementController;
 use App\Http\Controllers\PolitiqueController;
@@ -28,6 +29,10 @@ Route::get('logout', [CustomAuthController::class, 'signOut'])->name('logout');
 Route::get('/', function () {
     return view('site.accueil');
 });
+
+// Formulaire "être prévenue du lancement" sur la page d'accueil publique.
+Route::post('lancement/inscription', [LancementController::class, 'inscrire'])
+    ->middleware('throttle:10,1');
 
 Route::get('/admin', function () {
     if (Auth::check()) {

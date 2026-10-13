@@ -702,7 +702,7 @@ footer ul a:hover{color:#fff}
       </details>
       <details class="faq">
         <summary>Où et quand l'application sera-t-elle disponible ?</summary>
-        <p>Afrolia est en cours de finalisation pour la Côte d'Ivoire. Laissez-nous votre e-mail pour être prévenue dès le lancement.</p>
+        <p>Afrolia est en cours de finalisation pour la Côte d'Ivoire. <a href="#lancement" style="color:var(--accent);font-weight:700">Laissez-nous votre e-mail</a> pour être prévenue dès le lancement.</p>
       </details>
     </div>
   </section>

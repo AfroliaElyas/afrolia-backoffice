@@ -58,6 +58,12 @@ class ApiLegalController extends Controller
         // jamais recoller deux mots ensemble.
         $texte = preg_replace('/<[^>]+>/', ' ', $texte);
         $texte = html_entity_decode($texte, ENT_QUOTES | ENT_HTML5);
+        // Un paragraphe vide (ex. "<p>&nbsp;</p>", utilisé par l'éditeur
+        // enrichi pour ne pas perdre une ligne blanche de mise en forme) se
+        // décode en espace insécable (U+00A0), que trim() ne reconnaît pas
+        // comme un espace à retirer : sans cette conversion, la ligne reste
+        // "non vide" et casse la fusion des sauts de ligne consécutifs.
+        $texte = str_replace("\u{00A0}", ' ', $texte);
         $texte = implode("\n", array_map('trim', explode("\n", $texte)));
         $texte = preg_replace('/\n{3,}/', "\n\n", $texte);
 

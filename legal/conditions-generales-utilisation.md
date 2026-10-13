@@ -1,10 +1,10 @@
 # Conditions Générales d'Utilisation — Afrolia
 
-> **BROUILLON — ne pas publier tel quel.** Ce texte doit être relu, complété (informations entre crochets `[...]`) et idéalement validé par un professionnel du droit avant d'être montré à une utilisatrice. Il décrit le fonctionnement réel de l'application tel qu'il existe aujourd'hui dans le code.
+> **BROUILLON — ne pas publier tel quel.** Ce texte décrit le fonctionnement réel de l'application tel qu'il existe aujourd'hui dans le code. La clause de droit applicable (section 13) reste explicitement en attente de validation juridique avant publication.
 
 **Éditeur :** AFROLIA SARLU, société de droit ivoirien, RCCM n° CI-ABJ-03-2026-B13-12606, dont le siège social est situé à Abidjan, Cocody, Angré 8ᵉ tranche, à 200 mètres du Carrefour Mandela, lot 125, îlot 15, Côte d'Ivoire.
 
-**Date d'effet :** [à compléter]
+**Date d'effet :** [à définir au moment de la publication]
 
 ## 1. Objet
 
@@ -13,7 +13,7 @@ Afrolia est une application mobile qui met en relation des clientes et des coiff
 ## 2. Qui peut utiliser Afrolia
 
 - L'inscription est réservée aux personnes âgées de **18 ans révolus**.
-- Chaque compte est associé à un numéro de téléphone. [À noter : la vérification du numéro par SMS à l'inscription n'est pas encore en place dans l'application — seule la réinitialisation du mot de passe envoie un code par SMS pour l'instant. À corriger ici une fois le choix fait : soit ajouter la vérification à l'inscription, soit retirer cette phrase si elle n'est pas prévue.]
+- Chaque compte est associé à un numéro de téléphone, qui sert d'identifiant de connexion. Une adresse e-mail facultative peut être ajoutée pour vérifier son identité et faciliter la récupération du compte (voir la politique de confidentialité).
 - Vous êtes responsable de l'exactitude des informations que vous fournissez et de la confidentialité de votre accès au compte.
 
 ## 3. Le rôle d'Afrolia
@@ -52,12 +52,12 @@ En cas d'annulation d'une réservation déjà payée :
 
 ## 8. Versement des gains aux coiffeuses
 
-[À compléter — les modalités de versement des gains par Mobile Money sont en cours de finalisation]
+Les gains d'une prestation ne peuvent être versés qu'une fois celle-ci terminée. La coiffeuse renseigne le numéro et l'opérateur Mobile Money (Wave, Orange Money, MTN Mobile Money ou Moov Money) sur lequel elle souhaite recevoir ses versements. Le versement est effectué par **Jèko**, qui transfère les gains disponibles sur ce numéro ; en cas d'échec du transfert, les gains restent disponibles pour une nouvelle tentative plutôt que d'être perdus.
 
 ## 9. Avis et litiges
 
 - Une cliente peut laisser un avis uniquement après une prestation terminée, une seule fois par réservation.
-- En cas de désaccord entre une cliente et une coiffeuse, un signalement peut être fait depuis l'application ; Afrolia examine la situation [décrire le processus réel : délai de réponse, qui tranche, etc.].
+- En cas de désaccord entre une cliente et une coiffeuse, un signalement peut être fait depuis l'application. L'équipe Afrolia examine chaque signalement individuellement et le résout ou le rejette après examen, en indiquant les raisons de sa décision.
 
 ## 10. Suspension, résiliation et suppression de compte
 
@@ -71,9 +71,11 @@ L'application, son contenu et sa marque appartiennent à AFROLIA SARLU. Les avis
 
 Afrolia met tout en œuvre pour assurer le bon fonctionnement de l'application, sans garantir une disponibilité continue ou une absence totale d'erreur. Afrolia n'est pas responsable des dommages résultant de l'utilisation de l'application en dehors de ce qu'elle contrôle directement (ex. qualité d'une prestation réalisée par une coiffeuse indépendante). [⚠ Formulation à faire vérifier par un juriste]
 
-## 13. Droit applicable
+## 13. Droit applicable [⚠️ section en attente de validation juridique — ne pas publier telle quelle]
 
-Les présentes conditions sont soumises au droit ivoirien. Tout litige relatif à leur interprétation ou leur exécution relève des tribunaux compétents d'Abidjan, siège social d'AFROLIA SARLU, sous réserve des règles de compétence territoriale ou matérielle qui s'imposeraient malgré cette clause (notamment les règles protectrices pouvant bénéficier à une utilisatrice agissant en tant que consommatrice). [⚠️ Formulation à faire valider par un juriste avant publication : une clause attributive de compétence n'est pas toujours opposable à un consommateur, et sa validité peut dépendre du statut de l'utilisatrice (professionnelle ou non) et des règles de procédure civile ivoiriennes applicables.]
+Les présentes conditions sont soumises au droit ivoirien. Les litiges relèvent des juridictions compétentes selon les règles légales applicables.
+
+Cette formulation neutre remplace volontairement une clause attribuant la compétence aux seuls tribunaux d'Abidjan, qui ne serait pas nécessairement opposable à une utilisatrice agissant en tant que consommatrice. Elle doit toutefois être confirmée par un professionnel du droit avant publication comme version définitive.
 
 ## 14. Modification des conditions
 
@@ -81,4 +83,4 @@ Ces conditions peuvent être mises à jour. Toute modification importante vous s
 
 ## 15. Nous contacter
 
-afroliaofficiel@gmail.com — [Téléphone, optionnel]
+afroliaofficiel@gmail.com

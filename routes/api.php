@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\ApiClientFavoriteController;
 use App\Http\Controllers\Api\ApiCommandesController;
 use App\Http\Controllers\Api\ApiDashboardCoiffeuseController;
 use App\Http\Controllers\Api\ApiGainsCoiffeuseController;
+use App\Http\Controllers\Api\ApiLegalController;
 use App\Http\Controllers\Api\ApiPaiementsController;
 use App\Http\Controllers\Api\ApiProduitsController;
 use App\Http\Controllers\Api\ApiReservationsController;
@@ -41,6 +42,10 @@ Route::post('mot-de-passe/code-secours', [ApiUtilisateursController::class, 'rei
 // Confidentialité
 Route::get('help', [ApiSecurityController::class, 'helps']);
 Route::get('security', [ApiSecurityController::class, 'security']);
+
+// Textes légaux (politique de confidentialité, conditions générales)
+Route::get('politique', [ApiLegalController::class, 'politique']);
+Route::get('conditions', [ApiLegalController::class, 'conditions']);
 
 // Contenu de référence
 Route::get('specialites', [ApiUserSalonController::class, 'specialites']);

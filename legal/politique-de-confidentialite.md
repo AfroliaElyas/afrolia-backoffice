@@ -1,21 +1,20 @@
 # Politique de confidentialité — Afrolia
 
-> **BROUILLON — ne pas publier tel quel.** Ce texte a été écrit à partir des fonctionnalités réelles de l'application (voir le code), mais doit être relu et validé par toi, et idéalement par un professionnel du droit, avant d'être montré à une seule cliente ou coiffeuse. Les informations entre crochets `[...]` sont des informations que je n'ai pas et que tu dois compléter ou corriger.
+> **BROUILLON — ne pas publier tel quel.** Ce texte a été écrit à partir des fonctionnalités réelles de l'application (voir le code). La section 5 (transfert de données hors Côte d'Ivoire) reste explicitement en attente de validation juridique avant publication : elle décrit la situation réelle et les démarches identifiées, mais ne doit pas être montrée comme définitive avant la confirmation d'un professionnel du droit sur la démarche à suivre auprès de l'autorité ivoirienne de protection des données personnelles.
 
-**Date d'effet :** [à compléter]
+**Date d'effet :** [à définir au moment de la publication]
 
 ## 1. Qui sommes-nous ?
 
 **AFROLIA SARLU**, société de droit ivoirien, RCCM n° CI-ABJ-03-2026-B13-12606, dont le siège social est situé à Abidjan, Cocody, Angré 8ᵉ tranche, à 200 mètres du Carrefour Mandela, lot 125, îlot 15, Côte d'Ivoire, éditrice de l'application Afrolia, est responsable du traitement des données personnelles décrites ci-dessous.
 
 - **Contact pour toute question sur vos données :** afroliaofficiel@gmail.com
-- **Téléphone :** [numéro, optionnel]
 
 ## 2. Quelles données nous collectons
 
 **Données fournies directement par vous :**
 - Identité : nom, prénom, photo de profil
-- Coordonnées : numéro de téléphone (utilisé pour la connexion), adresse e-mail si renseignée. [À ce jour, le numéro de téléphone n'est pas vérifié par SMS à l'inscription ; cette vérification est prévue ultérieurement.]
+- Coordonnées : numéro de téléphone (utilisé pour la connexion), adresse e-mail si renseignée — l'e-mail est facultatif et son absence ne bloque jamais l'inscription. Lorsqu'une adresse e-mail est renseignée, un lien de vérification y est envoyé ; elle peut aussi servir à récupérer l'accès au compte en cas de mot de passe oublié.
 - Pour les coiffeuses : spécialités, langues parlées, présentation, localisation du salon, tarifs des prestations, numéro et opérateur Mobile Money destinés à recevoir leurs versements
 - Avis et notes laissés sur les coiffeuses après une prestation
 - Messages échangés avec l'assistant Afrolia (voir section 4)
@@ -45,16 +44,29 @@ Afrolia propose un assistant pour répondre aux questions sur l'utilisation de l
 
 Vos données ne sont jamais vendues ni louées. Elles peuvent être transmises uniquement à :
 
-- **Stripe** : pour traiter les paiements par carte bancaire
-- **Jèko** : pour traiter les paiements, remboursements et versements Mobile Money
-- **Anthropic** : pour faire fonctionner l'assistant (section 4)
-- **DigitalOcean** : notre hébergeur technique (serveur situé à Francfort, Allemagne)
-- **[Fournisseur SMS à préciser]** : pour l'envoi des codes de vérification par SMS
+- **Stripe** : pour traiter les paiements par carte bancaire (coordonnées de paiement, montant, identité associée à la transaction)
+- **Jèko** : pour traiter les paiements, remboursements et versements Mobile Money (numéro de téléphone Mobile Money, montant) — Jèko est basé en Côte d'Ivoire, ce point ne concerne pas les transferts décrits ci-dessous
+- **Anthropic** : pour faire fonctionner l'assistant (section 4) — le contenu des messages échangés avec l'assistant
+- **DigitalOcean** : notre hébergeur technique (serveur situé à Francfort, Allemagne) — l'ensemble des données de l'application, puisqu'il héberge le serveur
 - Les autorités compétentes, si la loi nous y oblige
 
 Les coiffeuses et clientes voient mutuellement certaines informations nécessaires au bon déroulement d'une prestation (nom, photo, note moyenne, avis publiés).
 
-Certains de ces prestataires (Stripe, Anthropic, et DigitalOcean dont le serveur est situé en Allemagne) traitent des données en dehors de la Côte d'Ivoire, au sein de l'Union européenne pour l'hébergement. [⚠ Point à faire vérifier par un juriste, notamment au regard de la loi ivoirienne n° 2013-450 relative à la protection des données personnelles et de l'ARTCI]
+### Transfert de données hors de Côte d'Ivoire [⚠️ section en attente de validation juridique — ne pas publier telle quelle]
+
+Trois de ces prestataires traitent des données en dehors de la Côte d'Ivoire :
+- **DigitalOcean** héberge le serveur d'Afrolia à Francfort, en Allemagne (Union européenne) : à ce titre, l'ensemble des données de l'application y transite et y est stocké.
+- **Anthropic** traite le contenu des conversations avec l'assistant aux États-Unis par défaut (zone de stockage de ses clients commerciaux).
+- **Stripe** traite les données de paiement par carte selon son réseau international, qui inclut en général une entité basée aux États-Unis ou en Irlande selon la zone géographique de la cliente ou coiffeuse.
+
+La loi ivoirienne n° 2013-450 du 19 juin 2013 relative à la protection des données à caractère personnel soumet en principe le transfert de données personnelles vers un pays tiers à une autorisation préalable de l'autorité ivoirienne de protection des données (ARTCI), sauf si une dérogation légale s'applique (par exemple le consentement explicite de la personne concernée, ou la nécessité du transfert pour l'exécution d'un contrat conclu avec elle).
+
+**Démarches à effectuer avant de publier cette section comme définitive :**
+1. Faire confirmer par un juriste spécialisé en protection des données en Côte d'Ivoire si l'un des cas de dérogation (consentement explicite recueilli à l'inscription, nécessité contractuelle pour les paiements) suffit pour les transferts vers Stripe et Anthropic, ou si une déclaration ou une autorisation préalable auprès de l'ARTCI est nécessaire.
+2. Si une autorisation ou déclaration préalable est requise, l'introduire auprès de l'ARTCI avant toute publication de cette section présentée comme définitive.
+3. Vérifier auprès de Stripe l'entité exacte (américaine ou irlandaise) qui traite les données des utilisatrices ivoiriennes, pour nommer précisément le ou les pays concernés.
+
+Tant que ces trois points n'ont pas été confirmés, cette section doit rester un brouillon de travail et ne pas être présentée aux utilisatrices comme la position définitive d'Afrolia sur ce sujet.
 
 ## 6. Combien de temps nous conservons vos données
 
@@ -96,4 +108,4 @@ Nous pouvons mettre à jour ce document. Toute modification importante vous sera
 
 ## 11. Nous contacter
 
-afroliaofficiel@gmail.com — [Téléphone, optionnel]
+afroliaofficiel@gmail.com

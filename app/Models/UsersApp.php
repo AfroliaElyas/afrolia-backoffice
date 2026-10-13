@@ -26,8 +26,6 @@ class UsersApp extends Model implements AuthenticatableContract
         'experience',
         'password',
         'role',
-        'otp',
-        'otp_created_at',
         'statut',
         'formule_abonnement',
         'prochain_prelevement_le',
@@ -49,7 +47,6 @@ class UsersApp extends Model implements AuthenticatableContract
         'longitude' => 'float',
         'derniere_maj_position' => 'datetime',
         'deplacement_domicile' => 'boolean',
-        'otp_created_at' => 'datetime',
         'email_verified_at' => 'datetime',
     ];
 

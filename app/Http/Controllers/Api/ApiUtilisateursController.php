@@ -6,8 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\UsersApp;
 use App\Services\EnvoiEmailIndisponibleException;
 use App\Services\RecuperationCompteService;
-use App\Services\Sms\GenericSmsGateway;
-use App\Services\Sms\SmsGatewayInterface;
 use App\Services\SuppressionCompteBloqueeException;
 use App\Services\SuppressionCompteService;
 use Illuminate\Http\Request;
@@ -18,7 +16,6 @@ use Illuminate\Support\Facades\Validator;
 class ApiUtilisateursController extends Controller
 {
     public function __construct(
-        private readonly SmsGatewayInterface $smsGateway,
         private readonly RecuperationCompteService $recuperationCompteService,
     ) {
     }
@@ -248,116 +245,6 @@ class ApiUtilisateursController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => "Impossible de mettre à jour vos informations. Veuillez recommencer.",
-            ], 401);
-        }
-    }
-
-    public function demanderOtpReset(Request $request)
-    {
-        $rules = [
-            'phone' => 'required|exists:users_app,phone',
-        ];
-
-        $messages = [
-            'phone.exists' => 'Le numéro de téléphone n\'est pas enregistré.',
-        ];
-
-        $validator = Validator::make($request->all(), $rules, $messages);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => collect($validator->errors()->all()),
-            ], 422);
-        }
-
-        // Tant qu'aucun fournisseur SMS réel n'est branché, le code ne
-        // peut atteindre personne : refuser explicitement plutôt que de
-        // prétendre qu'un SMS a été envoyé (même principe que le 503 du
-        // connecteur Mobile Money générique).
-        if ($this->smsGateway instanceof GenericSmsGateway) {
-            return response()->json([
-                'success' => false,
-                'message' => "L'envoi de SMS est temporairement indisponible.",
-            ], 503);
-        }
-
-        $utilisateur = UsersApp::where('phone', $request->phone)->first();
-
-        // Générer un OTP aléatoire, valable un temps limité (voir
-        // resetPasswordWithOtp) : un code qui traîne dans un log ou un SMS
-        // ne doit pas rester utilisable indéfiniment.
-        $otp = rand(100000, 999999);
-
-        if (!$this->smsGateway->envoyer($utilisateur->phone, "Votre code Afrolia : {$otp}")) {
-            return response()->json([
-                'success' => false,
-                'message' => "L'envoi du SMS a échoué, veuillez réessayer.",
-            ], 503);
-        }
-
-        $utilisateur->otp = $otp;
-        $utilisateur->otp_created_at = now();
-        $utilisateur->save();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Code OTP envoyé avec succès',
-        ]);
-    }
-
-    public function resetPasswordWithOtp(Request $request)
-    {
-
-        $rules = [
-            'phone' => 'required|exists:users_app,phone',
-            'otp' => 'required',
-            'nouveau' => 'required',
-        ];
-
-        $messages = [
-            'phone.required' => 'Veuillez saisir votre numéro de téléphone.',
-            'phone.exists' => 'Le numéro de téléphone n\'est pas enregistré.',
-            'nouveau.required' => 'Veuillez saisir votre nouveau mot de passe.',
-        ];
-
-        $validator = Validator::make($request->all(), $rules, $messages);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => collect($validator->errors()->all()),
-            ], 422);
-        }
-
-        $utilisateur = UsersApp::where('phone', $request->phone)
-            ->where('otp', $request->otp)
-            ->first();
-
-        // Un OTP est valable 10 minutes après sa génération : au-delà, il
-        // est traité comme expiré même si la valeur en base correspond
-        // encore (elle n'est effacée qu'à la prochaine demande ou au
-        // prochain reset réussi).
-        if (!$utilisateur || $utilisateur->otp_created_at === null || $utilisateur->otp_created_at->addMinutes(10)->isPast()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'OTP invalide ou expiré',
-            ], 401);
-        }
-
-        $utilisateur->password = Hash::make($request->nouveau);
-        $utilisateur->otp = null; // on réinitialise l’OTP
-        $utilisateur->otp_created_at = null;
-
-        if ($utilisateur->save()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Mot de passe réinitialisé avec succès',
-            ]);
-        } else {
-            return response()->json([
-                'success' => false,
-                'message' => "Impossible de réinitialiser votre mot de passe. Veuillez recommencer.",
             ], 401);
         }
     }

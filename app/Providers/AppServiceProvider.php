@@ -8,9 +8,6 @@ use App\Services\Ia\ClaudeClientInterface;
 use App\Services\MobileMoney\GenericMobileMoneyGateway;
 use App\Services\MobileMoney\JekoGateway;
 use App\Services\MobileMoney\MobileMoneyGatewayInterface;
-use App\Services\Sms\GenericSmsGateway;
-use App\Services\Sms\SmsGatewayInterface;
-use App\Services\Sms\TwilioSmsGateway;
 use App\Services\Stripe\RealStripeGateway;
 use App\Services\Stripe\StripeGatewayInterface;
 use Illuminate\Support\Facades\Mail;
@@ -44,23 +41,6 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return new GenericMobileMoneyGateway();
-        });
-        // Twilio n'est branché comme connecteur actif que si ses
-        // identifiants sont réellement configurés : tant qu'ils manquent,
-        // on retombe sur GenericSmsGateway, qui refuse honnêtement (503)
-        // plutôt que de prétendre qu'un SMS a été envoyé.
-        $this->app->bind(SmsGatewayInterface::class, function () {
-            $twilio = config('services.twilio');
-
-            if (!empty($twilio['account_sid']) && !empty($twilio['auth_token']) && !empty($twilio['from'])) {
-                return new TwilioSmsGateway(
-                    accountSid: $twilio['account_sid'],
-                    authToken: $twilio['auth_token'],
-                    from: $twilio['from'],
-                );
-            }
-
-            return new GenericSmsGateway();
         });
 
         $this->app->singleton(AnthropicClient::class, fn () => new AnthropicClient(

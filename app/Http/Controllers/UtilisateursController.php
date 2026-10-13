@@ -78,7 +78,7 @@ class UtilisateursController extends Controller
         $user->commune    = $request->commune;
         $user->role       = 'user';
         $user->statut     = 'Active';
-        // Mot de passe temporaire — à faire choisir/réinitialiser par le client via OTP
+        // Mot de passe temporaire — à faire réinitialiser par le client via le lien e-mail ou un code de secours
         $user->password   = Hash::make(str()->random(12));
 
         if ($request->hasFile('photo')) {

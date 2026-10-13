@@ -115,6 +115,7 @@ header.top{
 }
 .badge::before{content:"●";color:var(--accent);font-size:.6rem}
 .hero h1{font-size:clamp(2rem,6vw,2.9rem);max-width:16ch;font-weight:600}
+@media (max-width:480px){ .hero h1{font-size:1.65rem} }
 .hero .lede{max-width:46ch;color:var(--fg-mute);font-size:1.05rem}
 .hero-ctas{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:6px}
 .btn{
@@ -128,6 +129,22 @@ header.top{
 }
 .btn.primary{background:var(--accent);color:#fff}
 .btn.ghost{background:transparent;color:var(--fg);border-color:var(--border)}
+
+.store-soon{margin-top:24px}
+.store-badges{display:flex;flex-direction:column;gap:12px;max-width:320px;margin-inline:auto}
+@media (min-width:760px){ .store-badges{flex-direction:row;max-width:none;margin-inline:0} }
+.store-badge{
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  background:var(--accent);color:#fff;
+  border-radius:16px;padding:15px 20px;
+  text-decoration:none;
+  flex:1;
+  box-shadow:0 10px 20px -12px rgba(234,88,12,.55);
+}
+.store-badge svg{flex:none}
+.store-badge .txt{display:flex;flex-direction:column;line-height:1.2;text-align:left}
+.store-badge .txt strong{font-size:1rem;font-weight:700;font-family:"Manrope",sans-serif}
+.store-badge .txt small{font-size:0.75rem;letter-spacing:.02em;opacity:.9;margin-top:2px}
 
 section{padding-block:40px}
 .section-head{text-align:center;max-width:46ch;margin:0 auto 26px}
@@ -380,6 +397,18 @@ footer ul a:hover{color:#fff}
       <div class="hero-ctas">
         <a class="btn primary" href="#contact">Être prévenue du lancement</a>
         <a class="btn ghost" href="#comment-ca-marche">Voir comment ça marche</a>
+      </div>
+      <div class="store-soon">
+        <div class="store-badges">
+          <a class="store-badge" href="#contact" aria-label="Bientôt disponible sur Google Play — être prévenue du lancement">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M3 2.6c-.3.3-.5.8-.5 1.4v16c0 .6.2 1.1.5 1.4l.1.1L12.6 12 3.1 2.5z"/><path d="M15.8 15.2 12.6 12l3.2-3.2 4.2 2.4c1.2.7 1.2 1.9 0 2.6z"/><path d="M15.8 15.2 12.6 12 3.1 21.5c.4.4 1 .4 1.8 0z"/><path d="M15.8 8.8 4.9 2.5c-.8-.4-1.4-.4-1.8 0L12.6 12z"/></svg>
+            <span class="txt"><strong>Bientôt disponible</strong><small>sur Google Play</small></span>
+          </a>
+          <a class="store-badge" href="#contact" aria-label="Bientôt disponible sur l'App Store — être prévenue du lancement">
+            <svg width="23" height="23" viewBox="0 0 24 24" fill="#fff"><path d="M17.05 12.3c-.03-2.1 1.72-3.1 1.8-3.15-1-1.44-2.52-1.64-3.06-1.66-1.3-.13-2.54.76-3.2.76-.66 0-1.68-.74-2.76-.72-1.42.02-2.73.82-3.46 2.08-1.48 2.56-.38 6.35 1.06 8.43.7 1.02 1.54 2.16 2.63 2.12 1.06-.04 1.46-.68 2.74-.68 1.27 0 1.64.68 2.76.66 1.14-.02 1.86-1.03 2.56-2.06.81-1.18 1.14-2.33 1.15-2.39-.02-.01-2.2-.84-2.22-3.39z"/><path d="M14.86 5.98c.58-.71.98-1.68.87-2.66-.84.04-1.87.56-2.47 1.26-.54.63-1.02 1.63-.89 2.59.94.07 1.9-.48 2.49-1.19z"/></svg>
+            <span class="txt"><strong>Bientôt disponible</strong><small>sur l'App Store</small></span>
+          </a>
+        </div>
       </div>
     </div>
     <div class="hero-photo">

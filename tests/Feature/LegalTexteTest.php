@@ -56,6 +56,17 @@ class LegalTexteTest extends TestCase
         $this->assertStringContainsString('Cellule2', $texte);
     }
 
+    public function test_les_paragraphes_vides_nbsp_ne_laissent_pas_de_lignes_blanches_en_trop(): void
+    {
+        Politicy::create([
+            'politicy' => '<p>Premier paragraphe.</p><p>&nbsp;</p><p>Second paragraphe.</p>',
+        ]);
+
+        $texte = $this->getJson('/api/politique')->json('data');
+
+        $this->assertSame("Premier paragraphe.\n\nSecond paragraphe.", $texte);
+    }
+
     public function test_les_conditions_renvoient_la_derniere_version_enregistree(): void
     {
         Condition::create(['condition' => '<p>Ancienne version</p>'])

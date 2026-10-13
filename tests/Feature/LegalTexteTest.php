@@ -39,6 +39,23 @@ class LegalTexteTest extends TestCase
         $this->assertStringContainsString('- Point B', $texte);
     }
 
+    public function test_les_balises_non_prevues_ne_recollent_pas_les_mots_entre_eux(): void
+    {
+        Condition::create([
+            'condition' => '<blockquote>Citation</blockquote><p>Suite</p><table><tr><td>Cellule1</td><td>Cellule2</td></tr></table>',
+        ]);
+
+        $texte = $this->getJson('/api/conditions')->json('data');
+
+        $this->assertStringNotContainsString('<', $texte);
+        $this->assertStringNotContainsString('CitationSuite', $texte);
+        $this->assertStringNotContainsString('Cellule1Cellule2', $texte);
+        $this->assertStringContainsString('Citation', $texte);
+        $this->assertStringContainsString('Suite', $texte);
+        $this->assertStringContainsString('Cellule1', $texte);
+        $this->assertStringContainsString('Cellule2', $texte);
+    }
+
     public function test_les_conditions_renvoient_la_derniere_version_enregistree(): void
     {
         Condition::create(['condition' => '<p>Ancienne version</p>'])

@@ -50,11 +50,15 @@ class ApiLegalController extends Controller
      */
     private function versionLisible(string $html): string
     {
-        $texte = preg_replace('/<\/(p|div|h[1-6]|li)>/i', "\n", $html);
+        $texte = preg_replace('/<\/(p|div|h[1-6]|li|blockquote|pre|tr|table)>/i', "\n", $html);
         $texte = preg_replace('/<br\s*\/?>/i', "\n", $texte);
         $texte = preg_replace('/<li[^>]*>/i', '- ', $texte);
-        $texte = strip_tags($texte);
+        // Garde-fou : toute autre balise restante (tableau, citation...)
+        // devient un espace plutôt que de disparaître purement, pour ne
+        // jamais recoller deux mots ensemble.
+        $texte = preg_replace('/<[^>]+>/', ' ', $texte);
         $texte = html_entity_decode($texte, ENT_QUOTES | ENT_HTML5);
+        $texte = implode("\n", array_map('trim', explode("\n", $texte)));
         $texte = preg_replace('/\n{3,}/', "\n\n", $texte);
 
         return trim($texte);

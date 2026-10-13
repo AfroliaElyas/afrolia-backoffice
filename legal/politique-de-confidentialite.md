@@ -15,7 +15,7 @@
 
 **Données fournies directement par vous :**
 - Identité : nom, prénom, photo de profil
-- Coordonnées : numéro de téléphone (utilisé pour la connexion et la vérification par code SMS), adresse e-mail si renseignée
+- Coordonnées : numéro de téléphone (utilisé pour la connexion), adresse e-mail si renseignée. [À ce jour, le numéro de téléphone n'est pas vérifié par SMS à l'inscription ; cette vérification est prévue ultérieurement.]
 - Pour les coiffeuses : spécialités, langues parlées, présentation, localisation du salon, tarifs des prestations, numéro et opérateur Mobile Money destinés à recevoir leurs versements
 - Avis et notes laissés sur les coiffeuses après une prestation
 - Messages échangés avec l'assistant Afrolia (voir section 4)
@@ -59,8 +59,17 @@ Certains de ces prestataires (Stripe, Anthropic, et DigitalOcean dont le serveur
 ## 6. Combien de temps nous conservons vos données
 
 - **Compte actif :** tant que vous utilisez l'application.
-- **Suppression de compte :** vous pouvez supprimer votre compte à tout moment depuis l'application. Votre profil et votre photo sont alors supprimés immédiatement.
-- **Historique des réservations et paiements :** conservé au-delà de la suppression du compte, pour les besoins de la comptabilité de l'entreprise et la gestion d'éventuels litiges, pendant une durée de [à compléter — durée à confirmer avec un comptable/juriste au regard de la réglementation ivoirienne applicable].
+
+- **Suppression de compte :** vous pouvez demander la suppression de votre compte à tout moment depuis l'application. Elle est effectuée immédiatement, sauf si une réservation est encore en cours, qu'un remboursement est en attente, ou que des gains ne vous ont pas encore été versés — dans ce cas, nous vous demandons d'attendre que la situation soit réglée avant de supprimer le compte, afin de ne perdre aucun droit (remboursement, versement).
+
+  Lorsque la suppression est effectuée :
+  - Votre nom, votre photo, votre adresse e-mail, votre numéro de téléphone et les autres données personnelles devenues inutiles sont effacés immédiatement du compte.
+  - Toute connexion à votre compte est bloquée immédiatement : vous êtes déconnecté·e de tous vos appareils et le compte ne peut plus être utilisé pour se reconnecter.
+  - Votre numéro de téléphone redevient disponible pour une nouvelle inscription.
+
+- **Documents comptables et pièces justificatives :** conformément à l'article 24 de l'Acte uniforme OHADA relatif au droit comptable et à l'information financière (AUDCIF), les livres comptables et les pièces justificatives doivent être conservés pendant dix ans. Nous conservons donc, pendant cette durée, uniquement les documents et informations nécessaires à la comptabilité de l'entreprise (réservations facturées, paiements, versements, commissions) — et non l'intégralité de votre historique de réservations, ni l'ensemble de vos données personnelles, qui sont effacées comme indiqué ci-dessus. Lorsqu'une facture ou une pièce justificative doit légalement continuer à mentionner une identité, nous conservons le nom que vous aviez au moment de la prestation concernée, uniquement à cette fin — jamais vos autres données personnelles (téléphone, e-mail, photo, adresse).
+
+  [⚠️ Point à confirmer par un comptable ou un juriste avant publication : les textes de l'article 24 de l'AUDCIF que j'ai pu consulter fixent la durée à dix ans, mais ne précisent pas explicitement, dans les extraits trouvés, la date à partir de laquelle ce délai commence à courir. Par prudence, et conformément à la pratique comptable usuelle (non confirmée comme étant la règle exacte du texte), nous faisons courir ce délai à partir de la clôture de l'exercice comptable au cours duquel l'opération a eu lieu — et non à partir de la date de suppression du compte, ni à partir de la date de chaque transaction prise isolément.]
 
 ## 7. Sécurité
 

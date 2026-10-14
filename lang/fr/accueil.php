@@ -1,6 +1,16 @@
 <?php
 
 return [
+    'meta' => [
+        'description' => "Afrolia — réservez votre coiffeuse ou votre coiffeur en Côte d'Ivoire.",
+    ],
+
+    'images' => [
+        'hero_alt' => 'Une coiffeuse tresse les cheveux de sa cliente',
+        'trio1_alt' => 'Trois clientes avec des coiffures afro différentes',
+        'trio2_alt' => 'Trois clientes, cheveux afro naturels et tresses colorées',
+    ],
+
     'nav' => [
         'comment_ca_marche' => 'Comment ça marche',
         'boutique' => 'Boutique',

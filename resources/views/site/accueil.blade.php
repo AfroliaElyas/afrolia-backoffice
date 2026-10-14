@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Afrolia</title>
-<meta name="description" content="Afrolia — réservez votre coiffeuse ou votre coiffeur en Côte d'Ivoire.">
+<meta name="description" content="{{ __('accueil.meta.description') }}">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <style>
 :root{
@@ -448,7 +448,7 @@ footer ul a:hover{color:#fff}
       </div>
     </div>
     <div class="hero-photo">
-      <img src="{{ asset('images/site/coiffure-tresses.jpg') }}" alt="Une coiffeuse tresse les cheveux de sa cliente" loading="eager">
+      <img src="{{ asset('images/site/coiffure-tresses.jpg') }}" alt="{{ __('accueil.images.hero_alt') }}" loading="eager">
     </div>
   </section>
 
@@ -690,8 +690,8 @@ footer ul a:hover{color:#fff}
         {{ __('accueil.qui_sommes_nous.texte') }}
       </p>
       <div class="duo-photos" style="margin-top:22px">
-        <img src="{{ asset('images/site/coiffure-trio-1.jpg') }}" alt="Trois clientes avec des coiffures afro différentes" loading="lazy" style="object-position:25% 55%">
-        <img src="{{ asset('images/site/coiffure-trio-2.jpg') }}" alt="Trois clientes, cheveux afro naturels et tresses colorées" loading="lazy">
+        <img src="{{ asset('images/site/coiffure-trio-1.jpg') }}" alt="{{ __('accueil.images.trio1_alt') }}" loading="lazy" style="object-position:25% 55%">
+        <img src="{{ asset('images/site/coiffure-trio-2.jpg') }}" alt="{{ __('accueil.images.trio2_alt') }}" loading="lazy">
       </div>
     </div>
   </section>

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="{{ app()->getLocale() }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -51,7 +51,8 @@ header.top{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:16px;
+  flex-wrap:wrap;
+  gap:10px 16px;
   padding-block:12px;
 }
 .brand{display:flex;align-items:center;gap:10px;min-width:0}
@@ -61,6 +62,17 @@ header.top{
 .nav-links a{text-decoration:none;opacity:.85}
 .nav-links a:hover{opacity:1}
 @media (min-width:760px){ .nav-links{display:flex} }
+.nav-right{display:flex;align-items:center;gap:12px;flex:none}
+.lang-switch{display:flex;gap:4px;background:rgba(255,255,255,.1);border-radius:99px;padding:3px}
+.lang-switch a{
+  text-decoration:none;
+  font-size:0.78rem;
+  font-weight:700;
+  padding:5px 11px;
+  border-radius:99px;
+  color:rgba(255,255,255,.75);
+}
+.lang-switch a.active{background:#fff;color:var(--header-bg)}
 .nav-cta{
   flex:none;
   background:var(--accent);
@@ -396,12 +408,18 @@ footer ul a:hover{color:#fff}
       <span>Afrolia</span>
     </div>
     <nav class="nav-links">
-      <a href="#comment-ca-marche">Comment ça marche</a>
-      <a href="#boutique">Boutique</a>
-      <a href="#coiffeuses">Pour les coiffeuses</a>
-      <a href="#faq">FAQ</a>
+      <a href="#comment-ca-marche">{{ __('accueil.nav.comment_ca_marche') }}</a>
+      <a href="#boutique">{{ __('accueil.nav.boutique') }}</a>
+      <a href="#coiffeuses">{{ __('accueil.nav.coiffeuses') }}</a>
+      <a href="#faq">{{ __('accueil.nav.faq') }}</a>
     </nav>
-    <a class="nav-cta" href="#lancement">Être prévenue du lancement</a>
+    <div class="nav-right">
+      <div class="lang-switch" role="group" aria-label="{{ __('accueil.langue.selecteur_aria') }}">
+        <a href="{{ request()->fullUrlWithQuery(['lang' => 'fr']) }}" class="{{ app()->getLocale() === 'fr' ? 'active' : '' }}">{{ __('accueil.langue.fr') }}</a>
+        <a href="{{ request()->fullUrlWithQuery(['lang' => 'en']) }}" class="{{ app()->getLocale() === 'en' ? 'active' : '' }}">{{ __('accueil.langue.en') }}</a>
+      </div>
+      <a class="nav-cta" href="#lancement">{{ __('accueil.nav.cta_lancement') }}</a>
+    </div>
   </div>
 </header>
 
@@ -409,22 +427,22 @@ footer ul a:hover{color:#fff}
   <section class="hero wrap">
     <div class="hero-content">
       <img class="logo" src="{{ asset('images/afrolia-logo.png') }}" alt="Afrolia">
-      <span class="badge">Lancement à venir en Côte d'Ivoire</span>
-      <h1>Trouvez et réservez votre coiffeuse, simplement</h1>
-      <p class="lede">Afrolia met en relation les clientes et les coiffeuses/coiffeurs indépendants en Côte d'Ivoire : comparez les profils, réservez en ligne et payez en toute sécurité.</p>
+      <span class="badge">{{ __('accueil.hero.badge') }}</span>
+      <h1>{{ __('accueil.hero.titre') }}</h1>
+      <p class="lede">{{ __('accueil.hero.texte') }}</p>
       <div class="hero-ctas">
-        <a class="btn primary" href="#lancement">Être prévenue du lancement</a>
-        <a class="btn ghost" href="#comment-ca-marche">Voir comment ça marche</a>
+        <a class="btn primary" href="#lancement">{{ __('accueil.nav.cta_lancement') }}</a>
+        <a class="btn ghost" href="#comment-ca-marche">{{ __('accueil.hero.cta_comment') }}</a>
       </div>
       <div class="store-soon">
         <div class="store-badges">
-          <a class="store-badge" href="#lancement" aria-label="Bientôt disponible sur Google Play — être prévenue du lancement">
+          <a class="store-badge" href="#lancement" aria-label="{{ __('accueil.hero.play_aria') }}">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M3 2.6c-.3.3-.5.8-.5 1.4v16c0 .6.2 1.1.5 1.4l.1.1L12.6 12 3.1 2.5z"/><path d="M15.8 15.2 12.6 12l3.2-3.2 4.2 2.4c1.2.7 1.2 1.9 0 2.6z"/><path d="M15.8 15.2 12.6 12 3.1 21.5c.4.4 1 .4 1.8 0z"/><path d="M15.8 8.8 4.9 2.5c-.8-.4-1.4-.4-1.8 0L12.6 12z"/></svg>
-            <span class="txt"><strong>Bientôt disponible</strong><small>sur Google Play</small></span>
+            <span class="txt"><strong>{{ __('accueil.hero.play_bientot') }}</strong><small>{{ __('accueil.hero.play_store') }}</small></span>
           </a>
-          <a class="store-badge" href="#lancement" aria-label="Bientôt disponible sur l'App Store — être prévenue du lancement">
+          <a class="store-badge" href="#lancement" aria-label="{{ __('accueil.hero.appstore_aria') }}">
             <svg width="23" height="23" viewBox="0 0 24 24" fill="#fff"><path d="M17.05 12.3c-.03-2.1 1.72-3.1 1.8-3.15-1-1.44-2.52-1.64-3.06-1.66-1.3-.13-2.54.76-3.2.76-.66 0-1.68-.74-2.76-.72-1.42.02-2.73.82-3.46 2.08-1.48 2.56-.38 6.35 1.06 8.43.7 1.02 1.54 2.16 2.63 2.12 1.06-.04 1.46-.68 2.74-.68 1.27 0 1.64.68 2.76.66 1.14-.02 1.86-1.03 2.56-2.06.81-1.18 1.14-2.33 1.15-2.39-.02-.01-2.2-.84-2.22-3.39z"/><path d="M14.86 5.98c.58-.71.98-1.68.87-2.66-.84.04-1.87.56-2.47 1.26-.54.63-1.02 1.63-.89 2.59.94.07 1.9-.48 2.49-1.19z"/></svg>
-            <span class="txt"><strong>Bientôt disponible</strong><small>sur l'App Store</small></span>
+            <span class="txt"><strong>{{ __('accueil.hero.appstore_bientot') }}</strong><small>{{ __('accueil.hero.appstore_store') }}</small></span>
           </a>
         </div>
       </div>
@@ -436,24 +454,24 @@ footer ul a:hover{color:#fff}
 
   <section id="comment-ca-marche" class="wrap">
     <div class="section-head">
-      <span class="eyebrow">Comment ça marche</span>
-      <h2>Une expérience pensée pour les deux côtés</h2>
-      <p>Simple pour les clientes, efficace pour les coiffeuses.</p>
+      <span class="eyebrow">{{ __('accueil.comment.eyebrow') }}</span>
+      <h2>{{ __('accueil.comment.titre') }}</h2>
+      <p>{{ __('accueil.comment.texte') }}</p>
     </div>
     <div class="tracks">
       <div class="track">
-        <div class="track-title"><span class="dot">C</span><h3>Pour les clientes</h3></div>
+        <div class="track-title"><span class="dot">C</span><h3>{{ __('accueil.comment.clientes.titre') }}</h3></div>
         <div class="step">
           <span class="num">1</span>
           <div class="step-body">
-            <h4>Cherchez une coiffeuse ou un coiffeur</h4>
-            <p>Recherchez par nom ou autour de vous, dans votre ville.</p>
+            <h4>{{ __('accueil.comment.clientes.etape1_titre') }}</h4>
+            <p>{{ __('accueil.comment.clientes.etape1_texte') }}</p>
           </div>
           <div class="phone-mock">
             <div class="notch"></div>
             <div class="phone-screen">
-              <div class="m-bar">Recherche</div>
-              <div class="m-input">🔍 Rechercher par nom...</div>
+              <div class="m-bar">{{ __('accueil.comment.clientes.etape1_mock_bar') }}</div>
+              <div class="m-input">{{ __('accueil.comment.clientes.etape1_mock_input') }}</div>
               <div class="m-row"><span class="m-avatar"></span><div class="m-lines"><span class="m-line w70"></span><span class="m-line w40 muted"></span></div></div>
               <div class="m-row"><span class="m-avatar"></span><div class="m-lines"><span class="m-line w50"></span><span class="m-line w30 muted"></span></div></div>
             </div>
@@ -462,13 +480,13 @@ footer ul a:hover{color:#fff}
         <div class="step">
           <span class="num">2</span>
           <div class="step-body">
-            <h4>Comparez les profils</h4>
-            <p>Prestations, tarifs, disponibilités et avis clients avant de réserver.</p>
+            <h4>{{ __('accueil.comment.clientes.etape2_titre') }}</h4>
+            <p>{{ __('accueil.comment.clientes.etape2_texte') }}</p>
           </div>
           <div class="phone-mock">
             <div class="notch"></div>
             <div class="phone-screen">
-              <div class="m-bar">Profil</div>
+              <div class="m-bar">{{ __('accueil.comment.clientes.etape2_mock_bar') }}</div>
               <div class="m-row"><span class="m-avatar"></span><div class="m-lines"><span class="m-line w60"></span><span class="m-line w40 muted"></span></div></div>
               <div class="m-price-row"><span class="m-line w40"></span><span class="m-price">—</span></div>
               <div class="m-price-row"><span class="m-line w50"></span><span class="m-price">—</span></div>
@@ -478,73 +496,73 @@ footer ul a:hover{color:#fff}
         <div class="step">
           <span class="num">3</span>
           <div class="step-body">
-            <h4>Réservez et payez en sécurité</h4>
-            <p>Par carte bancaire ou Mobile Money (Wave, Orange, MTN, Moov, Djamo), directement dans l'application.</p>
+            <h4>{{ __('accueil.comment.clientes.etape3_titre') }}</h4>
+            <p>{{ __('accueil.comment.clientes.etape3_texte') }}</p>
           </div>
           <div class="phone-mock">
             <div class="notch"></div>
             <div class="phone-screen">
-              <div class="m-bar">Mobile Money</div>
+              <div class="m-bar">{{ __('accueil.comment.clientes.etape3_mock_bar') }}</div>
               <div class="m-chips">
                 <span class="m-chip" style="background:#00A9E0"></span>
                 <span class="m-chip" style="background:#FF6600"></span>
                 <span class="m-chip" style="background:#FFCC00"></span>
                 <span class="m-chip" style="background:#0066B3"></span>
               </div>
-              <div class="m-amount"><div class="label">Montant à payer</div><div class="value">—</div></div>
-              <div class="m-btn">Payer</div>
+              <div class="m-amount"><div class="label">{{ __('accueil.comment.clientes.etape3_mock_montant') }}</div><div class="value">—</div></div>
+              <div class="m-btn">{{ __('accueil.comment.clientes.etape3_mock_payer') }}</div>
             </div>
           </div>
         </div>
       </div>
       <div class="track">
-        <div class="track-title"><span class="dot">P</span><h3>Pour les coiffeuses</h3></div>
+        <div class="track-title"><span class="dot">P</span><h3>{{ __('accueil.comment.coiffeuses.titre') }}</h3></div>
         <div class="step">
           <span class="num">1</span>
           <div class="step-body">
-            <h4>Créez votre profil professionnel</h4>
-            <p>Gratuitement : vos prestations, vos tarifs, vos photos.</p>
+            <h4>{{ __('accueil.comment.coiffeuses.etape1_titre') }}</h4>
+            <p>{{ __('accueil.comment.coiffeuses.etape1_texte') }}</p>
           </div>
           <div class="phone-mock">
             <div class="notch"></div>
             <div class="phone-screen">
-              <div class="m-bar">Mes tarifs et services</div>
+              <div class="m-bar">{{ __('accueil.comment.coiffeuses.etape1_mock_bar') }}</div>
               <div class="m-price-row"><span class="m-line w50"></span><span class="m-price">—</span></div>
               <div class="m-price-row"><span class="m-line w60"></span><span class="m-price">—</span></div>
-              <div class="m-btn">+ Ajouter</div>
+              <div class="m-btn">{{ __('accueil.comment.coiffeuses.etape1_mock_ajouter') }}</div>
             </div>
           </div>
         </div>
         <div class="step">
           <span class="num">2</span>
           <div class="step-body">
-            <h4>Gérez votre agenda</h4>
-            <p>Vos disponibilités se mettent à jour en temps réel dans l'application.</p>
+            <h4>{{ __('accueil.comment.coiffeuses.etape2_titre') }}</h4>
+            <p>{{ __('accueil.comment.coiffeuses.etape2_texte') }}</p>
           </div>
           <div class="phone-mock">
             <div class="notch"></div>
             <div class="phone-screen">
-              <div class="m-bar">Disponibilités</div>
+              <div class="m-bar">{{ __('accueil.comment.coiffeuses.etape2_mock_bar') }}</div>
               <div class="m-cal">
                 <span class="on"></span><span class="on"></span><span></span><span class="on"></span><span></span><span class="on"></span><span></span>
                 <span></span><span class="on"></span><span class="on"></span><span></span><span class="on"></span><span></span><span class="on"></span>
               </div>
-              <div class="m-legend"><span class="m-dot" style="background:var(--accent2)"></span>Disponible</div>
+              <div class="m-legend"><span class="m-dot" style="background:var(--accent2)"></span>{{ __('accueil.comment.coiffeuses.etape2_mock_legende') }}</div>
             </div>
           </div>
         </div>
         <div class="step">
           <span class="num">3</span>
           <div class="step-body">
-            <h4>Recevez vos réservations</h4>
-            <p>Acceptez les demandes et développez votre clientèle.</p>
+            <h4>{{ __('accueil.comment.coiffeuses.etape3_titre') }}</h4>
+            <p>{{ __('accueil.comment.coiffeuses.etape3_texte') }}</p>
           </div>
           <div class="phone-mock">
             <div class="notch"></div>
             <div class="phone-screen">
-              <div class="m-bar">En attente</div>
+              <div class="m-bar">{{ __('accueil.comment.coiffeuses.etape3_mock_bar') }}</div>
               <div class="m-row"><span class="m-avatar"></span><div class="m-lines"><span class="m-line w60"></span><span class="m-line w40 muted"></span></div></div>
-              <div class="m-actions"><span class="refuse">Refuser</span><span class="confirm">Confirmer</span></div>
+              <div class="m-actions"><span class="refuse">{{ __('accueil.comment.coiffeuses.etape3_mock_refuser') }}</span><span class="confirm">{{ __('accueil.comment.coiffeuses.etape3_mock_confirmer') }}</span></div>
             </div>
           </div>
         </div>
@@ -554,54 +572,54 @@ footer ul a:hover{color:#fff}
 
   <section class="wrap">
     <div class="section-head">
-      <span class="eyebrow">Côté clientes</span>
-      <h2>Pensé pour réserver l'esprit tranquille</h2>
+      <span class="eyebrow">{{ __('accueil.clientes_section.eyebrow') }}</span>
+      <h2>{{ __('accueil.clientes_section.titre') }}</h2>
     </div>
     <div class="cards">
       <div class="card">
         <div class="icon">💳</div>
-        <h4>Paiement sécurisé, deux façons</h4>
-        <p>Carte bancaire ou Mobile Money (Wave, Orange, MTN, Moov, Djamo) — à vous de choisir.</p>
+        <h4>{{ __('accueil.clientes_section.carte1_titre') }}</h4>
+        <p>{{ __('accueil.clientes_section.carte1_texte') }}</p>
       </div>
       <div class="card">
         <div class="icon">⭐</div>
-        <h4>Avis de clientes</h4>
-        <p>Les avis laissés après chaque prestation vous aident à choisir en confiance.</p>
+        <h4>{{ __('accueil.clientes_section.carte2_titre') }}</h4>
+        <p>{{ __('accueil.clientes_section.carte2_texte') }}</p>
       </div>
       <div class="card">
         <div class="icon">💬</div>
-        <h4>Un assistant pour vous aider</h4>
-        <p>Posez vos questions à l'assistant intégré pour vous orienter dans l'application.</p>
+        <h4>{{ __('accueil.clientes_section.carte3_titre') }}</h4>
+        <p>{{ __('accueil.clientes_section.carte3_texte') }}</p>
       </div>
     </div>
   </section>
 
   <section id="boutique" class="wrap">
     <div class="section-head">
-      <span class="eyebrow">Boutique</span>
-      <h2>Vos produits capillaires préférés, à portée de main</h2>
-      <p>Chaque coiffeuse peut ouvrir sa propre boutique dans l'application, en plus de ses prestations.</p>
+      <span class="eyebrow">{{ __('accueil.boutique.eyebrow') }}</span>
+      <h2>{{ __('accueil.boutique.titre') }}</h2>
+      <p>{{ __('accueil.boutique.texte') }}</p>
     </div>
     <div class="track" style="max-width:640px;margin:0 auto">
       <div class="step">
         <span class="num">1</span>
         <div class="step-body">
-          <h4>Parcourez les produits de votre coiffeuse</h4>
-          <p>Shampoings, soins, accessoires : chaque coiffeuse présente ses propres produits, avec prix et stock disponible.</p>
+          <h4>{{ __('accueil.boutique.etape1_titre') }}</h4>
+          <p>{{ __('accueil.boutique.etape1_texte') }}</p>
         </div>
       </div>
       <div class="step">
         <span class="num">2</span>
         <div class="step-body">
-          <h4>Commandez et payez en toute sécurité</h4>
-          <p>Même paiement que pour une réservation : par carte bancaire ou Mobile Money, directement dans l'application.</p>
+          <h4>{{ __('accueil.boutique.etape2_titre') }}</h4>
+          <p>{{ __('accueil.boutique.etape2_texte') }}</p>
         </div>
       </div>
       <div class="step">
         <span class="num">3</span>
         <div class="step-body">
-          <h4>Suivez votre commande jusqu'à la livraison</h4>
-          <p>Commande confirmée, expédiée puis livrée par la coiffeuse — suivi visible à chaque étape dans l'application.</p>
+          <h4>{{ __('accueil.boutique.etape3_titre') }}</h4>
+          <p>{{ __('accueil.boutique.etape3_texte') }}</p>
         </div>
       </div>
     </div>
@@ -609,67 +627,67 @@ footer ul a:hover{color:#fff}
 
   <section id="coiffeuses" class="wrap">
     <div class="section-head">
-      <span class="eyebrow">Côté coiffeuses</span>
-      <h2>Développez votre activité, à votre rythme</h2>
-      <p>Commencez gratuitement, passez à la formule Premium quand vous voulez. La cliente paie toujours le prix affiché, sans supplément.</p>
+      <span class="eyebrow">{{ __('accueil.pricing.eyebrow') }}</span>
+      <h2>{{ __('accueil.pricing.titre') }}</h2>
+      <p>{{ __('accueil.pricing.texte') }}</p>
     </div>
     <div class="pricing">
       <div class="price-card">
-        <span class="tag">Gratuit</span>
-        <div class="amount">0 <small>FCFA / mois</small></div>
+        <span class="tag">{{ __('accueil.pricing.gratuit_tag') }}</span>
+        <div class="amount">{{ __('accueil.pricing.gratuit_montant') }} <small>{{ __('accueil.pricing.gratuit_unite') }}</small></div>
         <ul>
-          <li>Profil professionnel complet</li>
-          <li>Agenda et réservations illimitées</li>
-          <li>8 % de frais totaux retenus sur vos gains par prestation réalisée</li>
+          <li>{{ __('accueil.pricing.gratuit_item1') }}</li>
+          <li>{{ __('accueil.pricing.gratuit_item2') }}</li>
+          <li>{{ __('accueil.pricing.gratuit_item3') }}</li>
         </ul>
       </div>
       <div class="price-card featured">
-        <span class="tag">Premium</span>
-        <div class="amount">4 500 <small>FCFA / mois</small></div>
+        <span class="tag">{{ __('accueil.pricing.premium_tag') }}</span>
+        <div class="amount">{{ __('accueil.pricing.premium_montant') }} <small>{{ __('accueil.pricing.premium_unite') }}</small></div>
         <ul>
-          <li>Tout ce qui est inclus dans Gratuit</li>
-          <li>Frais totaux réduits à 6 % par prestation réalisée</li>
-          <li>Résiliable à tout moment</li>
+          <li>{{ __('accueil.pricing.premium_item1') }}</li>
+          <li>{{ __('accueil.pricing.premium_item2') }}</li>
+          <li>{{ __('accueil.pricing.premium_item3') }}</li>
         </ul>
       </div>
     </div>
     <p style="color:var(--fg-mute);font-size:0.85rem;text-align:center;max-width:46ch;margin:18px auto 0">
-      En cas d'annulation, des frais restent applicables : la commission Afrolia reste due, à la charge de la personne responsable de l'annulation (cliente ou coiffeuse). Détails dans nos conditions générales.
+      {{ __('accueil.pricing.annulation_note') }}
     </p>
   </section>
 
   <section class="wrap values">
     <div class="section-head">
-      <span class="eyebrow">Notre ADN</span>
-      <h2>Pourquoi Afrolia</h2>
+      <span class="eyebrow">{{ __('accueil.adn.eyebrow') }}</span>
+      <h2>{{ __('accueil.adn.titre') }}</h2>
     </div>
     <div class="cards">
       <div class="card">
         <div class="icon">❤️</div>
-        <h4>Notre mission</h4>
-        <p>Rendre la réservation d'une prestation de coiffure aussi simple qu'un rendez-vous pris en quelques clics.</p>
+        <h4>{{ __('accueil.adn.carte1_titre') }}</h4>
+        <p>{{ __('accueil.adn.carte1_texte') }}</p>
       </div>
       <div class="card">
         <div class="icon">🇨🇮</div>
-        <h4>Notre terrain</h4>
-        <p>Pensée pour la Côte d'Ivoire : paiement par carte ou par Mobile Money, comme on paie déjà au quotidien.</p>
+        <h4>{{ __('accueil.adn.carte2_titre') }}</h4>
+        <p>{{ __('accueil.adn.carte2_texte') }}</p>
       </div>
       <div class="card">
         <div class="icon">🎯</div>
-        <h4>Notre objectif</h4>
-        <p>Devenir la référence pour réserver une coiffeuse ou un coiffeur en Côte d'Ivoire.</p>
+        <h4>{{ __('accueil.adn.carte3_titre') }}</h4>
+        <p>{{ __('accueil.adn.carte3_texte') }}</p>
       </div>
     </div>
   </section>
 
   <section class="wrap">
     <div class="section-head">
-      <span class="eyebrow">Qui sommes-nous</span>
-      <h2>AFROLIA SARLU</h2>
+      <span class="eyebrow">{{ __('accueil.qui_sommes_nous.eyebrow') }}</span>
+      <h2>{{ __('accueil.qui_sommes_nous.titre') }}</h2>
     </div>
     <div class="track" style="max-width:640px;margin:0 auto">
       <p style="color:var(--fg-mute);font-size:0.98rem">
-        Afrolia est une application mobile qui met en relation des clientes et des coiffeuses/coiffeurs indépendants en Côte d'Ivoire, pour la prise de rendez-vous et l'achat de produits de coiffure. Notre objectif : rendre la réservation d'une prestation de coiffure aussi simple qu'un rendez-vous pris en quelques clics, pour les clientes comme pour les professionnelles.
+        {{ __('accueil.qui_sommes_nous.texte') }}
       </p>
       <div class="duo-photos" style="margin-top:22px">
         <img src="{{ asset('images/site/coiffure-trio-1.jpg') }}" alt="Trois clientes avec des coiffures afro différentes" loading="lazy" style="object-position:25% 55%">
@@ -680,40 +698,40 @@ footer ul a:hover{color:#fff}
 
   <section id="faq" class="wrap">
     <div class="section-head">
-      <span class="eyebrow">FAQ</span>
-      <h2>Questions fréquentes</h2>
+      <span class="eyebrow">{{ __('accueil.faq.eyebrow') }}</span>
+      <h2>{{ __('accueil.faq.titre') }}</h2>
     </div>
     <div style="max-width:640px;margin:0 auto">
       <details class="faq">
-        <summary>Comment réserver un rendez-vous ?</summary>
-        <p>Téléchargez l'application, créez votre compte, recherchez une coiffeuse ou un coiffeur près de chez vous, consultez ses disponibilités et réservez en quelques clics.</p>
+        <summary>{{ __('accueil.faq.q1') }}</summary>
+        <p>{{ __('accueil.faq.a1') }}</p>
       </details>
       <details class="faq">
-        <summary>Comment fonctionne le paiement ?</summary>
-        <p>Vous payez directement dans l'application, par carte bancaire ou par Mobile Money (Wave, Orange, MTN, Moov, Djamo), au moment de la réservation.</p>
+        <summary>{{ __('accueil.faq.q2') }}</summary>
+        <p>{{ __('accueil.faq.a2') }}</p>
       </details>
       <details class="faq">
-        <summary>Puis-je annuler ou modifier ma réservation ?</summary>
-        <p>Oui, depuis l'application, dans les délais indiqués au moment de la réservation.</p>
+        <summary>{{ __('accueil.faq.q3') }}</summary>
+        <p>{{ __('accueil.faq.a3') }}</p>
       </details>
       <details class="faq">
-        <summary>L'application est-elle gratuite ?</summary>
-        <p>Oui pour les clientes. Les coiffeuses ont le choix entre une formule gratuite et une formule Premium à petit prix, avec une commission réduite.</p>
+        <summary>{{ __('accueil.faq.q4') }}</summary>
+        <p>{{ __('accueil.faq.a4') }}</p>
       </details>
       <details class="faq">
-        <summary>Où et quand l'application sera-t-elle disponible ?</summary>
-        <p>Afrolia est en cours de finalisation pour la Côte d'Ivoire. <a href="#lancement" style="color:var(--accent);font-weight:700">Laissez-nous votre e-mail</a> pour être prévenue dès le lancement.</p>
+        <summary>{{ __('accueil.faq.q5') }}</summary>
+        <p>{{ __('accueil.faq.a5_avant') }}<a href="#lancement" style="color:var(--accent);font-weight:700">{{ __('accueil.faq.a5_lien') }}</a>{{ __('accueil.faq.a5_apres') }}</p>
       </details>
     </div>
   </section>
 
   <section class="wrap">
     <div id="lancement" class="contact">
-      <h2>Soyez prévenue dès le lancement</h2>
-      <p>Laissez votre e-mail, on vous écrit le jour J — rien d'autre.</p>
+      <h2>{{ __('accueil.lancement.titre') }}</h2>
+      <p>{{ __('accueil.lancement.texte') }}</p>
       <form class="lancement-form" id="lancement-form" novalidate>
-        <input type="email" id="lancement-email" name="email" placeholder="votre@email.com" required autocomplete="email">
-        <button type="submit" id="lancement-submit">M'inscrire</button>
+        <input type="email" id="lancement-email" name="email" placeholder="{{ __('accueil.lancement.placeholder') }}" required autocomplete="email">
+        <button type="submit" id="lancement-submit">{{ __('accueil.lancement.bouton') }}</button>
       </form>
       <p class="lancement-feedback" id="lancement-feedback" role="status" hidden></p>
     </div>
@@ -721,11 +739,11 @@ footer ul a:hover{color:#fff}
 
   <section class="wrap">
     <div id="contact" class="contact">
-      <h2>Une question, une envie de collaborer ?</h2>
-      <p>Écrivez-nous, nous vous répondons rapidement.</p>
+      <h2>{{ __('accueil.contact.titre') }}</h2>
+      <p>{{ __('accueil.contact.texte') }}</p>
       <div class="copy-row">
         <a class="email-pill" id="email-text" href="mailto:afroliaofficiel@gmail.com">afroliaofficiel@gmail.com</a>
-        <button class="copy-btn" id="copy-btn" type="button">Copier l'e-mail</button>
+        <button class="copy-btn" id="copy-btn" type="button">{{ __('accueil.contact.copier') }}</button>
       </div>
     </div>
   </section>
@@ -739,27 +757,27 @@ footer ul a:hover{color:#fff}
           <img src="{{ asset('images/afrolia-logo.png') }}" alt="">
           <span>Afrolia</span>
         </div>
-        <p class="tagline">Réservez votre coiffeuse ou votre coiffeur en Côte d'Ivoire, simplement.</p>
+        <p class="tagline">{{ __('accueil.footer.tagline') }}</p>
       </div>
       <div>
-        <h5>Navigation</h5>
+        <h5>{{ __('accueil.footer.nav_titre') }}</h5>
         <ul>
-          <li><a href="#comment-ca-marche">Comment ça marche</a></li>
-          <li><a href="#boutique">Boutique</a></li>
-          <li><a href="#coiffeuses">Pour les coiffeuses</a></li>
-          <li><a href="#faq">FAQ</a></li>
-          <li><a href="#contact">Contact</a></li>
+          <li><a href="#comment-ca-marche">{{ __('accueil.nav.comment_ca_marche') }}</a></li>
+          <li><a href="#boutique">{{ __('accueil.nav.boutique') }}</a></li>
+          <li><a href="#coiffeuses">{{ __('accueil.nav.coiffeuses') }}</a></li>
+          <li><a href="#faq">{{ __('accueil.nav.faq') }}</a></li>
+          <li><a href="#contact">{{ __('accueil.nav.contact') }}</a></li>
         </ul>
       </div>
       <div>
-        <h5>Légal</h5>
+        <h5>{{ __('accueil.footer.legal_titre') }}</h5>
         <ul>
-          <li><span>Politique de confidentialité</span><div class="legal-soon">bientôt en ligne</div></li>
-          <li><span>Conditions générales</span><div class="legal-soon">bientôt en ligne</div></li>
+          <li><span>{{ __('accueil.footer.politique') }}</span><div class="legal-soon">{{ __('accueil.footer.bientot_en_ligne') }}</div></li>
+          <li><span>{{ __('accueil.footer.conditions') }}</span><div class="legal-soon">{{ __('accueil.footer.bientot_en_ligne') }}</div></li>
         </ul>
       </div>
       <div>
-        <h5>Suivez-nous</h5>
+        <h5>{{ __('accueil.footer.suivez_titre') }}</h5>
         <div class="social-row">
           <a href="https://www.facebook.com/profile.php?id=61579847484402" target="_blank" rel="noopener" aria-label="Facebook">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
@@ -777,8 +795,8 @@ footer ul a:hover{color:#fff}
       </div>
     </div>
     <div class="footer-bottom">
-      <p>© {{ date('Y') }} AFROLIA SARLU — Côte d'Ivoire</p>
-      <p>Tous droits réservés</p>
+      <p>{{ __('accueil.footer.copyright', ['annee' => date('Y')]) }}</p>
+      <p>{{ __('accueil.footer.droits') }}</p>
     </div>
   </div>
 </footer>
@@ -791,6 +809,11 @@ footer ul a:hover{color:#fff}
   var feedback = document.getElementById('lancement-feedback');
   if (!form) return;
 
+  var texteEnvoi = @json(__('accueil.lancement.envoi'));
+  var texteSuccesDefaut = @json(__('accueil.lancement.succes_defaut'));
+  var texteErreurDefaut = @json(__('accueil.lancement.erreur_defaut'));
+  var texteConnexionImpossible = @json(__('accueil.lancement.connexion_impossible'));
+
   form.addEventListener('submit', async function(e){
     e.preventDefault();
     var email = input.value.trim();
@@ -798,7 +821,7 @@ footer ul a:hover{color:#fff}
     feedback.classList.remove('ok', 'err');
     submit.disabled = true;
     var texteOriginal = submit.textContent;
-    submit.textContent = 'Envoi...';
+    submit.textContent = texteEnvoi;
 
     try {
       var tokenMeta = document.querySelector('meta[name="csrf-token"]');
@@ -815,16 +838,16 @@ footer ul a:hover{color:#fff}
 
       feedback.hidden = false;
       if (reponse.ok && donnees.success) {
-        feedback.textContent = donnees.message || 'Merci ! On vous préviendra dès le lancement.';
+        feedback.textContent = donnees.message || texteSuccesDefaut;
         feedback.classList.add('ok');
         form.reset();
       } else {
-        feedback.textContent = donnees.message || "Une erreur est survenue, veuillez réessayer.";
+        feedback.textContent = donnees.message || texteErreurDefaut;
         feedback.classList.add('err');
       }
     } catch (err) {
       feedback.hidden = false;
-      feedback.textContent = "Connexion impossible, veuillez réessayer.";
+      feedback.textContent = texteConnexionImpossible;
       feedback.classList.add('err');
     } finally {
       submit.disabled = false;
@@ -837,18 +860,20 @@ footer ul a:hover{color:#fff}
   var btn = document.getElementById('copy-btn');
   var text = document.getElementById('email-text');
   if (!btn || !text) return;
+  var texteCopie = @json(__('accueil.contact.copie'));
+  var texteSelectionne = @json(__('accueil.contact.selectionne'));
   btn.addEventListener('click', async function(){
     var original = btn.textContent;
     try {
       await navigator.clipboard.writeText(text.textContent.trim());
-      btn.textContent = 'Copié !';
+      btn.textContent = texteCopie;
     } catch (e) {
       try {
         var range = document.createRange();
         range.selectNode(text);
         window.getSelection().removeAllRanges();
         window.getSelection().addRange(range);
-        btn.textContent = 'Sélectionné';
+        btn.textContent = texteSelectionne;
       } catch (e2) {
         btn.textContent = 'afroliaofficiel@gmail.com';
       }

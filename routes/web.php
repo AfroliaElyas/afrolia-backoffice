@@ -27,6 +27,15 @@ Route::get('logout', [CustomAuthController::class, 'signOut'])->name('logout');
 // sur le domaine public afrolia-app.com. La connexion back-office est passée
 // sur /admin pour laisser la racine à cette page.
 Route::get('/', function () {
+    $languesDisponibles = ['fr', 'en'];
+    $langueDemandee = request()->query('lang');
+
+    if (in_array($langueDemandee, $languesDisponibles, true)) {
+        session(['locale_site' => $langueDemandee]);
+    }
+
+    app()->setLocale(session('locale_site', 'fr'));
+
     return view('site.accueil');
 });
 

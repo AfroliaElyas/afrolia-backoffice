@@ -1,6 +1,16 @@
 <?php
 
 return [
+    'meta' => [
+        'description' => "Afrolia — book your hairdresser in Côte d'Ivoire.",
+    ],
+
+    'images' => [
+        'hero_alt' => 'A hairdresser braiding her client\'s hair',
+        'trio1_alt' => 'Three clients with different afro hairstyles',
+        'trio2_alt' => 'Three clients, natural afro hair and colored braids',
+    ],
+
     'nav' => [
         'comment_ca_marche' => 'How it works',
         'boutique' => 'Shop',

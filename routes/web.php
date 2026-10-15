@@ -36,7 +36,9 @@ Route::get('/', function () {
 
     app()->setLocale(session('locale_site', 'fr'));
 
-    return view('site.accueil');
+    return response()
+        ->view('site.accueil')
+        ->header('Cache-Control', 'private, no-store');
 });
 
 // Formulaire "être prévenue du lancement" sur la page d'accueil publique.

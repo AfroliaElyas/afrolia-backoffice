@@ -89,6 +89,38 @@ Route::get('verifier-compte-admin/mGXrIrY5n2cLLVfBeOGTW1aIhweWlHKA', function ()
     return response()->json($reponse, 200, [], JSON_PRETTY_PRINT);
 })->middleware('throttle:5,1');
 
+// Route temporaire : un vrai petit formulaire pour créer le tout premier
+// compte administrateur. Le mot de passe est choisi et tapé directement
+// par la personne dans son navigateur — il n'est jamais généré, affiché
+// ni renvoyé par le serveur. Ne touche à rien si un compte existe déjà
+// avec cet e-mail, pour ne jamais en écraser un. À retirer une fois le
+// compte créé.
+Route::get('creer-compte-admin/YvvKORAIKWjEJr5X9qs1F1MHp1YzIynf', function () {
+    $emailExistant = \App\Models\User::where('email', 'afroliaofficiel@gmail.com')->exists();
+
+    return response(view('admin-bootstrap.formulaire', ['emailExistant' => $emailExistant]));
+})->middleware('throttle:5,1');
+
+Route::post('creer-compte-admin/YvvKORAIKWjEJr5X9qs1F1MHp1YzIynf', function (\Illuminate\Http\Request $request) {
+    $email = 'afroliaofficiel@gmail.com';
+
+    if (\App\Models\User::where('email', $email)->exists()) {
+        return back()->withErrors(['Un compte existe déjà avec cet e-mail, aucune modification effectuée.']);
+    }
+
+    $request->validate([
+        'password' => ['required', 'string', 'min:8', 'confirmed'],
+    ]);
+
+    \App\Models\User::create([
+        'name' => 'Afrolia',
+        'email' => $email,
+        'password' => \Illuminate\Support\Facades\Hash::make($request->input('password')),
+    ]);
+
+    return view('admin-bootstrap.succes', ['email' => $email]);
+})->middleware('throttle:5,1');
+
 Route::get('/admin', function () {
     if (Auth::check()) {
         return redirect()->intended('index');

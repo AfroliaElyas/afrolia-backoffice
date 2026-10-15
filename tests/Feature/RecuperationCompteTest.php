@@ -56,6 +56,30 @@ class RecuperationCompteTest extends TestCase
         );
     }
 
+    // --- Fournisseur d'e-mail réel (Resend, via son API HTTPS) ---
+
+    public function test_resend_sans_cle_api_est_refuse_explicitement(): void
+    {
+        config(['mail.default' => 'resend', 'services.resend.key' => null]);
+        $this->creerUtilisateur(['email' => 'test@example.com', 'email_verified_at' => now()]);
+
+        $response = $this->postJson('/api/mot-de-passe/email/demander', ['email' => 'test@example.com']);
+
+        $response->assertStatus(503);
+    }
+
+    public function test_le_transport_resend_se_construit_sans_erreur_avec_une_cle(): void
+    {
+        config(['services.resend.key' => 'cle-de-test']);
+
+        $transport = app('mail.manager')->mailer('resend')->getSymfonyTransport();
+
+        $this->assertInstanceOf(
+            \Illuminate\Mail\Transport\ResendTransport::class,
+            $transport,
+        );
+    }
+
     // --- Inscription : l'e-mail reste facultatif et ne bloque jamais ---
 
     public function test_inscription_avec_email_et_fournisseur_reel_envoie_la_verification(): void

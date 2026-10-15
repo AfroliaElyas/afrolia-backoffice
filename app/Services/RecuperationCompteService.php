@@ -198,15 +198,19 @@ class RecuperationCompteService
 
     /**
      * Tant qu'aucun fournisseur d'e-mail réel n'est branché (mailer "log"
-     * par défaut, ou Brevo sélectionné sans sa clé API), un e-mail "envoyé"
-     * n'atteindrait jamais personne : même principe que le 503 du SMS tant
-     * que Twilio n'est pas prêt.
+     * par défaut, ou Brevo/Resend sélectionné sans sa clé API), un e-mail
+     * "envoyé" n'atteindrait jamais personne : même principe que le 503 du
+     * SMS tant que Twilio n'est pas prêt.
      */
     private function verifierFournisseurEmailDisponible(): void
     {
         $mailer = config('mail.default');
 
-        if ($mailer === 'log' || ($mailer === 'brevo' && empty(config('services.brevo.key')))) {
+        if (
+            $mailer === 'log'
+            || ($mailer === 'brevo' && empty(config('services.brevo.key')))
+            || ($mailer === 'resend' && empty(config('services.resend.key')))
+        ) {
             throw new EnvoiEmailIndisponibleException();
         }
     }

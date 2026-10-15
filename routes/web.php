@@ -43,6 +43,32 @@ Route::get('/', function () {
 Route::post('lancement/inscription', [LancementController::class, 'inscrire'])
     ->middleware('throttle:10,1');
 
+// Route temporaire de diagnostic pour vérifier l'envoi d'e-mails via le
+// fournisseur actif (Brevo/Resend). À retirer une fois Resend confirmé
+// fonctionnel. Protégée par un jeton pour éviter un envoi déclenché par
+// n'importe qui tombant sur l'URL.
+Route::get('test-envoi-email/9r5zSyiG78ulCk0bYUf_vn91ut8dTnte', function () {
+    $diagnostic = [
+        'mailer' => config('mail.default'),
+        'from' => config('mail.from.address'),
+        'resend_key_presente' => !empty(config('services.resend.key')),
+        'brevo_key_presente' => !empty(config('services.brevo.key')),
+    ];
+
+    try {
+        \Illuminate\Support\Facades\Mail::raw('Ceci est un test reel d\'envoi depuis Afrolia.', function ($message) {
+            $message->to('afroliaofficiel@gmail.com')->subject('Test envoi Afrolia');
+        });
+        $diagnostic['resultat'] = 'succes';
+    } catch (\Throwable $e) {
+        $diagnostic['resultat'] = 'echec';
+        $diagnostic['erreur_classe'] = get_class($e);
+        $diagnostic['erreur_message'] = $e->getMessage();
+    }
+
+    return response()->json($diagnostic, 200, [], JSON_PRETTY_PRINT);
+})->middleware('throttle:5,1');
+
 Route::get('/admin', function () {
     if (Auth::check()) {
         return redirect()->intended('index');

@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\CompanyController;
-use App\Http\Controllers\ConfigTarifController;
 use App\Http\Controllers\CustomAuthController;
 use App\Http\Controllers\HairController;
 use App\Http\Controllers\LancementController;

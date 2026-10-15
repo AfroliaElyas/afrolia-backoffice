@@ -69,6 +69,26 @@ Route::get('test-envoi-email/9r5zSyiG78ulCk0bYUf_vn91ut8dTnte', function () {
     return response()->json($diagnostic, 200, [], JSON_PRETTY_PRINT);
 })->middleware('throttle:5,1');
 
+// Route temporaire de diagnostic : indique seulement combien de comptes
+// administrateur existent au total, et si une adresse précise (passée en
+// paramètre) correspond à l'un d'eux — jamais la liste des e-mails, ni le
+// mot de passe. À retirer une fois le compte admin confirmé fonctionnel.
+// Protégée par un jeton.
+Route::get('verifier-compte-admin/mGXrIrY5n2cLLVfBeOGTW1aIhweWlHKA', function () {
+    $emailTeste = request()->query('email');
+
+    $reponse = [
+        'nombre_total_de_comptes' => \App\Models\User::count(),
+        'email_teste' => $emailTeste,
+    ];
+
+    if ($emailTeste) {
+        $reponse['ce_compte_existe'] = \App\Models\User::where('email', $emailTeste)->exists();
+    }
+
+    return response()->json($reponse, 200, [], JSON_PRETTY_PRINT);
+})->middleware('throttle:5,1');
+
 Route::get('/admin', function () {
     if (Auth::check()) {
         return redirect()->intended('index');

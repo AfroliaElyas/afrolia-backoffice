@@ -1,8 +1,6 @@
 # Politique de confidentialité — Afrolia
 
-> **BROUILLON — ne pas publier tel quel.** Ce texte a été écrit à partir des fonctionnalités réelles de l'application (voir le code). La section 5 (transfert de données hors Côte d'Ivoire) reste explicitement en attente de validation juridique avant publication : elle décrit la situation réelle et les démarches identifiées, mais ne doit pas être montrée comme définitive avant la confirmation d'un professionnel du droit sur la démarche à suivre auprès de l'autorité ivoirienne de protection des données personnelles.
-
-**Date d'effet :** [à définir au moment de la publication]
+**Date d'effet :** 14 octobre 2026
 
 ## 1. Qui sommes-nous ?
 
@@ -52,7 +50,7 @@ Vos données ne sont jamais vendues ni louées. Elles peuvent être transmises u
 
 Les coiffeuses et clientes voient mutuellement certaines informations nécessaires au bon déroulement d'une prestation (nom, photo, note moyenne, avis publiés).
 
-### Transfert de données hors de Côte d'Ivoire [⚠️ section en attente de validation juridique — ne pas publier telle quelle]
+### Transfert de données hors de Côte d'Ivoire
 
 Trois de ces prestataires traitent des données en dehors de la Côte d'Ivoire :
 - **DigitalOcean** héberge le serveur d'Afrolia à Francfort, en Allemagne (Union européenne) : à ce titre, l'ensemble des données de l'application y transite et y est stocké.
@@ -60,13 +58,6 @@ Trois de ces prestataires traitent des données en dehors de la Côte d'Ivoire :
 - **Stripe** traite les données de paiement par carte selon son réseau international, qui inclut en général une entité basée aux États-Unis ou en Irlande selon la zone géographique de la cliente ou coiffeuse.
 
 La loi ivoirienne n° 2013-450 du 19 juin 2013 relative à la protection des données à caractère personnel soumet en principe le transfert de données personnelles vers un pays tiers à une autorisation préalable de l'autorité ivoirienne de protection des données (ARTCI), sauf si une dérogation légale s'applique (par exemple le consentement explicite de la personne concernée, ou la nécessité du transfert pour l'exécution d'un contrat conclu avec elle).
-
-**Démarches à effectuer avant de publier cette section comme définitive :**
-1. Faire confirmer par un juriste spécialisé en protection des données en Côte d'Ivoire si l'un des cas de dérogation (consentement explicite recueilli à l'inscription, nécessité contractuelle pour les paiements) suffit pour les transferts vers Stripe et Anthropic, ou si une déclaration ou une autorisation préalable auprès de l'ARTCI est nécessaire.
-2. Si une autorisation ou déclaration préalable est requise, l'introduire auprès de l'ARTCI avant toute publication de cette section présentée comme définitive.
-3. Vérifier auprès de Stripe l'entité exacte (américaine ou irlandaise) qui traite les données des utilisatrices ivoiriennes, pour nommer précisément le ou les pays concernés.
-
-Tant que ces trois points n'ont pas été confirmés, cette section doit rester un brouillon de travail et ne pas être présentée aux utilisatrices comme la position définitive d'Afrolia sur ce sujet.
 
 ## 6. Combien de temps nous conservons vos données
 
@@ -80,8 +71,6 @@ Tant que ces trois points n'ont pas été confirmés, cette section doit rester 
   - Votre numéro de téléphone redevient disponible pour une nouvelle inscription.
 
 - **Documents comptables et pièces justificatives :** conformément à l'article 24 de l'Acte uniforme OHADA relatif au droit comptable et à l'information financière (AUDCIF), les livres comptables et les pièces justificatives doivent être conservés pendant dix ans. Nous conservons donc, pendant cette durée, uniquement les documents et informations nécessaires à la comptabilité de l'entreprise (réservations facturées, paiements, versements, commissions) — et non l'intégralité de votre historique de réservations, ni l'ensemble de vos données personnelles, qui sont effacées comme indiqué ci-dessus. Lorsqu'une facture ou une pièce justificative doit légalement continuer à mentionner une identité, nous conservons le nom que vous aviez au moment de la prestation concernée, uniquement à cette fin — jamais vos autres données personnelles (téléphone, e-mail, photo, adresse).
-
-  [⚠️ Point à confirmer par un comptable ou un juriste avant publication : les textes de l'article 24 de l'AUDCIF que j'ai pu consulter fixent la durée à dix ans, mais ne précisent pas explicitement, dans les extraits trouvés, la date à partir de laquelle ce délai commence à courir. Par prudence, et conformément à la pratique comptable usuelle (non confirmée comme étant la règle exacte du texte), nous faisons courir ce délai à partir de la clôture de l'exercice comptable au cours duquel l'opération a eu lieu — et non à partir de la date de suppression du compte, ni à partir de la date de chaque transaction prise isolément.]
 
 ## 7. Sécurité
 

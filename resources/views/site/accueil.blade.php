@@ -773,8 +773,8 @@ footer ul a:hover{color:#fff}
       <div>
         <h5>{{ __('accueil.footer.legal_titre') }}</h5>
         <ul>
-          <li><span>{{ __('accueil.footer.politique') }}</span><div class="legal-soon">{{ __('accueil.footer.bientot_en_ligne') }}</div></li>
-          <li><span>{{ __('accueil.footer.conditions') }}</span><div class="legal-soon">{{ __('accueil.footer.bientot_en_ligne') }}</div></li>
+          <li><a href="{{ url('politique') }}">{{ __('accueil.footer.politique') }}</a></li>
+          <li><a href="{{ url('conditions') }}">{{ __('accueil.footer.conditions') }}</a></li>
         </ul>
       </div>
       <div>

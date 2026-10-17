@@ -22,6 +22,29 @@ class TermsController extends Controller
     }
 
     /**
+     * Page publique "Conditions générales d'utilisation", même principe que
+     * la page d'accueil et "À propos" (routes/web.php) : pas d'authentification
+     * requise.
+     */
+    public function page()
+    {
+        $languesDisponibles = ['fr', 'en'];
+        $langueDemandee = request()->query('lang');
+
+        if (in_array($langueDemandee, $languesDisponibles, true)) {
+            session(['locale_site' => $langueDemandee]);
+        }
+
+        app()->setLocale(session('locale_site', 'fr'));
+
+        $condition = Condition::latest()->first();
+
+        return response()
+            ->view('site.conditions', ['condition' => $condition])
+            ->header('Cache-Control', 'private, no-store');
+    }
+
+    /**
      * Show the form for creating a new resource.
      */
     public function create()

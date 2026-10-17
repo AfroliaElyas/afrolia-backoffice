@@ -1,10 +1,8 @@
 # Conditions Générales d'Utilisation — Afrolia
 
-> **BROUILLON — ne pas publier tel quel.** Ce texte décrit le fonctionnement réel de l'application tel qu'il existe aujourd'hui dans le code. La clause de droit applicable (section 13) reste explicitement en attente de validation juridique avant publication.
-
 **Éditeur :** AFROLIA SARLU, société de droit ivoirien, RCCM n° CI-ABJ-03-2026-B13-12606, dont le siège social est situé à Abidjan, Cocody, Angré 8ᵉ tranche, à 200 mètres du Carrefour Mandela, lot 125, îlot 15, Côte d'Ivoire.
 
-**Date d'effet :** [à définir au moment de la publication]
+**Date d'effet :** 14 octobre 2026
 
 ## 1. Objet
 
@@ -69,13 +67,11 @@ L'application, son contenu et sa marque appartiennent à AFROLIA SARLU. Les avis
 
 ## 12. Limitation de responsabilité
 
-Afrolia met tout en œuvre pour assurer le bon fonctionnement de l'application, sans garantir une disponibilité continue ou une absence totale d'erreur. Afrolia n'est pas responsable des dommages résultant de l'utilisation de l'application en dehors de ce qu'elle contrôle directement (ex. qualité d'une prestation réalisée par une coiffeuse indépendante). [⚠ Formulation à faire vérifier par un juriste]
+Afrolia met tout en œuvre pour assurer le bon fonctionnement de l'application, sans garantir une disponibilité continue ou une absence totale d'erreur. Afrolia n'est pas responsable des dommages résultant de l'utilisation de l'application en dehors de ce qu'elle contrôle directement (ex. qualité d'une prestation réalisée par une coiffeuse indépendante).
 
-## 13. Droit applicable [⚠️ section en attente de validation juridique — ne pas publier telle quelle]
+## 13. Droit applicable
 
 Les présentes conditions sont soumises au droit ivoirien. Les litiges relèvent des juridictions compétentes selon les règles légales applicables.
-
-Cette formulation neutre remplace volontairement une clause attribuant la compétence aux seuls tribunaux d'Abidjan, qui ne serait pas nécessairement opposable à une utilisatrice agissant en tant que consommatrice. Elle doit toutefois être confirmée par un professionnel du droit avant publication comme version définitive.
 
 ## 14. Modification des conditions
 

@@ -22,6 +22,29 @@ class PolitiqueController extends Controller
     }
 
     /**
+     * Page publique "Politique de confidentialité", même principe que la
+     * page d'accueil et "À propos" (routes/web.php) : pas d'authentification
+     * requise.
+     */
+    public function page()
+    {
+        $languesDisponibles = ['fr', 'en'];
+        $langueDemandee = request()->query('lang');
+
+        if (in_array($langueDemandee, $languesDisponibles, true)) {
+            session(['locale_site' => $langueDemandee]);
+        }
+
+        app()->setLocale(session('locale_site', 'fr'));
+
+        $politicy = Politicy::latest()->first();
+
+        return response()
+            ->view('site.politique', ['politicy' => $politicy])
+            ->header('Cache-Control', 'private, no-store');
+    }
+
+    /**
      * Show the form for creating a new resource.
      */
     public function create()

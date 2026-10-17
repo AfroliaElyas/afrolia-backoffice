@@ -44,8 +44,14 @@ Route::get('/', function () {
 Route::post('lancement/inscription', [LancementController::class, 'inscrire'])
     ->middleware('throttle:10,1');
 
-// Page "À propos" publique, même principe que la page d'accueil.
+// Pages "À propos", "Politique de confidentialité" et "Conditions générales"
+// publiques, même principe que la page d'accueil : jusqu'ici elles
+// n'avaient pas de page dédiée sur le site (contrairement à l'app, qui les
+// affiche déjà via l'API), le footer les annonçait donc comme "bientôt en
+// ligne".
 Route::get('a-propos', [AboutController::class, 'page']);
+Route::get('politique', [PolitiqueController::class, 'page']);
+Route::get('conditions', [TermsController::class, 'page']);
 
 Route::get('/admin', function () {
     if (Auth::check()) {

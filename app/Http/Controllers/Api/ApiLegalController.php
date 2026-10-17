@@ -3,11 +3,29 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\About;
 use App\Models\Condition;
 use App\Models\Politicy;
 
 class ApiLegalController extends Controller
 {
+    public function about()
+    {
+        $terme = About::latest()->first();
+
+        if (!$terme) {
+            return response()->json([
+                'success' => false,
+                'message' => "Contenu \"À propos\" non disponible.",
+            ], 401);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->versionLisible($terme->about),
+        ], 200);
+    }
+
     public function politique()
     {
         $terme = Politicy::latest()->first();

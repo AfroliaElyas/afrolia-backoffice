@@ -44,6 +44,9 @@ Route::get('/', function () {
 Route::post('lancement/inscription', [LancementController::class, 'inscrire'])
     ->middleware('throttle:10,1');
 
+// Page "À propos" publique, même principe que la page d'accueil.
+Route::get('a-propos', [AboutController::class, 'page']);
+
 Route::get('/admin', function () {
     if (Auth::check()) {
         return redirect()->intended('index');

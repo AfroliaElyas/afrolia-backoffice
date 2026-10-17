@@ -18,6 +18,7 @@ return [
         'faq' => 'FAQ',
         'cta_lancement' => 'Get notified at launch',
         'contact' => 'Contact',
+        'apropos' => 'About',
     ],
 
     'hero' => [

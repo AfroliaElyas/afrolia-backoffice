@@ -767,6 +767,7 @@ footer ul a:hover{color:#fff}
           <li><a href="#coiffeuses">{{ __('accueil.nav.coiffeuses') }}</a></li>
           <li><a href="#faq">{{ __('accueil.nav.faq') }}</a></li>
           <li><a href="#contact">{{ __('accueil.nav.contact') }}</a></li>
+          <li><a href="{{ url('a-propos') }}">{{ __('accueil.nav.apropos') }}</a></li>
         </ul>
       </div>
       <div>

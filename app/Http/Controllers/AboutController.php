@@ -22,6 +22,28 @@ class AboutController extends Controller
     }
 
     /**
+     * Page publique "À propos", même principe que la page d'accueil
+     * (routes/web.php) : pas d'authentification requise.
+     */
+    public function page()
+    {
+        $languesDisponibles = ['fr', 'en'];
+        $langueDemandee = request()->query('lang');
+
+        if (in_array($langueDemandee, $languesDisponibles, true)) {
+            session(['locale_site' => $langueDemandee]);
+        }
+
+        app()->setLocale(session('locale_site', 'fr'));
+
+        $about = About::latest()->first();
+
+        return response()
+            ->view('site.apropos', ['about' => $about])
+            ->header('Cache-Control', 'private, no-store');
+    }
+
+    /**
      * Show the form for creating a new resource.
      */
     public function create()

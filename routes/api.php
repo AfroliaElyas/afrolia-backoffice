@@ -43,9 +43,10 @@ Route::post('mot-de-passe/code-secours', [ApiUtilisateursController::class, 'rei
 Route::get('help', [ApiSecurityController::class, 'helps']);
 Route::get('security', [ApiSecurityController::class, 'security']);
 
-// Textes légaux (politique de confidentialité, conditions générales)
+// Textes légaux (politique de confidentialité, conditions générales, à propos)
 Route::get('politique', [ApiLegalController::class, 'politique']);
 Route::get('conditions', [ApiLegalController::class, 'conditions']);
+Route::get('about', [ApiLegalController::class, 'about']);
 
 // Contenu de référence
 Route::get('specialites', [ApiUserSalonController::class, 'specialites']);

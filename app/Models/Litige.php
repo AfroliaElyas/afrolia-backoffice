@@ -8,4 +8,11 @@ class Litige extends Model
 {
     protected $table = 'litiges';
     protected $primaryKey = 'id_litige';
+
+    protected $fillable = [
+        'id_reservation',
+        'id_plaignant',
+        'type',
+        'description',
+    ];
 }

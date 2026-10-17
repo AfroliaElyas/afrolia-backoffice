@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\ApiCommandesController;
 use App\Http\Controllers\Api\ApiDashboardCoiffeuseController;
 use App\Http\Controllers\Api\ApiGainsCoiffeuseController;
 use App\Http\Controllers\Api\ApiLegalController;
+use App\Http\Controllers\Api\ApiLitigeController;
 use App\Http\Controllers\Api\ApiPaiementsController;
 use App\Http\Controllers\Api\ApiProduitsController;
 use App\Http\Controllers\Api\ApiReservationsController;
@@ -170,6 +171,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [ApiAvisController::class, 'store']);
         Route::put('/{id_avis}', [ApiAvisController::class, 'update']);
         Route::delete('/{id_avis}', [ApiAvisController::class, 'destroy']);
+    });
+
+    Route::prefix('litiges')->group(function () {
+        Route::post('/', [ApiLitigeController::class, 'store']);
+        Route::get('/', [ApiLitigeController::class, 'mesLitiges']);
     });
 
     Route::prefix('favoris')->group(function () {

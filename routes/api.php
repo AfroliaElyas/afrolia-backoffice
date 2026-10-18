@@ -165,6 +165,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id_coiffeur}', [ApiAbonnementController::class, 'getStatut']);
         Route::put('/{id_coiffeur}', [ApiAbonnementController::class, 'changerFormule']);
         Route::get('/{id_coiffeur}/historique', [ApiAbonnementController::class, 'historique']);
+        // Taux de commission boutique uniquement : contrairement à getStatut
+        // (réservé au titulaire), tout client connecté peut appeler cette
+        // route pour connaître les frais de service qui s'appliqueront avant
+        // de valider son panier, sans exposer la formule d'abonnement de la
+        // coiffeuse ni son solde.
+        Route::get('/{id_coiffeur}/taux-boutique', [ApiAbonnementController::class, 'getTauxBoutique']);
     });
 
     Route::prefix('avis')->group(function () {

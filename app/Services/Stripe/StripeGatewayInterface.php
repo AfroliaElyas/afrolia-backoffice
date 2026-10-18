@@ -23,7 +23,14 @@ interface StripeGatewayInterface
     /**
      * Rembourse (totalement ou partiellement) un paiement déjà réussi.
      *
+     * $idempotencyKey (stable, dérivée de l'identifiant du paiement) :
+     * si un appel précédent a réellement atteint Stripe mais que la
+     * réponse s'est perdue (coupure réseau, timeout), Stripe renvoie le
+     * même remboursement déjà créé au lieu d'en créer un second lors
+     * d'une nouvelle tentative avec la même clé (demandé le 18/10/2026,
+     * voir https://docs.stripe.com/api/idempotent_requests).
+     *
      * @return array{id: string, status: string}
      */
-    public function refund(string $paymentIntentId, float $montant): array;
+    public function refund(string $paymentIntentId, float $montant, ?string $idempotencyKey = null): array;
 }

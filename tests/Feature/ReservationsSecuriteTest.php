@@ -90,4 +90,58 @@ class ReservationsSecuriteTest extends TestCase
         // qui renvoie la valeur telle qu'enregistrée.
         $this->assertSame('15:00:00', \Carbon\Carbon::parse($reservation->heure_reservation)->format('H:i:s'));
     }
+
+    public function test_annuler_une_reservation_deja_payee_cree_un_dossier_de_remboursement(): void
+    {
+        $client = UsersApp::create(['name' => 'Client', 'last_name' => 'Test', 'phone' => '0700000034', 'password' => 'x', 'role' => 'user']);
+        $coiffeuse = UsersApp::create(['name' => 'Coiffeuse', 'last_name' => 'Test', 'phone' => '0700000035', 'password' => 'x', 'role' => 'hair']);
+        $reservation = $this->creerReservation($client, $coiffeuse);
+        $reservation->update(['statut_paiement' => 'paye']);
+        Sanctum::actingAs($client);
+
+        $this->putJson("/api/reservations/{$reservation->id_reservation}", [
+            'statut' => 'annulee',
+            'raison_annulation' => 'Empêchement',
+        ])->assertStatus(200);
+
+        $reservation->refresh();
+        $this->assertSame('en_attente', $reservation->statut_remboursement);
+        $historique = json_decode($reservation->remboursement_historique, true);
+        $this->assertNotEmpty($historique);
+        $this->assertSame('demande_creee', $historique[0]['action']);
+    }
+
+    public function test_annuler_une_reservation_non_payee_ne_cree_aucun_dossier_de_remboursement(): void
+    {
+        $client = UsersApp::create(['name' => 'Client', 'last_name' => 'Test', 'phone' => '0700000036', 'password' => 'x', 'role' => 'user']);
+        $coiffeuse = UsersApp::create(['name' => 'Coiffeuse', 'last_name' => 'Test', 'phone' => '0700000037', 'password' => 'x', 'role' => 'hair']);
+        $reservation = $this->creerReservation($client, $coiffeuse);
+        // statut_paiement par défaut : "en_attente" (jamais payée).
+        Sanctum::actingAs($client);
+
+        $this->putJson("/api/reservations/{$reservation->id_reservation}", [
+            'statut' => 'annulee',
+        ])->assertStatus(200);
+
+        $reservation->refresh();
+        $this->assertSame('aucun', $reservation->statut_remboursement);
+        $this->assertNull($reservation->remboursement_historique);
+    }
+
+    public function test_refuser_une_reservation_deja_payee_cree_un_dossier_de_remboursement(): void
+    {
+        $client = UsersApp::create(['name' => 'Client', 'last_name' => 'Test', 'phone' => '0700000038', 'password' => 'x', 'role' => 'user']);
+        $coiffeuse = UsersApp::create(['name' => 'Coiffeuse', 'last_name' => 'Test', 'phone' => '0700000039', 'password' => 'x', 'role' => 'hair']);
+        $reservation = $this->creerReservation($client, $coiffeuse);
+        $reservation->update(['statut_paiement' => 'paye']);
+        Sanctum::actingAs($coiffeuse);
+
+        $this->putJson("/api/reservations/refuser/{$reservation->id_reservation}", [
+            'raison' => 'Imprévu',
+        ])->assertStatus(200);
+
+        $reservation->refresh();
+        $this->assertSame('en_attente', $reservation->statut_remboursement);
+        $this->assertSame('coiffeur', $reservation->annule_par);
+    }
 }

@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Paiements;
+use App\Models\Reservations;
 use App\Services\MobileMoney\MobileMoneyGatewayInterface;
 use App\Services\Stripe\StripeGatewayInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class RemboursementController extends Controller
 {
@@ -27,17 +28,16 @@ class RemboursementController extends Controller
             return redirect()->intended('index');
         }
 
-        // En attente : réservation annulée, déjà payée, pas encore remboursée
-        $attente = DB::table('reservations')
-            ->where('statut', 'annulee')
-            ->where('statut_paiement', 'paye')
-            ->count();
-
+        // statut_remboursement distingue maintenant explicitement les 4
+        // états (à traiter / en cours / remboursé / rejeté) au lieu de
+        // déduire implicitement "à traiter" de statut=annulee +
+        // statut_paiement=paye, qui ne permettait pas de voir si un
+        // dossier avait déjà été rejeté ou était en cours de traitement
+        // (demandé le 18/10/2026).
         $remboursements = DB::table('reservations')
             ->join('users_app as clients', 'reservations.id_client', '=', 'clients.id_user_app')
             ->join('users_app as coiffeuses', 'reservations.id_coiffeur', '=', 'coiffeuses.id_user_app')
-            ->where('reservations.statut', 'annulee')
-            ->whereIn('reservations.statut_paiement', ['paye', 'rembourse'])
+            ->whereIn('reservations.statut_remboursement', ['en_attente', 'en_cours', 'traite', 'rejete'])
             ->select(
                 'reservations.*',
                 'clients.name as client_prenom',
@@ -52,7 +52,10 @@ class RemboursementController extends Controller
             ->orderByDesc('reservations.annule_le')
             ->get();
 
-        return view('publicites.remboursement', compact('attente', 'remboursements'));
+        $attente = $remboursements->where('statut_remboursement', 'en_attente')->count();
+        $enCours = $remboursements->where('statut_remboursement', 'en_cours')->count();
+
+        return view('publicites.remboursement', compact('attente', 'enCours', 'remboursements'));
     }
 
     /**
@@ -101,6 +104,26 @@ class RemboursementController extends Controller
      * jamais se contenter de changer le statut en base sans que l'argent
      * soit réellement retourné au client.
      *
+     * Protection contre le double remboursement (deux clics simultanés,
+     * deux administrateurs) : la "réclamation" du dossier (passage à
+     * "en_cours") se fait dans une transaction avec verrou (lockForUpdate),
+     * avant tout appel réseau — un deuxième appel concurrent qui arriverait
+     * pendant l'appel à Stripe/Jèko trouve alors le dossier déjà "en_cours"
+     * et s'arrête immédiatement, sans jamais effectuer de deuxième appel
+     * réel. Le verrou n'est PAS gardé pendant l'appel réseau lui-même (qui
+     * peut être lent) : seule la petite transaction de réclamation le tient
+     * (demandé le 18/10/2026, suite à l'absence de ce verrou).
+     *
+     * Comportement après échec : le dossier redescend en "en_attente" (pas
+     * de retour à "aucun"), donc une nouvelle tentative le retrouve dans la
+     * liste à traiter. Pour Stripe, une clé d'idempotence stable (dérivée
+     * de l'id du paiement) protège aussi contre le cas où l'appel précédent
+     * a réellement atteint Stripe mais où seule la réponse s'est perdue :
+     * Stripe renvoie alors le remboursement déjà créé au lieu d'en créer un
+     * second. Pour Mobile Money, la référence envoyée à Jèko est stable
+     * (dérivée de l'id du paiement, plus de suffixe aléatoire) pour la même
+     * raison, côté Jèko.
+     *
      * Limite connue pour Mobile Money : le transfert Jèko est asynchrone
      * (statut initial "pending", confirmé success/error plus tard par
      * webhook). On marque ici "rembourse" dès que Jèko accepte la demande
@@ -110,20 +133,38 @@ class RemboursementController extends Controller
      */
     public function traiter(string $id)
     {
-        $reservation = DB::table('reservations')->where('id_reservation', $id)->first();
+        $admin = Auth::user();
+
+        // Réclame le dossier avant tout appel réseau : si un autre appel
+        // (double clic, deux admins) a déjà réclamé ou traité ce dossier
+        // entre-temps, celui-ci s'arrête ici sans jamais appeler Stripe/Jèko.
+        $reservation = DB::transaction(function () use ($id) {
+            $reservation = Reservations::whereKey($id)->lockForUpdate()->first();
+
+            if (!$reservation || $reservation->statut_remboursement !== 'en_attente') {
+                return null;
+            }
+
+            $reservation->update(['statut_remboursement' => 'en_cours']);
+
+            return $reservation;
+        });
 
         if (!$reservation) {
-            return back()->withErrors(['Réservation introuvable.']);
+            return back()->withErrors([
+                'Ce dossier n\'est plus "à traiter" (déjà en cours, déjà remboursé ou rejeté par quelqu\'un d\'autre) : aucune action effectuée.',
+            ]);
         }
 
-        $paiement = DB::table('paiements')
-            ->where('id_reservation', $id)
+        $reservation->ajouterHistoriqueRemboursement('traitement_demarre', $admin ? "par {$admin->name}" : null);
+
+        $paiement = Paiements::where('id_reservation', $id)
             ->where('status', 'succeeded')
             ->latest('id_paiement')
             ->first();
 
         if (!$paiement) {
-            return back()->withErrors(['Aucun paiement réussi trouvé pour cette réservation.']);
+            return $this->remettreEnAttenteEtEchouer($reservation, 'Aucun paiement réussi trouvé pour cette réservation.');
         }
 
         // La commission Afrolia reste due en cas d'annulation : si c'est la
@@ -136,21 +177,23 @@ class RemboursementController extends Controller
 
         if ($paiement->payment_method === 'stripe') {
             if (!$paiement->payment_intent_id) {
-                return back()->withErrors(['Ce paiement Stripe ne référence aucun PaymentIntent, remboursement impossible automatiquement.']);
+                return $this->remettreEnAttenteEtEchouer($reservation, 'Ce paiement Stripe ne référence aucun PaymentIntent, remboursement impossible automatiquement.');
             }
 
             try {
-                $this->stripeGateway->refund($paiement->payment_intent_id, $montantARembourser);
+                $this->stripeGateway->refund(
+                    $paiement->payment_intent_id,
+                    $montantARembourser,
+                    idempotencyKey: "remboursement-paiement-{$paiement->id_paiement}"
+                );
             } catch (\Throwable $e) {
                 Log::error('Échec du remboursement Stripe', ['id_paiement' => $paiement->id_paiement, 'erreur' => $e->getMessage()]);
 
-                return back()->withErrors(['Le remboursement Stripe a échoué : ' . $e->getMessage()]);
+                return $this->remettreEnAttenteEtEchouer($reservation, 'Le remboursement Stripe a échoué : ' . $e->getMessage(), $e->getMessage());
             }
         } elseif ($paiement->payment_method === 'mobile_money') {
             if (!$paiement->mobile_money_telephone || !$paiement->mobile_money_operateur) {
-                return back()->withErrors([
-                    'Ce paiement Mobile Money ne précise pas de numéro/opérateur d\'origine, remboursement automatique impossible.',
-                ]);
+                return $this->remettreEnAttenteEtEchouer($reservation, 'Ce paiement Mobile Money ne précise pas de numéro/opérateur d\'origine, remboursement automatique impossible.');
             }
 
             $client = DB::table('users_app')->where('id_user_app', $reservation->id_client)->first();
@@ -164,7 +207,11 @@ class RemboursementController extends Controller
                         'operateur' => $paiement->mobile_money_operateur,
                     ],
                     montant: $montantARembourser,
-                    reference: 'REMB-' . $paiement->id_paiement . '-' . Str::upper(Str::random(6))
+                    // Stable (pas de suffixe aléatoire) : une nouvelle
+                    // tentative après un échec ambigu réutilise la même
+                    // référence, pour que Jèko puisse la reconnaître plutôt
+                    // que de traiter un deuxième transfert distinct.
+                    reference: "REMB-PAIEMENT-{$paiement->id_paiement}"
                 );
 
                 if (($resultat['status'] ?? null) === 'error') {
@@ -173,17 +220,18 @@ class RemboursementController extends Controller
             } catch (\Throwable $e) {
                 Log::error('Échec du remboursement Mobile Money', ['id_paiement' => $paiement->id_paiement, 'erreur' => $e->getMessage()]);
 
-                return back()->withErrors(['Le remboursement Mobile Money a échoué : ' . $e->getMessage()]);
+                return $this->remettreEnAttenteEtEchouer($reservation, 'Le remboursement Mobile Money a échoué : ' . $e->getMessage(), $e->getMessage());
             }
         } else {
-            return back()->withErrors([
-                'Moyen de paiement non pris en charge pour un remboursement automatique.',
-            ]);
+            return $this->remettreEnAttenteEtEchouer($reservation, 'Moyen de paiement non pris en charge pour un remboursement automatique.');
         }
 
-        DB::table('reservations')
-            ->where('id_reservation', $id)
-            ->update(['statut_paiement' => 'rembourse']);
+        DB::transaction(function () use ($id, $reservation) {
+            Reservations::whereKey($id)->lockForUpdate()->update([
+                'statut_paiement' => 'rembourse',
+                'statut_remboursement' => 'traite',
+            ]);
+        });
 
         DB::table('paiements')
             ->where('id_paiement', $paiement->id_paiement)
@@ -192,11 +240,44 @@ class RemboursementController extends Controller
                 'processed_at' => now(),
             ]);
 
+        $reservation->ajouterHistoriqueRemboursement('rembourse', "Montant : {$montantARembourser} FCFA");
+
         return back()->with('succes', 'Le remboursement a été traité et le client a été remboursé.');
     }
 
     /**
+     * Remet un dossier en "en_attente" après un échec (jamais "rejete" : un
+     * échec technique n'est pas une décision de refuser un remboursement
+     * dû), journalise la raison, et renvoie l'erreur à afficher.
+     */
+    private function remettreEnAttenteEtEchouer(Reservations $reservation, string $messageErreur, ?string $detailLog = null)
+    {
+        $reservation->update(['statut_remboursement' => 'en_attente']);
+        $reservation->ajouterHistoriqueRemboursement('echec', $detailLog ?? $messageErreur);
+
+        return back()->withErrors([$messageErreur]);
+    }
+
+    /**
      * Rejeter une demande de remboursement.
+     *
+     * IMPORTANT — ce que "rejeter" ne doit jamais servir à faire : les CGU
+     * (§7) font du remboursement un droit automatique selon qui annule
+     * (intégral si la coiffeuse annule, diminué des frais si la cliente
+     * annule), pas une décision au cas par cas. "Rejeter" n'est donc PAS un
+     * moyen de refuser un remboursement par ailleurs dû selon les CGU — à
+     * réserver aux cas qui sortent de ce cadre (fraude avérée, doublon,
+     * erreur de saisie, remboursement déjà effectué par un autre canal...).
+     * Le code ne peut pas juger lui-même si un motif donné respecte cette
+     * règle : la raison saisie reste obligatoire et horodatée dans
+     * l'historique pour que ce soit vérifiable après coup, mais la
+     * responsabilité du bien-fondé du rejet reste humaine (demandé le
+     * 18/10/2026).
+     *
+     * Ne peut s'appliquer qu'à un dossier "en_attente" : impossible de
+     * rejeter un dossier déjà remboursé (incohérent) ou déjà rejeté
+     * (écraserait le motif précédent sans laisser de trace dans
+     * l'historique).
      */
     public function rejeter(Request $request, string $id)
     {
@@ -206,17 +287,34 @@ class RemboursementController extends Controller
             'raison.required' => 'Veuillez indiquer la raison du rejet.',
         ]);
 
-        $reservation = DB::table('reservations')->where('id_reservation', $id)->first();
+        $admin = Auth::user();
+
+        $reservation = DB::transaction(function () use ($id) {
+            $reservation = Reservations::whereKey($id)->lockForUpdate()->first();
+
+            if (!$reservation || $reservation->statut_remboursement !== 'en_attente') {
+                return null;
+            }
+
+            $reservation->update(['statut_remboursement' => 'en_cours']);
+
+            return $reservation;
+        });
 
         if (!$reservation) {
-            return back()->withErrors(['Réservation introuvable.']);
+            return back()->withErrors([
+                'Ce dossier n\'est plus "à traiter" (déjà en cours, déjà remboursé ou déjà rejeté) : aucune action effectuée.',
+            ]);
         }
 
-        DB::table('reservations')
-            ->where('id_reservation', $id)
-            ->update([
-                'notes' => trim(($reservation->notes ? $reservation->notes . ' | ' : '') . 'Remboursement rejeté: ' . $request->raison),
-            ]);
+        $reservation->update([
+            'statut_remboursement' => 'rejete',
+            'raison_rejet_remboursement' => $request->raison,
+        ]);
+        $reservation->ajouterHistoriqueRemboursement(
+            'rejete',
+            ($admin ? "par {$admin->name} : " : '') . $request->raison
+        );
 
         return back()->with('succes', 'La demande de remboursement a été rejetée.');
     }

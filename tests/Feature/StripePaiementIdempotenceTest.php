@@ -52,7 +52,7 @@ class StripePaiementIdempotenceTest extends TestCase
                 ];
             }
 
-            public function refund(string $paymentIntentId, float $montant): array
+            public function refund(string $paymentIntentId, float $montant, ?string $idempotencyKey = null): array
             {
                 return ['id' => 're_fake', 'status' => 'succeeded'];
             }

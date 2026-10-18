@@ -39,6 +39,14 @@
                     </div>
                 </div>
             </div>
+            <div class="col-sm-3">
+                <div class="card {{ $incertain > 0 ? 'border border-danger' : '' }}">
+                    <div class="card-body">
+                        <p class="fw-medium text-primary-light mb-1">Incertain — à vérifier</p>
+                        <h6 class="mb-0 text-danger">{{ $incertain }}</h6>
+                    </div>
+                </div>
+            </div>
         </div>
         <br>
         <div class="card h-100 p-0 radius-12">
@@ -109,6 +117,9 @@
                                                 @break
                                             @case('en_cours')
                                                 <span class="bg-info-focus text-info-main px-24 py-4 rounded-pill fw-medium text-sm">En cours</span>
+                                                @break
+                                            @case('incertain')
+                                                <span class="bg-danger-focus text-danger-main px-24 py-4 rounded-pill fw-medium text-sm">⚠ Incertain</span>
                                                 @break
                                             @case('rejete')
                                                 <span class="bg-danger-focus text-danger-main px-24 py-4 rounded-pill fw-medium text-sm">Rejeté</span>
@@ -224,6 +235,62 @@
                                                                 <div class="d-flex align-items-center justify-content-center gap-3 mt-24">
                                                                     <button type="reset" data-bs-dismiss="modal" class="border border-danger-600 bg-hover-danger-200 text-danger-600 text-md px-50 py-11 radius-8">Annuler</button>
                                                                     <button type="submit" class="btn btn-danger border border-danger-600 text-md px-50 py-12 radius-8">Oui, Rejeter</button>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @elseif($item->statut_remboursement === 'incertain')
+                                            <p class="text-danger-main text-sm fw-medium mb-8">
+                                                Issue réelle inconnue (interruption serveur). Vérifiez auprès de Stripe/Jèko avant de débloquer.
+                                            </p>
+                                            <a href="javascript:void(0)" title="Confirmer la vérification"
+                                                class="btn bg-warning-focus text-warning-main d-inline-flex align-items-center justify-content-center"
+                                                data-bs-toggle="modal" data-bs-target="#verifModal{{ $item->id_reservation }}">
+                                                <iconify-icon icon="lucide:shield-check"></iconify-icon> Confirmer la vérification
+                                            </a>
+                                            <div class="modal fade" id="verifModal{{ $item->id_reservation }}" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog modal-dialog-centered">
+                                                    <div class="modal-content radius-16 bg-base">
+                                                        <div class="modal-header py-16 px-24 border border-top-0 border-start-0 border-end-0 bg-warning-600">
+                                                            <h1 class="modal-title fs-5 text-white">Confirmer la vérification</h1>
+                                                            <button type="button" class="btn-close" style="background-color: white" data-bs-dismiss="modal"></button>
+                                                        </div>
+                                                        <div class="modal-body p-24">
+                                                            <p class="text-sm text-secondary-light">
+                                                                Ce dossier est resté "en cours" sans confirmation (coupure serveur probable) : on ne sait pas si le transfert a réellement eu lieu. Vérifiez vous-même auprès de Stripe ou de Jèko (référence du paiement), puis choisissez le constat correspondant — "Traiter"/"Rejeter" ne redeviennent disponibles que si vous confirmez qu'aucun transfert n'a eu lieu.
+                                                            </p>
+                                                            <form action="{{ route('remboursements.confirmerVerification', $item->id_reservation) }}" method="POST">
+                                                                @csrf
+                                                                <div class="mb-20">
+                                                                    <label class="form-label fw-semibold d-block mb-8">Constat <strong style="color:red">*</strong></label>
+                                                                    <div class="form-check mb-8">
+                                                                        <input class="form-check-input" type="radio" name="constat" id="constatRembourse{{ $item->id_reservation }}" value="rembourse_confirme" required>
+                                                                        <label class="form-check-label" for="constatRembourse{{ $item->id_reservation }}">
+                                                                            <strong>Remboursement déjà effectué</strong> — clôture le dossier comme remboursé, aucune nouvelle tentative
+                                                                        </label>
+                                                                    </div>
+                                                                    <div class="form-check mb-8">
+                                                                        <input class="form-check-input" type="radio" name="constat" id="constatNonEffectue{{ $item->id_reservation }}" value="non_effectue_confirme" required>
+                                                                        <label class="form-check-label" for="constatNonEffectue{{ $item->id_reservation }}">
+                                                                            <strong>Confirmé non effectué</strong> — autorise une nouvelle tentative ("Traiter"/"Rejeter" redeviennent disponibles)
+                                                                        </label>
+                                                                    </div>
+                                                                    <div class="form-check">
+                                                                        <input class="form-check-input" type="radio" name="constat" id="constatInconnu{{ $item->id_reservation }}" value="resultat_inconnu" required>
+                                                                        <label class="form-check-label" for="constatInconnu{{ $item->id_reservation }}">
+                                                                            <strong>Résultat encore inconnu</strong> — le dossier reste bloqué "incertain"
+                                                                        </label>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="mb-20">
+                                                                    <label class="form-label fw-semibold">Ce que vous avez vérifié <strong style="color:red">*</strong></label>
+                                                                    <textarea name="preuve" required class="form-control radius-8" rows="3" placeholder="Ex : vérifié sur le dashboard Stripe, remboursement re_xxx absent -> transfert non effectué"></textarea>
+                                                                </div>
+                                                                <div class="d-flex align-items-center justify-content-center gap-3 mt-24">
+                                                                    <button type="reset" data-bs-dismiss="modal" class="border border-danger-600 bg-hover-danger-200 text-danger-600 text-md px-50 py-11 radius-8">Annuler</button>
+                                                                    <button type="submit" class="btn btn-warning border border-warning-600 text-md px-50 py-12 radius-8">Confirmer</button>
                                                                 </div>
                                                             </form>
                                                         </div>

@@ -53,17 +53,20 @@ class DebloquerRemboursementsEnCoursTest extends TestCase
         return $reservation->fresh();
     }
 
-    public function test_un_dossier_en_cours_depuis_longtemps_est_debloque(): void
+    public function test_un_dossier_en_cours_depuis_longtemps_devient_incertain_pas_en_attente(): void
     {
         $reservation = $this->creerReservation('en_cours', now()->subMinutes(30));
 
         $this->artisan('remboursements:debloquer-en-cours')->assertExitCode(0);
 
         $reservation->refresh();
-        $this->assertSame('en_attente', $reservation->statut_remboursement);
+        // Jamais "en_attente" directement : ce retour rendrait "Traiter"
+        // cliquable sans vérification, alors que l'issue réelle du transfert
+        // est inconnue après une interruption serveur (demandé le
+        // 18/10/2026, corrige une première version qui remettait "en_attente").
+        $this->assertSame('incertain', $reservation->statut_remboursement);
         $historique = json_decode($reservation->remboursement_historique, true);
-        $this->assertSame('debloque_sans_confirmation', end($historique)['action']);
-        $this->assertStringContainsString('VÉRIFIER MANUELLEMENT', end($historique)['detail']);
+        $this->assertSame('marque_incertain', end($historique)['action']);
     }
 
     public function test_un_dossier_en_cours_depuis_peu_nest_pas_touche(): void

@@ -122,6 +122,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('remboursement', RemboursementController::class);
     Route::post('remboursements/{id}/traiter', [RemboursementController::class, 'traiter'])->name('remboursements.traiter');
     Route::post('remboursements/{id}/rejeter', [RemboursementController::class, 'rejeter'])->name('remboursements.rejeter');
+    Route::post('remboursements/{id}/confirmer-verification', [RemboursementController::class, 'confirmerVerification'])->name('remboursements.confirmerVerification');
 
     Route::get('versements', [VersementController::class, 'index'])->name('versements');
     Route::post('versements/coiffeuse/{idCoiffeur}/infos', [VersementController::class, 'definirInfosVersement'])->name('versements.infos');

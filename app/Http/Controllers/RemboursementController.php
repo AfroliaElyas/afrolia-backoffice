@@ -37,7 +37,7 @@ class RemboursementController extends Controller
         $remboursements = DB::table('reservations')
             ->join('users_app as clients', 'reservations.id_client', '=', 'clients.id_user_app')
             ->join('users_app as coiffeuses', 'reservations.id_coiffeur', '=', 'coiffeuses.id_user_app')
-            ->whereIn('reservations.statut_remboursement', ['en_attente', 'en_cours', 'traite', 'rejete'])
+            ->whereIn('reservations.statut_remboursement', ['en_attente', 'en_cours', 'incertain', 'traite', 'rejete'])
             ->select(
                 'reservations.*',
                 'clients.name as client_prenom',
@@ -54,8 +54,9 @@ class RemboursementController extends Controller
 
         $attente = $remboursements->where('statut_remboursement', 'en_attente')->count();
         $enCours = $remboursements->where('statut_remboursement', 'en_cours')->count();
+        $incertain = $remboursements->where('statut_remboursement', 'incertain')->count();
 
-        return view('publicites.remboursement', compact('attente', 'enCours', 'remboursements'));
+        return view('publicites.remboursement', compact('attente', 'enCours', 'incertain', 'remboursements'));
     }
 
     /**
@@ -350,6 +351,51 @@ class RemboursementController extends Controller
         );
 
         return back()->with('succes', 'La demande de remboursement a été rejetée.');
+    }
+
+    /**
+     * Seule sortie possible de l'état "incertain" (voir
+     * DebloquerRemboursementsEnCours) : exige la preuve de ce qui a été
+     * vérifié manuellement auprès de Stripe/Jèko, jamais une simple
+     * confirmation en un clic — sinon ce serait revenu au même problème
+     * qu'un retour silencieux en "en_attente" (demandé le 18/10/2026).
+     * Ramène le dossier en "en_attente" : "Traiter"/"Rejeter" ne
+     * redeviennent visibles qu'après ce passage explicite.
+     */
+    public function confirmerVerification(Request $request, string $id)
+    {
+        $request->validate([
+            'preuve' => 'required|string|max:500',
+        ], [
+            'preuve.required' => 'Indiquez ce que vous avez vérifié (ex. : référence consultée sur le dashboard Stripe/Jèko, statut constaté).',
+        ]);
+
+        $admin = Auth::user();
+
+        $reservation = DB::transaction(function () use ($id) {
+            $reservation = Reservations::whereKey($id)->lockForUpdate()->first();
+
+            if (!$reservation || $reservation->statut_remboursement !== 'incertain') {
+                return null;
+            }
+
+            $reservation->update(['statut_remboursement' => 'en_attente']);
+
+            return $reservation;
+        });
+
+        if (!$reservation) {
+            return back()->withErrors([
+                'Ce dossier n\'est plus "incertain" (déjà vérifié ou déjà traité par quelqu\'un d\'autre) : aucune action effectuée.',
+            ]);
+        }
+
+        $reservation->ajouterHistoriqueRemboursement(
+            'verification_confirmee',
+            ($admin ? "par {$admin->name} : " : '') . $request->preuve
+        );
+
+        return back()->with('succes', 'Vérification enregistrée : ce dossier peut maintenant être traité ou rejeté normalement.');
     }
 
     /**

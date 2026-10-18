@@ -450,4 +450,83 @@ class RemboursementStripeTest extends TestCase
         $this->assertSame('rejete', $reservation->fresh()->statut_remboursement);
         $this->assertSame('paye', $reservation->fresh()->statut_paiement);
     }
+
+    public function test_un_dossier_incertain_ne_peut_etre_ni_traite_ni_rejete(): void
+    {
+        $reservation = $this->creerReservationAnnuleeEtPayee('stripe');
+        $reservation->update(['statut_remboursement' => 'incertain']);
+
+        $admin = User::factory()->create();
+
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/traiter")
+            ->assertRedirect()
+            ->assertSessionHasErrors();
+        $this->assertSame('incertain', $reservation->fresh()->statut_remboursement);
+
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/rejeter", ['motif' => 'doublon', 'details' => 'x'])
+            ->assertRedirect()
+            ->assertSessionHasErrors();
+        $this->assertSame('incertain', $reservation->fresh()->statut_remboursement);
+    }
+
+    public function test_confirmer_la_verification_ramene_le_dossier_en_attente_et_le_rend_de_nouveau_actionnable(): void
+    {
+        $reservation = $this->creerReservationAnnuleeEtPayee('stripe');
+        $reservation->update(['statut_remboursement' => 'incertain']);
+
+        $admin = User::factory()->create();
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/confirmer-verification", [
+                'preuve' => 'Vérifié sur le dashboard Stripe : aucun remboursement re_... pour ce PaymentIntent, le transfert n\'a pas eu lieu.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('succes');
+
+        $reservation->refresh();
+        $this->assertSame('en_attente', $reservation->statut_remboursement);
+        $historique = json_decode($reservation->remboursement_historique, true);
+        $this->assertSame('verification_confirmee', end($historique)['action']);
+
+        // Et redevient bien actionnable normalement ensuite.
+        $faux = new class implements StripeGatewayInterface {
+            public function createPaymentIntent(float $montant): array
+            {
+                return ['id' => 'pi_x', 'client_secret' => 'secret_x', 'status' => 'requires_payment_method'];
+            }
+
+            public function retrievePaymentIntent(string $paymentIntentId): array
+            {
+                return ['id' => $paymentIntentId, 'client_secret' => 'secret_x', 'status' => 'succeeded'];
+            }
+
+            public function refund(string $paymentIntentId, float $montant, ?string $idempotencyKey = null): array
+            {
+                return ['id' => 're_test', 'status' => 'succeeded'];
+            }
+        };
+        $this->app->instance(StripeGatewayInterface::class, $faux);
+
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/traiter")
+            ->assertRedirect()
+            ->assertSessionHas('succes');
+
+        $this->assertSame('traite', $reservation->fresh()->statut_remboursement);
+    }
+
+    public function test_confirmer_la_verification_sans_preuve_est_refuse(): void
+    {
+        $reservation = $this->creerReservationAnnuleeEtPayee('stripe');
+        $reservation->update(['statut_remboursement' => 'incertain']);
+
+        $admin = User::factory()->create();
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/confirmer-verification", ['preuve' => ''])
+            ->assertRedirect()
+            ->assertSessionHasErrors('preuve');
+
+        $this->assertSame('incertain', $reservation->fresh()->statut_remboursement);
+    }
 }

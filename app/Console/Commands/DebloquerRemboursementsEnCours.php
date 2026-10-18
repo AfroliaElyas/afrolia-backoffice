@@ -10,25 +10,26 @@ use Illuminate\Support\Facades\DB;
  * Si le serveur s'arrête (déploiement, crash) entre la "réclamation" d'un
  * dossier de remboursement (passage à "en_cours", voir
  * RemboursementController::traiter) et la confirmation de son issue, ce
- * dossier reste bloqué "en_cours" indéfiniment : jamais revenu "en_attente"
- * pour qu'une nouvelle tentative le reprenne, mais sans garantie non plus
- * que le transfert ait réellement eu lieu (demandé le 18/10/2026).
+ * dossier reste bloqué "en_cours" indéfiniment, sans garantie que le
+ * transfert ait réellement eu lieu ou non (demandé le 18/10/2026).
  *
- * Contrairement à un échec normal (remis en "en_attente" directement par
- * traiter() ou par le webhook Jèko, avec la certitude que le transfert n'a
- * pas eu lieu), ce déblocage est volontairement SANS cette certitude : on
- * ne sait pas si l'appel à Stripe/Jèko avait déjà réussi au moment de
- * l'interruption. Le dossier est donc remis "en_attente" mais avec un
- * historique qui le dit explicitement, pour qu'une personne vérifie
- * manuellement (dashboard Stripe/Jèko pour la référence du paiement) avant
- * de cliquer "Traiter" à nouveau — jamais une nouvelle tentative
- * automatique.
+ * IMPORTANT : ce cas ne remet PAS le dossier en "en_attente". Une
+ * première version le faisait (avec un simple avertissement dans
+ * l'historique), mais rien n'empêchait alors un·e administrateur·rice de
+ * cliquer "Traiter" sans lire cet avertissement — ce qui aurait pu
+ * déclencher un deuxième remboursement réel si le premier appel avait en
+ * fait réussi avant la coupure. Le dossier passe donc à un état séparé,
+ * "incertain", pour lequel ni "Traiter" ni "Rejeter" ne sont proposés par
+ * RemboursementController (ses deux actions exigent "en_attente") : la
+ * seule sortie possible est RemboursementController::confirmerVerification,
+ * qui exige explicitement la preuve de ce qui a été vérifié auprès de
+ * Stripe/Jèko avant de redevenir actionnable.
  */
 class DebloquerRemboursementsEnCours extends Command
 {
     protected $signature = 'remboursements:debloquer-en-cours {--minutes=15}';
 
-    protected $description = "Débloque les dossiers de remboursement restés \"en_cours\" après une interruption serveur, pour vérification manuelle avant nouvelle tentative";
+    protected $description = "Marque \"incertain\" (ni traitable ni rejetable) les dossiers de remboursement restés \"en_cours\" après une interruption serveur, en attendant une vérification humaine explicite";
 
     public function handle(): int
     {
@@ -49,16 +50,16 @@ class DebloquerRemboursementsEnCours extends Command
                     return;
                 }
 
-                $verrouillee->update(['statut_remboursement' => 'en_attente']);
+                $verrouillee->update(['statut_remboursement' => 'incertain']);
                 $verrouillee->ajouterHistoriqueRemboursement(
-                    'debloque_sans_confirmation',
+                    'marque_incertain',
                     "Resté \"en_cours\" plus de {$minutes} minutes sans confirmation (interruption serveur probable) — " .
-                    'VÉRIFIER MANUELLEMENT auprès de Stripe/Jèko si le transfert a réellement eu lieu avant de retraiter.'
+                    'issue réelle inconnue. Bloqué : ni "Traiter" ni "Rejeter" ne sont proposés tant qu\'une vérification explicite (via "Confirmer la vérification") n\'a pas été enregistrée.'
                 );
             });
         }
 
-        $this->info("{$bloques->count()} dossier(s) débloqué(s), à vérifier manuellement avant nouvelle tentative.");
+        $this->info("{$bloques->count()} dossier(s) marqué(s) \"incertain\", à vérifier manuellement avant de pouvoir les retraiter.");
 
         return self::SUCCESS;
     }

@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\ApiServicesController;
 use App\Http\Controllers\Api\ApiSociauxController;
 use App\Http\Controllers\Api\ApiUserSalonController;
 use App\Http\Controllers\Api\ApiUtilisateursController;
+use App\Http\Controllers\Api\ApiVersementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -192,6 +193,11 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('/dashboard/{id_coiffeur}', [ApiDashboardCoiffeuseController::class, 'index']);
+
+    Route::prefix('versement')->group(function () {
+        Route::get('/{id_utilisateur}/infos', [ApiVersementController::class, 'getInfosVersement']);
+        Route::post('/{id_utilisateur}/infos', [ApiVersementController::class, 'definirInfosVersement']);
+    });
 
     // Assistant IA — limité en fréquence pour maîtriser le coût des appels
     // au modèle (chaque requête consomme un appel payant à l'API Claude).

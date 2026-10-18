@@ -72,9 +72,14 @@ class BoutiqueTest extends TestCase
 
         $response->assertStatus(201);
         $response->assertJsonPath('data.montant_produits', 10000);
-        // Formule Gratuite par défaut => commission de 5 %.
-        $response->assertJsonPath('data.montant_commission', 500);
-        $response->assertJsonPath('data.montant_total', 10500);
+        // Formule Gratuite par défaut => commission de 8 % (même taux que
+        // les réservations, confirmé le 18/10/2026 : 5 %/3 % n'avait
+        // jamais été validé pour la boutique). Depuis le 18/10/2026, la
+        // commission n'est plus ajoutée au prix payé par la cliente : elle
+        // est retenue sur les gains de la vendeuse, comme pour les
+        // réservations. La cliente paie donc exactement montant_produits.
+        $response->assertJsonPath('data.montant_commission', 800);
+        $response->assertJsonPath('data.montant_total', 10000);
 
         // Régression : sans cast 'float' sur le modèle, une colonne decimal
         // remonte en chaîne de caractères sous MySQL (PDO ne la caste pas),
@@ -142,7 +147,15 @@ class BoutiqueTest extends TestCase
         $commandeFraiche = Commandes::find($commande['id_commande']);
         $this->assertSame('paye', $commandeFraiche->statut_paiement);
         $this->assertSame('payee', $commandeFraiche->statut_commande);
-        $this->assertDatabaseHas('gains', ['id_commande' => $commande['id_commande']]);
+        // La cliente a payé montant_produits (5000, sans commission
+        // ajoutée) ; la vendeuse reçoit ce montant moins la commission
+        // (8 % => 400), jamais 100 % du prix payé par la cliente.
+        $this->assertDatabaseHas('gains', [
+            'id_commande' => $commande['id_commande'],
+            'montant_brut' => 5000,
+            'montant_commission' => 400,
+            'montant_net' => 4600,
+        ]);
     }
 
     public function test_un_paiement_echoue_annule_la_commande_et_restitue_le_stock(): void
@@ -201,7 +214,7 @@ class BoutiqueTest extends TestCase
             'id_coiffeur' => $coiffeur->id_user_app,
             'montant_produits' => 5000,
             'montant_commission' => 750,
-            'montant_total' => 5750,
+            'montant_total' => 5000,
             'methode_paiement' => 'stripe',
         ]);
 
@@ -234,7 +247,7 @@ class BoutiqueTest extends TestCase
             'id_coiffeur' => $coiffeur->id_user_app,
             'montant_produits' => 10000,
             'montant_commission' => 1500,
-            'montant_total' => 11500,
+            'montant_total' => 10000,
             'methode_paiement' => 'stripe',
         ]);
         $commande->lignes()->create([

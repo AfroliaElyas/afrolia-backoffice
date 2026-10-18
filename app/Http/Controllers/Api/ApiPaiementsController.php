@@ -476,12 +476,16 @@ class ApiPaiementsController extends Controller
 
         $commande->update(['statut_paiement' => 'paye', 'statut_commande' => 'payee']);
 
+        // La cliente a payé montant_total (= montant_produits désormais) ;
+        // la commission est retenue sur le gain de la vendeuse, les frais du
+        // prestataire de paiement étant pris sur cette commission, sans
+        // deuxième prélèvement (même mécanisme que les réservations).
         Gains::create([
             'id_coiffeur' => $commande->id_coiffeur,
             'id_commande' => $commande->id_commande,
             'montant_brut' => $commande->montant_total,
             'montant_commission' => $commande->montant_commission,
-            'montant_net' => $commande->montant_produits,
+            'montant_net' => $commande->montant_produits - $commande->montant_commission,
             'statut' => 'en_attente',
         ]);
     }

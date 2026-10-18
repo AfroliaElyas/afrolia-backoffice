@@ -173,9 +173,12 @@ class AbonnementTest extends TestCase
         ]);
 
         $response->assertStatus(201);
-        // Formule Premium => commission de 3 %.
-        $response->assertJsonPath('data.montant_commission', 150);
-        $response->assertJsonPath('data.montant_total', 5150);
+        // Formule Premium => commission de 6 % (même taux que les
+        // réservations, confirmé le 18/10/2026). La commission est retenue
+        // sur les gains de la vendeuse, pas ajoutée au prix payé : la
+        // cliente paie exactement montant_produits.
+        $response->assertJsonPath('data.montant_commission', 300);
+        $response->assertJsonPath('data.montant_total', 5000);
     }
 
     public function test_un_client_peut_consulter_le_taux_de_commission_boutique_dune_coiffeuse(): void
@@ -197,7 +200,7 @@ class AbonnementTest extends TestCase
         $response = $this->getJson("/api/abonnement/{$coiffeuse->id_user_app}/taux-boutique");
 
         $response->assertStatus(200)
-            ->assertJsonPath('data.taux_commission_boutique', 3)
+            ->assertJsonPath('data.taux_commission_boutique', 6)
             ->assertJsonMissingPath('data.formule_abonnement')
             ->assertJsonMissingPath('data.solde_disponible');
     }

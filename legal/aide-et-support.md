@@ -1,7 +1,7 @@
 # Aide & support — Afrolia
 
 **Statut : brouillon enregistré, pas encore publié dans l'application.**
-En attente de la confirmation des tarifs (voir la section "Annuler une réservation" ci-dessous, qui reste volontairement sans chiffres tant que ce point n'est pas confirmé).
+En attente de la confirmation des tarifs (le prix de l'abonnement Premium n'est pas encore confirmé).
 
 ## Réserver une prestation
 
@@ -17,11 +17,7 @@ Vous pouvez annuler une réservation à venir depuis l'application. Si elle éta
 
 ## La boutique de produits
 
-Chaque coiffeuse peut proposer ses propres produits capillaires à la vente. Les frais de service affichés au paiement d'une commande sont ajoutés au prix des produits ; ils ne s'appliquent pas aux réservations de prestations.
-
-## Un problème avec une réservation ?
-
-Si une prestation ne s'est pas bien déroulée, si un paiement vous semble incorrect, ou en cas de désaccord, utilisez le bouton "Signaler un problème" sur la réservation concernée. Notre équipe examine chaque signalement.
+Chaque coiffeuse peut proposer ses propres produits capillaires à la vente. Vous payez exactement le prix affiché des produits, sans frais supplémentaire ajouté au paiement.
 
 ## Votre compte
 

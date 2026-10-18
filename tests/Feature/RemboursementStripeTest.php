@@ -146,6 +146,70 @@ class RemboursementStripeTest extends TestCase
         $this->assertSame(10000.0, $faux->dernierMontant);
     }
 
+    public function test_une_annulation_payee_apparait_dans_les_remboursements_a_traiter(): void
+    {
+        $reservation = $this->creerReservationAnnuleeEtPayee('stripe');
+
+        $attente = DB::table('reservations')
+            ->where('statut', 'annulee')
+            ->where('statut_paiement', 'paye')
+            ->count();
+
+        $this->assertSame(1, $attente);
+        $this->assertDatabaseHas('reservations', [
+            'id_reservation' => $reservation->id_reservation,
+            'statut' => 'annulee',
+            'statut_paiement' => 'paye',
+        ]);
+    }
+
+    public function test_traiter_deux_fois_de_suite_ne_rembourse_pas_deux_fois(): void
+    {
+        $appels = 0;
+        $faux = new class($appels) implements StripeGatewayInterface {
+            public function __construct(private int &$appels)
+            {
+            }
+
+            public function createPaymentIntent(float $montant): array
+            {
+                return ['id' => 'pi_x', 'client_secret' => 'secret_x', 'status' => 'requires_payment_method'];
+            }
+
+            public function retrievePaymentIntent(string $paymentIntentId): array
+            {
+                return ['id' => $paymentIntentId, 'client_secret' => 'secret_x', 'status' => 'succeeded'];
+            }
+
+            public function refund(string $paymentIntentId, float $montant): array
+            {
+                $this->appels++;
+
+                return ['id' => 're_test', 'status' => 'succeeded'];
+            }
+        };
+        $this->app->instance(StripeGatewayInterface::class, $faux);
+
+        $admin = User::factory()->create();
+        $reservation = $this->creerReservationAnnuleeEtPayee('stripe');
+
+        // Premier traitement : rembourse réellement.
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/traiter")
+            ->assertRedirect();
+
+        // Deuxième clic (double traitement séquentiel) sur la même
+        // réservation : ne doit plus trouver de paiement "succeeded" (déjà
+        // passé à "refunded" par le premier appel), donc aucun deuxième
+        // remboursement réel n'est envoyé.
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/traiter")
+            ->assertRedirect()
+            ->assertSessionHasErrors();
+
+        $this->assertSame(1, $appels);
+    }
+
     public function test_un_echec_stripe_ne_marque_pas_le_remboursement_comme_fait(): void
     {
         $faux = new class implements StripeGatewayInterface {

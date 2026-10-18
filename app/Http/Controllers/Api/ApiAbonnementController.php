@@ -40,6 +40,26 @@ class ApiAbonnementController extends Controller
         ]);
     }
 
+    // ✅ 1bis. Taux de commission boutique d'une coiffeuse, visible par tout
+    // client connecté (contrairement à getStatut) : nécessaire pour afficher
+    // les frais de service corrects avant le paiement d'une commande, sans
+    // exposer sa formule d'abonnement ni son solde.
+    public function getTauxBoutique(Request $request, $id_coiffeur)
+    {
+        $coiffeuse = UsersApp::where('id_user_app', $id_coiffeur)->where('role', 'hair')->first();
+
+        if (!$coiffeuse) {
+            return response()->json(['success' => false, 'message' => 'Coiffeuse non trouvée'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'taux_commission_boutique' => $this->abonnements->tauxCommissionBoutiquePourCoiffeuse($coiffeuse) * 100,
+            ],
+        ]);
+    }
+
     // ✅ 2. Changement de formule (souscription immédiate si payante, gratuite du jour au lendemain)
     public function changerFormule(Request $request, $id_coiffeur)
     {

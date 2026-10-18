@@ -158,6 +158,18 @@
                     <span>A propos</span>
                 </a>
             </li>
+            <li class="{{ Route::is('terms-security') ? 'active-page' : '' }}">
+                <a href="terms-security" class="{{ Route::is('terms-security') ? 'active-page' : '' }}">
+                    <iconify-icon icon="octicon:info-24" class="menu-icon"></iconify-icon>
+                    <span>Confidentialité</span>
+                </a>
+            </li>
+            <li class="{{ Route::is('terms-helps') ? 'active-page' : '' }}">
+                <a href="terms-helps" class="{{ Route::is('terms-helps') ? 'active-page' : '' }}">
+                    <iconify-icon icon="octicon:info-24" class="menu-icon"></iconify-icon>
+                    <span>Aide & support</span>
+                </a>
+            </li>
             <li
                 class="dropdown {{ Route::is('company', 'notification', 'notification-alert', 'payment-gateway') ? 'show' : '' }}">
                 <a href="javascript:void(0)">

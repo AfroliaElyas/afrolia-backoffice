@@ -177,4 +177,38 @@ class AbonnementTest extends TestCase
         $response->assertJsonPath('data.montant_commission', 150);
         $response->assertJsonPath('data.montant_total', 5150);
     }
+
+    public function test_un_client_peut_consulter_le_taux_de_commission_boutique_dune_coiffeuse(): void
+    {
+        $coiffeuse = $this->creerCoiffeuse();
+        $this->crediterGain($coiffeuse, 10000);
+        Sanctum::actingAs($coiffeuse);
+        $this->putJson("/api/abonnement/{$coiffeuse->id_user_app}", ['formule' => 'premium'])
+            ->assertStatus(200);
+
+        // Un client (et non la coiffeuse elle-même) doit pouvoir lire ce
+        // taux avant de payer sa commande, contrairement à getStatut qui
+        // est réservé au titulaire de l'abonnement.
+        $client = UsersApp::create([
+            'name' => 'Client', 'last_name' => 'Test', 'phone' => '0700000003', 'password' => 'x', 'role' => 'user',
+        ]);
+        Sanctum::actingAs($client);
+
+        $response = $this->getJson("/api/abonnement/{$coiffeuse->id_user_app}/taux-boutique");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.taux_commission_boutique', 3)
+            ->assertJsonMissingPath('data.formule_abonnement')
+            ->assertJsonMissingPath('data.solde_disponible');
+    }
+
+    public function test_le_taux_de_commission_boutique_echoue_si_la_coiffeuse_nexiste_pas(): void
+    {
+        $client = UsersApp::create([
+            'name' => 'Client', 'last_name' => 'Test', 'phone' => '0700000004', 'password' => 'x', 'role' => 'user',
+        ]);
+        Sanctum::actingAs($client);
+
+        $this->getJson('/api/abonnement/999999/taux-boutique')->assertStatus(404);
+    }
 }

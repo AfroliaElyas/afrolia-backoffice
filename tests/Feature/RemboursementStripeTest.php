@@ -36,6 +36,13 @@ class RemboursementStripeTest extends TestCase
         // La cliente paie le prix affiché (10 000), sans supplément : la
         // commission est une retenue sur les gains de la coiffeuse, jamais
         // un montant payé en plus.
+        //
+        // montant_commission = 1 234 : valeur arbitraire choisie pour ne
+        // correspondre à AUCUN taux candidat (5 %, 8 %, 3 %, 6 % de 10 000),
+        // volontairement pour ne pas laisser croire que ces tests valident
+        // un taux précis — seul le calcul "prix payé moins cette retenue"
+        // est testé ici, pas un pourcentage (les taux restent à confirmer,
+        // voir la conversation du 18/10/2026).
         $reservation = Reservations::create([
             'numero_reservation' => 'RES-' . uniqid(),
             'id_client' => $client->id_user_app,
@@ -45,9 +52,10 @@ class RemboursementStripeTest extends TestCase
             'heure_reservation' => '10:00',
             'statut' => 'annulee',
             'statut_paiement' => 'paye',
+            'statut_remboursement' => 'en_attente',
             'annule_par' => $annulePar,
             'prix_service' => 10000,
-            'montant_commission' => 500,
+            'montant_commission' => 1234,
             'montant_total' => 10000,
             'methode_paiement' => $methode,
         ]);
@@ -82,7 +90,7 @@ class RemboursementStripeTest extends TestCase
                 return ['id' => $paymentIntentId, 'client_secret' => 'secret_x', 'status' => 'succeeded'];
             }
 
-            public function refund(string $paymentIntentId, float $montant): array
+            public function refund(string $paymentIntentId, float $montant, ?string $idempotencyKey = null): array
             {
                 $this->dernierPaymentIntent = $paymentIntentId;
                 $this->dernierMontant = $montant;
@@ -101,9 +109,11 @@ class RemboursementStripeTest extends TestCase
 
         $this->assertSame('pi_test_remboursement', $faux->dernierPaymentIntent);
         // Annulation par la cliente : elle supporte la commission Afrolia,
-        // qui reste due (10000 - 500 de commission).
-        $this->assertSame(9500.0, $faux->dernierMontant);
+        // qui reste due (10000 - 1234 de commission, valeur arbitraire de
+        // la fixture, indépendante du taux réel non encore confirmé).
+        $this->assertSame(8766.0, $faux->dernierMontant);
         $this->assertSame('rembourse', $reservation->fresh()->statut_paiement);
+        $this->assertSame('traite', $reservation->fresh()->statut_remboursement);
         $this->assertDatabaseHas('paiements', [
             'id_reservation' => $reservation->id_reservation,
             'status' => 'refunded',
@@ -125,7 +135,7 @@ class RemboursementStripeTest extends TestCase
                 return ['id' => $paymentIntentId, 'client_secret' => 'secret_x', 'status' => 'succeeded'];
             }
 
-            public function refund(string $paymentIntentId, float $montant): array
+            public function refund(string $paymentIntentId, float $montant, ?string $idempotencyKey = null): array
             {
                 $this->dernierMontant = $montant;
 
@@ -146,6 +156,70 @@ class RemboursementStripeTest extends TestCase
         $this->assertSame(10000.0, $faux->dernierMontant);
     }
 
+    public function test_une_annulation_payee_apparait_dans_les_remboursements_a_traiter(): void
+    {
+        $reservation = $this->creerReservationAnnuleeEtPayee('stripe');
+
+        $attente = DB::table('reservations')
+            ->where('statut', 'annulee')
+            ->where('statut_paiement', 'paye')
+            ->count();
+
+        $this->assertSame(1, $attente);
+        $this->assertDatabaseHas('reservations', [
+            'id_reservation' => $reservation->id_reservation,
+            'statut' => 'annulee',
+            'statut_paiement' => 'paye',
+        ]);
+    }
+
+    public function test_traiter_deux_fois_de_suite_ne_rembourse_pas_deux_fois(): void
+    {
+        $appels = 0;
+        $faux = new class($appels) implements StripeGatewayInterface {
+            public function __construct(private int &$appels)
+            {
+            }
+
+            public function createPaymentIntent(float $montant): array
+            {
+                return ['id' => 'pi_x', 'client_secret' => 'secret_x', 'status' => 'requires_payment_method'];
+            }
+
+            public function retrievePaymentIntent(string $paymentIntentId): array
+            {
+                return ['id' => $paymentIntentId, 'client_secret' => 'secret_x', 'status' => 'succeeded'];
+            }
+
+            public function refund(string $paymentIntentId, float $montant, ?string $idempotencyKey = null): array
+            {
+                $this->appels++;
+
+                return ['id' => 're_test', 'status' => 'succeeded'];
+            }
+        };
+        $this->app->instance(StripeGatewayInterface::class, $faux);
+
+        $admin = User::factory()->create();
+        $reservation = $this->creerReservationAnnuleeEtPayee('stripe');
+
+        // Premier traitement : rembourse réellement.
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/traiter")
+            ->assertRedirect();
+
+        // Deuxième clic (double traitement séquentiel) sur la même
+        // réservation : ne doit plus trouver de paiement "succeeded" (déjà
+        // passé à "refunded" par le premier appel), donc aucun deuxième
+        // remboursement réel n'est envoyé.
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/traiter")
+            ->assertRedirect()
+            ->assertSessionHasErrors();
+
+        $this->assertSame(1, $appels);
+    }
+
     public function test_un_echec_stripe_ne_marque_pas_le_remboursement_comme_fait(): void
     {
         $faux = new class implements StripeGatewayInterface {
@@ -159,7 +233,7 @@ class RemboursementStripeTest extends TestCase
                 return ['id' => $paymentIntentId, 'client_secret' => 'secret_x', 'status' => 'succeeded'];
             }
 
-            public function refund(string $paymentIntentId, float $montant): array
+            public function refund(string $paymentIntentId, float $montant, ?string $idempotencyKey = null): array
             {
                 throw new \RuntimeException('carte expirée, remboursement refusé par Stripe');
             }
@@ -174,6 +248,10 @@ class RemboursementStripeTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame('paye', $reservation->fresh()->statut_paiement);
+        // Après un échec, le dossier redescend en "en_attente" (jamais
+        // "rejete" : un échec technique n'est pas un refus) pour qu'une
+        // nouvelle tentative le retrouve dans la liste à traiter.
+        $this->assertSame('en_attente', $reservation->fresh()->statut_remboursement);
         $this->assertDatabaseHas('paiements', [
             'id_reservation' => $reservation->id_reservation,
             'status' => 'succeeded',
@@ -190,6 +268,7 @@ class RemboursementStripeTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame('paye', $reservation->fresh()->statut_paiement);
+        $this->assertSame('en_attente', $reservation->fresh()->statut_remboursement);
         $this->assertDatabaseHas('paiements', [
             'id_reservation' => $reservation->id_reservation,
             'status' => 'succeeded',
@@ -240,8 +319,8 @@ class RemboursementStripeTest extends TestCase
         $this->assertSame('+2250701234567', $faux->dernierDestinataire['telephone']);
         $this->assertSame('wave', $faux->dernierDestinataire['operateur']);
         // Annulation par la cliente (valeur par défaut du fixture) : elle
-        // supporte la commission Afrolia (10000 - 500).
-        $this->assertSame(9500.0, $faux->dernierMontant);
+        // supporte la commission Afrolia (10000 - 1234, valeur arbitraire).
+        $this->assertSame(8766.0, $faux->dernierMontant);
         $this->assertSame('rembourse', $reservation->fresh()->statut_paiement);
         $this->assertDatabaseHas('paiements', [
             'id_reservation' => $reservation->id_reservation,
@@ -285,9 +364,90 @@ class RemboursementStripeTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame('paye', $reservation->fresh()->statut_paiement);
+        $this->assertSame('en_attente', $reservation->fresh()->statut_remboursement);
         $this->assertDatabaseHas('paiements', [
             'id_reservation' => $reservation->id_reservation,
             'status' => 'succeeded',
         ]);
+    }
+
+    public function test_une_reservation_deja_en_cours_ne_peut_pas_etre_rejetee_par_un_autre_admin(): void
+    {
+        $reservation = $this->creerReservationAnnuleeEtPayee('stripe');
+        $reservation->update(['statut_remboursement' => 'en_cours']);
+
+        $admin = User::factory()->create();
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/rejeter", ['motif' => 'doublon', 'details' => 'Test'])
+            ->assertRedirect()
+            ->assertSessionHasErrors();
+
+        $this->assertSame('en_cours', $reservation->fresh()->statut_remboursement);
+    }
+
+    public function test_rejeter_enregistre_le_motif_et_lhistorique_sans_rembourser(): void
+    {
+        $reservation = $this->creerReservationAnnuleeEtPayee('stripe');
+
+        $admin = User::factory()->create();
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/rejeter", [
+                'motif' => 'doublon',
+                'details' => 'Doublon avec le remboursement RES-123',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('succes');
+
+        $reservation->refresh();
+        $this->assertSame('rejete', $reservation->statut_remboursement);
+        $this->assertStringContainsString('Doublon avec le remboursement RES-123', $reservation->raison_rejet_remboursement);
+        // Rejeter ne rembourse jamais : le paiement reste "succeeded", pas "refunded".
+        $this->assertSame('paye', $reservation->statut_paiement);
+        $this->assertDatabaseHas('paiements', [
+            'id_reservation' => $reservation->id_reservation,
+            'status' => 'succeeded',
+        ]);
+
+        $historique = json_decode($reservation->remboursement_historique, true);
+        $this->assertNotEmpty($historique);
+        $this->assertSame('rejete', end($historique)['action']);
+    }
+
+    public function test_un_motif_de_rejet_ordinaire_hors_liste_est_refuse_par_la_validation(): void
+    {
+        $reservation = $this->creerReservationAnnuleeEtPayee('stripe');
+
+        $admin = User::factory()->create();
+        // Aucun motif "ordinaire" (la cliente ou la coiffeuse a simplement
+        // annulé) ne figure dans la liste fermée acceptée : la validation
+        // doit refuser toute valeur hors de cette liste, pas seulement
+        // exiger un texte non vide — c'est le blocage réel demandé le
+        // 18/10/2026 (un commentaire et un champ obligatoire ne suffisaient
+        // pas).
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/rejeter", [
+                'motif' => 'la_cliente_a_annule',
+                'details' => 'Remboursement non souhaité',
+            ])
+            ->assertStatus(302)
+            ->assertSessionHasErrors('motif');
+
+        $this->assertSame('en_attente', $reservation->fresh()->statut_remboursement);
+        $this->assertNull($reservation->fresh()->raison_rejet_remboursement);
+    }
+
+    public function test_un_dossier_deja_rejete_ne_peut_pas_etre_traite(): void
+    {
+        $reservation = $this->creerReservationAnnuleeEtPayee('stripe');
+        $reservation->update(['statut_remboursement' => 'rejete', 'raison_rejet_remboursement' => 'Fraude avérée']);
+
+        $admin = User::factory()->create();
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/traiter")
+            ->assertRedirect()
+            ->assertSessionHasErrors();
+
+        $this->assertSame('rejete', $reservation->fresh()->statut_remboursement);
+        $this->assertSame('paye', $reservation->fresh()->statut_paiement);
     }
 }

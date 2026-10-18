@@ -1,16 +1,19 @@
 # Aide & support — Afrolia
 
+**Statut : brouillon enregistré, pas encore publié dans l'application.**
+En attente de la confirmation des tarifs (voir la section "Annuler une réservation" ci-dessous, qui reste volontairement sans chiffres tant que ce point n'est pas confirmé).
+
 ## Réserver une prestation
 
 1. Recherchez une coiffeuse ou un coiffeur près de vous, par spécialité ou par nom.
 2. Choisissez une prestation : le prix et la durée sont fixés à l'avance par la professionnelle.
 3. Sélectionnez un créneau disponible, puis payez par carte bancaire ou par Mobile Money (Wave, Orange Money, MTN Mobile Money, Moov Money) pour confirmer votre réservation.
 
-Vous retrouvez toutes vos réservations à venir, terminées ou annulées dans l'onglet "Rendez-vous".
+Retrouvez toutes vos réservations dans l'onglet "Rendez-vous" (ou "Réservations" côté coiffeuse).
 
-## Annuler ou modifier une réservation
+## Annuler une réservation
 
-Vous pouvez annuler une réservation à venir directement depuis l'application. Si elle a déjà été payée, le remboursement est traité automatiquement selon le même moyen de paiement utilisé.
+Vous pouvez annuler une réservation à venir depuis l'application. Si elle était déjà payée, les conditions d'utilisation précisent le remboursement prévu selon la personne qui annule et les frais applicables. Notre équipe effectue ensuite le remboursement ; celui-ci n'est pas instantané.
 
 ## La boutique de produits
 
@@ -18,12 +21,13 @@ Chaque coiffeuse peut proposer ses propres produits capillaires à la vente. Les
 
 ## Un problème avec une réservation ?
 
-Si une prestation ne s'est pas bien déroulée, si un paiement vous semble incorrect, ou en cas de désaccord avec une coiffeuse ou une cliente, utilisez le bouton "Signaler un problème" disponible sur la réservation concernée, dans l'onglet "Rendez-vous". Notre équipe examine chaque signalement.
+Si une prestation ne s'est pas bien déroulée, si un paiement vous semble incorrect, ou en cas de désaccord, utilisez le bouton "Signaler un problème" sur la réservation concernée. Notre équipe examine chaque signalement.
 
 ## Votre compte
 
-- **Mot de passe oublié :** utilisez l'option "Mot de passe oublié" sur l'écran de connexion. Si vous avez renseigné une adresse e-mail, un code de récupération vous sera envoyé.
-- **Supprimer votre compte :** disponible à tout moment depuis votre profil, sauf si une réservation est en cours, qu'un remboursement est en attente, ou que des gains ne vous ont pas encore été versés — réglez d'abord ces situations pour ne perdre aucun droit.
+- **Mot de passe oublié ?** Depuis l'écran de connexion : si une adresse e-mail est enregistrée sur votre compte, vous recevrez un lien à ouvrir pour choisir un nouveau mot de passe.
+- **Codes de secours** : dans Profil → Sécurité du compte, générez à l'avance des codes qui permettent de récupérer l'accès à votre compte sans e-mail ni SMS.
+- **Supprimer le compte** : disponible depuis votre profil, sauf si une réservation est en cours, qu'un remboursement est en attente, ou que des gains ne vous ont pas encore été versés — réglez d'abord ces situations.
 
 ## Besoin d'aide supplémentaire ?
 

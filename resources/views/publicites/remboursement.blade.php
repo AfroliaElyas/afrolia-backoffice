@@ -26,8 +26,16 @@
             <div class="col-sm-3">
                 <div class="card">
                     <div class="card-body">
-                        <p class="fw-medium text-primary-light mb-1">En attente</p>
+                        <p class="fw-medium text-primary-light mb-1">À traiter</p>
                         <h6 class="mb-0 text-warning">{{ $attente }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-3">
+                <div class="card">
+                    <div class="card-body">
+                        <p class="fw-medium text-primary-light mb-1">En cours</p>
+                        <h6 class="mb-0 text-info">{{ $enCours }}</h6>
                     </div>
                 </div>
             </div>
@@ -95,11 +103,19 @@
                                         <em>{{ ucfirst(str_replace('_', ' ', $item->methode_paiement)) }}</em>
                                     </td>
                                     <td>
-                                        @if($item->statut_paiement === 'rembourse')
-                                            <span class="bg-success-focus text-success-main px-24 py-4 rounded-pill fw-medium text-sm">Traité</span>
-                                        @else
-                                            <span class="bg-warning-focus text-warning-main px-24 py-4 rounded-pill fw-medium text-sm">En attente</span>
-                                        @endif
+                                        @switch($item->statut_remboursement)
+                                            @case('traite')
+                                                <span class="bg-success-focus text-success-main px-24 py-4 rounded-pill fw-medium text-sm">Remboursé</span>
+                                                @break
+                                            @case('en_cours')
+                                                <span class="bg-info-focus text-info-main px-24 py-4 rounded-pill fw-medium text-sm">En cours</span>
+                                                @break
+                                            @case('rejete')
+                                                <span class="bg-danger-focus text-danger-main px-24 py-4 rounded-pill fw-medium text-sm">Rejeté</span>
+                                                @break
+                                            @default
+                                                <span class="bg-warning-focus text-warning-main px-24 py-4 rounded-pill fw-medium text-sm">À traiter</span>
+                                        @endswitch
                                     </td>
                                     <td>
                                         @if($item->raison_annulation)
@@ -117,9 +133,30 @@
                                         @else
                                             —
                                         @endif
+                                        @if($item->statut_remboursement === 'rejete' && $item->raison_rejet_remboursement)
+                                            <div class="alert alert-danger alert-dismissible fade show mt-8">
+                                                <strong>Motif du rejet :</strong> {{ $item->raison_rejet_remboursement }}
+                                            </div>
+                                        @endif
+                                        @if($item->remboursement_historique)
+                                            <details class="mt-8">
+                                                <summary class="text-secondary-light text-sm" style="cursor:pointer">Historique</summary>
+                                                <ul class="text-sm mb-0 ps-16">
+                                                    @foreach(json_decode($item->remboursement_historique, true) ?? [] as $entree)
+                                                        <li>
+                                                            {{ \Carbon\Carbon::parse($entree['au'])->format('d/m/Y à H:i') }} —
+                                                            {{ $entree['action'] }}
+                                                            @if(!empty($entree['detail']))
+                                                                : {{ $entree['detail'] }}
+                                                            @endif
+                                                        </li>
+                                                    @endforeach
+                                                </ul>
+                                            </details>
+                                        @endif
                                     </td>
                                     <td>
-                                        @if($item->statut_paiement === 'paye')
+                                        @if($item->statut_remboursement === 'en_attente')
                                             <a href="javascript:void(0)" title="Traiter"
                                                 class="btn bg-success-focus text-success-main d-inline-flex align-items-center justify-content-center"
                                                 data-bs-toggle="modal" data-bs-target="#traiterModal{{ $item->id_reservation }}">
@@ -135,7 +172,12 @@
                                                         <div class="modal-body p-24">
                                                             <form action="{{ route('remboursements.traiter', $item->id_reservation) }}" method="POST">
                                                                 @csrf
-                                                                <p>Êtes-vous sûr de vouloir traiter ce remboursement de {{ number_format($item->prix_service, 0, ',', ' ') }} CFA ?</p>
+                                                                @php
+                                                    $montantPrevu = $item->annule_par === 'coiffeur'
+                                                        ? $item->prix_service
+                                                        : $item->prix_service - $item->montant_commission;
+                                                @endphp
+                                                <p>Êtes-vous sûr de vouloir traiter ce remboursement de {{ number_format($montantPrevu, 0, ',', ' ') }} CFA ?</p>
                                                                 <div class="d-flex align-items-center justify-content-center gap-3 mt-24">
                                                                     <button type="reset" data-bs-dismiss="modal" class="border border-danger-600 bg-hover-danger-200 text-danger-600 text-md px-50 py-11 radius-8">Annuler</button>
                                                                     <button type="submit" class="btn btn-success border border-success-600 text-md px-50 py-12 radius-8">Oui, Traiter</button>
@@ -159,11 +201,24 @@
                                                             <button type="button" class="btn-close" style="background-color: white" data-bs-dismiss="modal"></button>
                                                         </div>
                                                         <div class="modal-body p-24">
+                                                            <p class="text-sm text-secondary-light">
+                                                                Les CGU donnent droit à un remboursement à toute réservation déjà payée et annulée. "Rejeter" n'est donc utilisable que pour un cas qui sort de ce droit — choisissez un motif ci-dessous, aucun autre texte n'est accepté.
+                                                            </p>
                                                             <form action="{{ route('remboursements.rejeter', $item->id_reservation) }}" method="POST">
                                                                 @csrf
                                                                 <div class="mb-20">
-                                                                    <label class="form-label fw-semibold">Raison du rejet <strong style="color:red">*</strong></label>
-                                                                    <textarea name="raison" required class="form-control radius-8" rows="3" placeholder="Ex: Politique de remboursement non respectée"></textarea>
+                                                                    <label class="form-label fw-semibold">Motif (hors CGU uniquement) <strong style="color:red">*</strong></label>
+                                                                    <select name="motif" required class="form-control radius-8">
+                                                                        <option value="" selected disabled>Choisir un motif...</option>
+                                                                        <option value="fraude_averee">Fraude avérée sur cette réservation ou ce compte</option>
+                                                                        <option value="doublon">Doublon avec une demande déjà traitée</option>
+                                                                        <option value="deja_rembourse_autre_canal">Déjà remboursé par un autre canal</option>
+                                                                        <option value="erreur_de_saisie">Erreur de saisie (cliente/réservation non identifiable)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div class="mb-20">
+                                                                    <label class="form-label fw-semibold">Détails <strong style="color:red">*</strong></label>
+                                                                    <textarea name="details" required class="form-control radius-8" rows="3" placeholder="Précisez les éléments qui justifient ce motif"></textarea>
                                                                 </div>
                                                                 <p>Êtes-vous sûr de vouloir rejeter ce remboursement ?</p>
                                                                 <div class="d-flex align-items-center justify-content-center gap-3 mt-24">
@@ -175,8 +230,10 @@
                                                     </div>
                                                 </div>
                                             </div>
+                                        @elseif($item->statut_remboursement === 'en_cours')
+                                            <span class="text-secondary-light text-sm">Traitement en cours...</span>
                                         @else
-                                            <span class="text-secondary-light text-sm">Déjà traité</span>
+                                            <span class="text-secondary-light text-sm">Dossier clos</span>
                                         @endif
                                     </td>
                                 </tr>

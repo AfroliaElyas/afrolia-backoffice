@@ -26,6 +26,9 @@ class Reservations extends Model
         'montant_total',
         'statut_paiement',
         'statut_remboursement',
+        'raison_rejet_remboursement',
+        'remboursement_historique',
+        'remboursement_reference',
         'methode_paiement',
         'notes',
         'raison_annulation',
@@ -68,5 +71,23 @@ class Reservations extends Model
     public function service()
     {
         return $this->belongsTo(Services::class, 'id_service');
+    }
+
+    /**
+     * Ajoute une entrée à l'historique de remboursement (demande, tentative,
+     * échec, succès, rejet...) sans jamais écraser les précédentes :
+     * nécessaire pour que l'équipe puisse suivre un dossier dans le temps,
+     * pas seulement voir son état actuel (demandé le 18/10/2026).
+     */
+    public function ajouterHistoriqueRemboursement(string $action, ?string $detail = null): void
+    {
+        $historique = json_decode($this->remboursement_historique ?? '[]', true) ?: [];
+        $historique[] = array_filter([
+            'au' => now()->toIso8601String(),
+            'action' => $action,
+            'detail' => $detail,
+        ], fn ($valeur) => $valeur !== null);
+
+        $this->update(['remboursement_historique' => json_encode($historique)]);
     }
 }

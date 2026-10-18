@@ -40,7 +40,7 @@ class AnnulationGainsTest extends TestCase
                 return ['id' => $paymentIntentId, 'client_secret' => 'secret_x', 'status' => 'succeeded'];
             }
 
-            public function refund(string $paymentIntentId, float $montant): array
+            public function refund(string $paymentIntentId, float $montant, ?string $idempotencyKey = null): array
             {
                 return ['id' => 're_test', 'status' => 'succeeded'];
             }

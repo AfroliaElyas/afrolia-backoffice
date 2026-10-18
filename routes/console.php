@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('commandes:annuler-expirees')->everyFiveMinutes();
 Schedule::command('abonnements:prelever')->daily();
+Schedule::command('remboursements:debloquer-en-cours')->everyFiveMinutes();

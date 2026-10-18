@@ -336,6 +336,20 @@ class ApiPaiementsController extends Controller
 
         $transaction = $this->mobileMoneyGateway->interpreterTransactionCompletee((array) $request->json()->all());
 
+        // Un transfert (remboursement) a sa propre référence, jamais
+        // présente dans paiements.provider_transaction_id (qui ne contient
+        // que des références d'encaissement) : sans cette branche, le
+        // webhook qui confirme ou infirme un remboursement Mobile Money
+        // était silencieusement ignoré, laissant RemboursementController
+        // sans aucun moyen de vérifier après coup ce qu'il était advenu
+        // d'une tentative précédente avant d'en relancer une nouvelle
+        // (demandé le 18/10/2026).
+        if ($transaction['type'] === 'transfer') {
+            $this->traiterWebhookTransfertRemboursement($transaction);
+
+            return response()->json(['status' => 'ok']);
+        }
+
         $paiement = Paiements::where('provider_transaction_id', $transaction['reference'])->first();
 
         if (!$paiement) {
@@ -350,6 +364,55 @@ class ApiPaiementsController extends Controller
         };
 
         return response()->json(['status' => 'ok']);
+    }
+
+    /**
+     * Confirme ou infirme, de façon idempotente, une tentative de
+     * remboursement Mobile Money déjà réclamée par
+     * RemboursementController::traiter() (dossier passé à "en_cours" avec
+     * cette référence stable avant l'appel à Jèko). Une livraison répétée
+     * du même webhook (garanti par Jèko, voir sa documentation) ne doit
+     * jamais rejouer deux fois le même effet : on vérifie donc l'état
+     * actuel avant d'agir plutôt que de réappliquer la transition sans
+     * condition.
+     */
+    private function traiterWebhookTransfertRemboursement(array $transaction): void
+    {
+        $reservation = Reservations::where('remboursement_reference', $transaction['reference'])->first();
+
+        if (!$reservation) {
+            // Ce n'est pas forcément une anomalie : un versement de gains
+            // (VersementController) est aussi un transfert Jèko, avec sa
+            // propre référence "VERS-...", qui ne correspond à aucune
+            // réservation.
+            return;
+        }
+
+        DB::transaction(function () use ($reservation, $transaction) {
+            $reservation = Reservations::whereKey($reservation->id_reservation)->lockForUpdate()->first();
+
+            if ($transaction['statut'] === 'success') {
+                // Idempotent : si traiter() avait déjà conclu au succès de
+                // son côté (webhook en double, ou arrivé après coup), ne
+                // rien refaire.
+                if ($reservation->statut_remboursement === 'traite') {
+                    return;
+                }
+
+                $reservation->update(['statut_paiement' => 'rembourse', 'statut_remboursement' => 'traite']);
+                Paiements::where('id_reservation', $reservation->id_reservation)
+                    ->where('status', 'succeeded')
+                    ->update(['status' => 'refunded', 'processed_at' => now()]);
+                $reservation->ajouterHistoriqueRemboursement('rembourse', 'Confirmé par webhook Jèko');
+            } elseif ($transaction['statut'] === 'error' && $reservation->statut_remboursement === 'en_cours') {
+                // Seulement si encore "en_cours" : si traiter() a déjà
+                // échoué de son côté (synchrone, via l'exception Jèko) et
+                // remis le dossier en "en_attente", ne pas l'y remettre une
+                // deuxième fois ni dupliquer l'entrée d'historique.
+                $reservation->update(['statut_remboursement' => 'en_attente']);
+                $reservation->ajouterHistoriqueRemboursement('echec', 'Transfert refusé, confirmé par webhook Jèko');
+            }
+        });
     }
 
     private function markPaiementSucceeded(Paiements $paiement): void

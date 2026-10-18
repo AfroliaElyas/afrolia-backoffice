@@ -276,15 +276,26 @@ class ApiReservationsController extends Controller
         // d'annulation (voir annulerGainsPourReservation ci-dessous) :
         // jamais une valeur transmise par le client, toujours "client" ici
         // puisque c'est lui qui déclenche cette annulation.
+        $etaitDejaPayee = $reservation->statut_paiement === 'paye';
+
         if (($validated['statut'] ?? null) === 'annulee') {
             $validated['annule_par'] = 'client';
             $validated['annule_le'] = now();
+            // Un remboursement n'est dû que si la réservation avait
+            // réellement été payée ; sinon rien à suivre (reste "aucun").
+            if ($etaitDejaPayee) {
+                $validated['statut_remboursement'] = 'en_attente';
+            }
         }
 
         $reservation->update($validated);
 
         if (($validated['statut'] ?? null) === 'annulee') {
             $this->annulerGainsPourReservation($reservation);
+
+            if ($etaitDejaPayee) {
+                $reservation->ajouterHistoriqueRemboursement('demande_creee', 'Annulation par la cliente');
+            }
         }
 
         return response()->json([
@@ -389,14 +400,21 @@ class ApiReservationsController extends Controller
             ], 404);
         }
 
+        $etaitDejaPayee = $reservation->statut_paiement === 'paye';
+
         $reservation->update([
             'statut' => 'annulee',
             'annule_le' => now(),
             'annule_par' => 'coiffeur',
-            'raison_annulation' => $request->input('raison', 'Aucune raison spécifiée')
+            'raison_annulation' => $request->input('raison', 'Aucune raison spécifiée'),
+            'statut_remboursement' => $etaitDejaPayee ? 'en_attente' : $reservation->statut_remboursement,
         ]);
 
         $this->annulerGainsPourReservation($reservation);
+
+        if ($etaitDejaPayee) {
+            $reservation->ajouterHistoriqueRemboursement('demande_creee', 'Annulation par la coiffeuse');
+        }
 
         return response()->json([
             'success' => true,

@@ -259,10 +259,31 @@
                                                         </div>
                                                         <div class="modal-body p-24">
                                                             <p class="text-sm text-secondary-light">
-                                                                Ce dossier est resté "en cours" sans confirmation (coupure serveur probable) : on ne sait pas si le transfert a réellement eu lieu. Vérifiez vous-même auprès de Stripe ou de Jèko (référence du paiement) avant de continuer — "Traiter"/"Rejeter" ne redeviendront disponibles qu'après cette confirmation.
+                                                                Ce dossier est resté "en cours" sans confirmation (coupure serveur probable) : on ne sait pas si le transfert a réellement eu lieu. Vérifiez vous-même auprès de Stripe ou de Jèko (référence du paiement), puis choisissez le constat correspondant — "Traiter"/"Rejeter" ne redeviennent disponibles que si vous confirmez qu'aucun transfert n'a eu lieu.
                                                             </p>
                                                             <form action="{{ route('remboursements.confirmerVerification', $item->id_reservation) }}" method="POST">
                                                                 @csrf
+                                                                <div class="mb-20">
+                                                                    <label class="form-label fw-semibold d-block mb-8">Constat <strong style="color:red">*</strong></label>
+                                                                    <div class="form-check mb-8">
+                                                                        <input class="form-check-input" type="radio" name="constat" id="constatRembourse{{ $item->id_reservation }}" value="rembourse_confirme" required>
+                                                                        <label class="form-check-label" for="constatRembourse{{ $item->id_reservation }}">
+                                                                            <strong>Remboursement déjà effectué</strong> — clôture le dossier comme remboursé, aucune nouvelle tentative
+                                                                        </label>
+                                                                    </div>
+                                                                    <div class="form-check mb-8">
+                                                                        <input class="form-check-input" type="radio" name="constat" id="constatNonEffectue{{ $item->id_reservation }}" value="non_effectue_confirme" required>
+                                                                        <label class="form-check-label" for="constatNonEffectue{{ $item->id_reservation }}">
+                                                                            <strong>Confirmé non effectué</strong> — autorise une nouvelle tentative ("Traiter"/"Rejeter" redeviennent disponibles)
+                                                                        </label>
+                                                                    </div>
+                                                                    <div class="form-check">
+                                                                        <input class="form-check-input" type="radio" name="constat" id="constatInconnu{{ $item->id_reservation }}" value="resultat_inconnu" required>
+                                                                        <label class="form-check-label" for="constatInconnu{{ $item->id_reservation }}">
+                                                                            <strong>Résultat encore inconnu</strong> — le dossier reste bloqué "incertain"
+                                                                        </label>
+                                                                    </div>
+                                                                </div>
                                                                 <div class="mb-20">
                                                                     <label class="form-label fw-semibold">Ce que vous avez vérifié <strong style="color:red">*</strong></label>
                                                                     <textarea name="preuve" required class="form-control radius-8" rows="3" placeholder="Ex : vérifié sur le dashboard Stripe, remboursement re_xxx absent -> transfert non effectué"></textarea>

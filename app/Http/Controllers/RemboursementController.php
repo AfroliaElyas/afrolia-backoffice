@@ -354,23 +354,42 @@ class RemboursementController extends Controller
     }
 
     /**
+     * Les 3 constats possibles pour un dossier "incertain". Un simple texte
+     * obligatoire ne suffisait pas (première version) : il ramenait
+     * systématiquement le dossier en "en_attente" quel que soit ce que le
+     * texte disait, y compris si la vérification concluait que le
+     * remboursement avait déjà eu lieu — ce qui aurait pu mener à un
+     * deuxième remboursement réel (demandé le 18/10/2026). Le constat
+     * choisi, pas le texte libre, détermine maintenant l'effet :
+     * - rembourse_confirme : clôture directement le dossier comme
+     *   remboursé (jamais de nouvelle tentative, puisque l'argent est déjà
+     *   parti) ;
+     * - non_effectue_confirme : autorise une nouvelle tentative
+     *   ("en_attente") ;
+     * - resultat_inconnu : ne change rien, le dossier reste "incertain" et
+     *   bloqué — sert à journaliser une vérification faite mais non
+     *   concluante (ex. transfert encore "pending" chez Jèko), sans
+     *   prétendre à une conclusion qui n'existe pas encore.
+     */
+    private const CONSTATS_VERIFICATION = ['rembourse_confirme', 'non_effectue_confirme', 'resultat_inconnu'];
+
+    /**
      * Seule sortie possible de l'état "incertain" (voir
-     * DebloquerRemboursementsEnCours) : exige la preuve de ce qui a été
-     * vérifié manuellement auprès de Stripe/Jèko, jamais une simple
-     * confirmation en un clic — sinon ce serait revenu au même problème
-     * qu'un retour silencieux en "en_attente" (demandé le 18/10/2026).
-     * Ramène le dossier en "en_attente" : "Traiter"/"Rejeter" ne
-     * redeviennent visibles qu'après ce passage explicite.
+     * DebloquerRemboursementsEnCours) : exige un constat explicite parmi
+     * CONSTATS_VERIFICATION, jamais une simple confirmation en un clic.
      */
     public function confirmerVerification(Request $request, string $id)
     {
         $request->validate([
+            'constat' => 'required|in:' . implode(',', self::CONSTATS_VERIFICATION),
             'preuve' => 'required|string|max:500',
         ], [
+            'constat.required' => 'Choisissez ce que vous avez constaté.',
             'preuve.required' => 'Indiquez ce que vous avez vérifié (ex. : référence consultée sur le dashboard Stripe/Jèko, statut constaté).',
         ]);
 
         $admin = Auth::user();
+        $constat = $request->constat;
 
         $reservation = DB::transaction(function () use ($id) {
             $reservation = Reservations::whereKey($id)->lockForUpdate()->first();
@@ -379,7 +398,12 @@ class RemboursementController extends Controller
                 return null;
             }
 
-            $reservation->update(['statut_remboursement' => 'en_attente']);
+            // Marque l'intention tout de suite, sous le même verrou que
+            // traiter()/rejeter() : un autre appel concurrent sur ce
+            // dossier (très improbable ici, mais le même principe que
+            // partout ailleurs dans ce contrôleur) le trouve déjà "en_cours"
+            // plutôt que de pouvoir agir en même temps.
+            $reservation->update(['statut_remboursement' => 'en_cours']);
 
             return $reservation;
         });
@@ -390,12 +414,49 @@ class RemboursementController extends Controller
             ]);
         }
 
-        $reservation->ajouterHistoriqueRemboursement(
-            'verification_confirmee',
-            ($admin ? "par {$admin->name} : " : '') . $request->preuve
-        );
+        $prefixeAuteur = $admin ? "par {$admin->name} : " : '';
 
-        return back()->with('succes', 'Vérification enregistrée : ce dossier peut maintenant être traité ou rejeté normalement.');
+        match ($constat) {
+            'rembourse_confirme' => (function () use ($reservation, $prefixeAuteur, $request) {
+                Reservations::whereKey($reservation->id_reservation)->update([
+                    'statut_paiement' => 'rembourse',
+                    'statut_remboursement' => 'traite',
+                ]);
+                Paiements::where('id_reservation', $reservation->id_reservation)
+                    ->where('status', 'succeeded')
+                    ->update(['status' => 'refunded', 'processed_at' => now()]);
+                $reservation->ajouterHistoriqueRemboursement(
+                    'rembourse',
+                    $prefixeAuteur . 'confirmé manuellement comme déjà effectué : ' . $request->preuve
+                );
+            })(),
+            'non_effectue_confirme' => (function () use ($reservation, $prefixeAuteur, $request) {
+                $reservation->update(['statut_remboursement' => 'en_attente']);
+                $reservation->ajouterHistoriqueRemboursement(
+                    'echec',
+                    $prefixeAuteur . 'confirmé manuellement comme non effectué, nouvelle tentative autorisée : ' . $request->preuve
+                );
+            })(),
+            'resultat_inconnu' => (function () use ($reservation, $prefixeAuteur, $request) {
+                // Remis "incertain" : la ligne précédente l'a mis "en_cours"
+                // le temps de ce traitement, mais aucune conclusion n'a été
+                // établie — le dossier doit rester bloqué, pas redevenir
+                // actionnable.
+                $reservation->update(['statut_remboursement' => 'incertain']);
+                $reservation->ajouterHistoriqueRemboursement(
+                    'verification_non_concluante',
+                    $prefixeAuteur . 'vérifié mais résultat encore inconnu, reste bloqué : ' . $request->preuve
+                );
+            })(),
+        };
+
+        $messages = [
+            'rembourse_confirme' => 'Dossier clôturé comme remboursé.',
+            'non_effectue_confirme' => 'Confirmé non effectué : une nouvelle tentative est maintenant possible.',
+            'resultat_inconnu' => 'Enregistré : le dossier reste bloqué tant que le résultat n\'est pas connu.',
+        ];
+
+        return back()->with('succes', $messages[$constat]);
     }
 
     /**

@@ -59,7 +59,14 @@ class DebloquerRemboursementsEnCours extends Command
             });
         }
 
-        $this->info("{$bloques->count()} dossier(s) marqué(s) \"incertain\", à vérifier manuellement avant de pouvoir les retraiter.");
+        // L'horodatage explicite est nécessaire ici : sans lui, deux
+        // exécutions qui ne trouvent toutes les deux aucun dossier
+        // produisent la même ligne de log mot pour mot, donc impossible de
+        // distinguer "tourne toutes les 5 minutes" de "n'a tourné qu'une
+        // seule fois" en relisant le fichier après coup (demandé le
+        // 18/10/2026, suite à une vérification sur le serveur qui ne
+        // pouvait pas trancher).
+        $this->info(now()->toDateTimeString() . " — {$bloques->count()} dossier(s) marqué(s) \"incertain\", à vérifier manuellement avant de pouvoir les retraiter.");
 
         return self::SUCCESS;
     }

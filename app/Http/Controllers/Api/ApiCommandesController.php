@@ -90,8 +90,12 @@ class ApiCommandesController extends Controller
                 $coiffeuse = UsersApp::find($request->id_coiffeur);
                 $taux = $coiffeuse ? $this->abonnements->tauxCommissionBoutiquePourCoiffeuse($coiffeuse) : $this->abonnements->tauxCommissionBoutique('gratuit');
 
+                // La cliente paie exactement le prix affiché des produits :
+                // la commission n'est pas ajoutée à sa charge, elle est
+                // retenue sur les gains de la vendeuse (même mécanisme que
+                // les réservations, confirmé le 18/10/2026).
                 $montantCommission = round($montantProduits * $taux, 2);
-                $montantTotal = $montantProduits + $montantCommission;
+                $montantTotal = $montantProduits;
 
                 do {
                     $numeroCommande = 'CMD-' . date('Ymd') . '-' . strtoupper(Str::random(6));

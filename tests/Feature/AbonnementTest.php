@@ -174,9 +174,11 @@ class AbonnementTest extends TestCase
 
         $response->assertStatus(201);
         // Formule Premium => commission de 6 % (même taux que les
-        // réservations, confirmé le 18/10/2026).
+        // réservations, confirmé le 18/10/2026). La commission est retenue
+        // sur les gains de la vendeuse, pas ajoutée au prix payé : la
+        // cliente paie exactement montant_produits.
         $response->assertJsonPath('data.montant_commission', 300);
-        $response->assertJsonPath('data.montant_total', 5300);
+        $response->assertJsonPath('data.montant_total', 5000);
     }
 
     public function test_un_client_peut_consulter_le_taux_de_commission_boutique_dune_coiffeuse(): void

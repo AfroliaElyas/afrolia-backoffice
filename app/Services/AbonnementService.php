@@ -33,17 +33,19 @@ class AbonnementService
     }
 
     /**
-     * Taux de la boutique (produits), distinct de celui des prestations :
-     * la boutique n'a pas été incluse dans le passage à une retenue totale
-     * sur les gains, elle garde son ancien fonctionnement (commission
-     * ajoutée au prix payé par la cliente) jusqu'à décision contraire.
+     * Taux de la boutique (produits) : même taux que les prestations
+     * (8 % Gratuite / 6 % Premium), une seule source de vérité pour ne
+     * plus jamais pouvoir diverger silencieusement. Avant le 18/10/2026,
+     * la boutique utilisait des paramètres séparés (commission_boutique_*)
+     * restés à 5 %/3 % sans avoir jamais été réellement validés — ce
+     * n'était pas un choix délibéré de maintenir deux taux différents.
+     * Le mécanisme de perception reste différent (ajoutée au prix payé
+     * par la cliente, alors que pour les prestations elle est déduite des
+     * gains de la coiffeuse) : seul le taux est désormais unifié.
      */
     public function tauxCommissionBoutique(string $formule): float
     {
-        return match ($formule) {
-            'premium' => $this->parametre('commission_boutique_premium', 3) / 100,
-            default => $this->parametre('commission_boutique_gratuit', 5) / 100,
-        };
+        return $this->tauxCommission($formule);
     }
 
     public function tauxCommissionBoutiquePourCoiffeuse(UsersApp $coiffeuse): float

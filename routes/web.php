@@ -13,7 +13,6 @@ use App\Http\Controllers\RapportController;
 use App\Http\Controllers\RecuperationCompteController;
 use App\Http\Controllers\RemboursementController;
 use App\Http\Controllers\ReservationController;
-use App\Http\Controllers\SecurityController;
 use App\Http\Controllers\TarifController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\UtilisateursController;
@@ -153,9 +152,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/admin/termes-conditions', [TermsController::class, 'enregistrerOuMettreAJour'])->name('termes.storeOrUpdate');
     Route::post('/admin/termes-politique', [PolitiqueController::class, 'enregistrerOuMettreAJour'])->name('termes.storeOrPolitique');
     Route::post('/admin/termes-about', [AboutController::class, 'enregistrerOuMettreAJour'])->name('termes.storeOrAbout');
-    Route::resource('terms-security', SecurityController::class);
     Route::resource('terms-helps', HelpsController::class);
-    Route::post('/admin/termes-security', [SecurityController::class, 'enregistrerOuMettreAJour'])->name('termes.storeOrSecurity');
     Route::post('/admin/termes-helps', [HelpsController::class, 'enregistrerOuMettreAJour'])->name('termes.storeOrHelps');
 
     // setting

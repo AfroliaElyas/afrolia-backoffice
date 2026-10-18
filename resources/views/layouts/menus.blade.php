@@ -158,12 +158,6 @@
                     <span>A propos</span>
                 </a>
             </li>
-            <li class="{{ Route::is('terms-security') ? 'active-page' : '' }}">
-                <a href="terms-security" class="{{ Route::is('terms-security') ? 'active-page' : '' }}">
-                    <iconify-icon icon="octicon:info-24" class="menu-icon"></iconify-icon>
-                    <span>Confidentialité</span>
-                </a>
-            </li>
             <li class="{{ Route::is('terms-helps') ? 'active-page' : '' }}">
                 <a href="terms-helps" class="{{ Route::is('terms-helps') ? 'active-page' : '' }}">
                     <iconify-icon icon="octicon:info-24" class="menu-icon"></iconify-icon>

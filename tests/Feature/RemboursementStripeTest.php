@@ -378,7 +378,7 @@ class RemboursementStripeTest extends TestCase
 
         $admin = User::factory()->create();
         $this->actingAs($admin)
-            ->post("/remboursements/{$reservation->id_reservation}/rejeter", ['raison' => 'Test'])
+            ->post("/remboursements/{$reservation->id_reservation}/rejeter", ['motif' => 'doublon', 'details' => 'Test'])
             ->assertRedirect()
             ->assertSessionHasErrors();
 
@@ -391,13 +391,16 @@ class RemboursementStripeTest extends TestCase
 
         $admin = User::factory()->create();
         $this->actingAs($admin)
-            ->post("/remboursements/{$reservation->id_reservation}/rejeter", ['raison' => 'Doublon avec le remboursement RES-123'])
+            ->post("/remboursements/{$reservation->id_reservation}/rejeter", [
+                'motif' => 'doublon',
+                'details' => 'Doublon avec le remboursement RES-123',
+            ])
             ->assertRedirect()
             ->assertSessionHas('succes');
 
         $reservation->refresh();
         $this->assertSame('rejete', $reservation->statut_remboursement);
-        $this->assertSame('Doublon avec le remboursement RES-123', $reservation->raison_rejet_remboursement);
+        $this->assertStringContainsString('Doublon avec le remboursement RES-123', $reservation->raison_rejet_remboursement);
         // Rejeter ne rembourse jamais : le paiement reste "succeeded", pas "refunded".
         $this->assertSame('paye', $reservation->statut_paiement);
         $this->assertDatabaseHas('paiements', [
@@ -408,6 +411,29 @@ class RemboursementStripeTest extends TestCase
         $historique = json_decode($reservation->remboursement_historique, true);
         $this->assertNotEmpty($historique);
         $this->assertSame('rejete', end($historique)['action']);
+    }
+
+    public function test_un_motif_de_rejet_ordinaire_hors_liste_est_refuse_par_la_validation(): void
+    {
+        $reservation = $this->creerReservationAnnuleeEtPayee('stripe');
+
+        $admin = User::factory()->create();
+        // Aucun motif "ordinaire" (la cliente ou la coiffeuse a simplement
+        // annulé) ne figure dans la liste fermée acceptée : la validation
+        // doit refuser toute valeur hors de cette liste, pas seulement
+        // exiger un texte non vide — c'est le blocage réel demandé le
+        // 18/10/2026 (un commentaire et un champ obligatoire ne suffisaient
+        // pas).
+        $this->actingAs($admin)
+            ->post("/remboursements/{$reservation->id_reservation}/rejeter", [
+                'motif' => 'la_cliente_a_annule',
+                'details' => 'Remboursement non souhaité',
+            ])
+            ->assertStatus(302)
+            ->assertSessionHasErrors('motif');
+
+        $this->assertSame('en_attente', $reservation->fresh()->statut_remboursement);
+        $this->assertNull($reservation->fresh()->raison_rejet_remboursement);
     }
 
     public function test_un_dossier_deja_rejete_ne_peut_pas_etre_traite(): void

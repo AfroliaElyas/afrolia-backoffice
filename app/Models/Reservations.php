@@ -28,6 +28,7 @@ class Reservations extends Model
         'statut_remboursement',
         'raison_rejet_remboursement',
         'remboursement_historique',
+        'remboursement_reference',
         'methode_paiement',
         'notes',
         'raison_annulation',

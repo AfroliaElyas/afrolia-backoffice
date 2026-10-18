@@ -201,11 +201,24 @@
                                                             <button type="button" class="btn-close" style="background-color: white" data-bs-dismiss="modal"></button>
                                                         </div>
                                                         <div class="modal-body p-24">
+                                                            <p class="text-sm text-secondary-light">
+                                                                Les CGU donnent droit à un remboursement à toute réservation déjà payée et annulée. "Rejeter" n'est donc utilisable que pour un cas qui sort de ce droit — choisissez un motif ci-dessous, aucun autre texte n'est accepté.
+                                                            </p>
                                                             <form action="{{ route('remboursements.rejeter', $item->id_reservation) }}" method="POST">
                                                                 @csrf
                                                                 <div class="mb-20">
-                                                                    <label class="form-label fw-semibold">Raison du rejet <strong style="color:red">*</strong></label>
-                                                                    <textarea name="raison" required class="form-control radius-8" rows="3" placeholder="Ex: Politique de remboursement non respectée"></textarea>
+                                                                    <label class="form-label fw-semibold">Motif (hors CGU uniquement) <strong style="color:red">*</strong></label>
+                                                                    <select name="motif" required class="form-control radius-8">
+                                                                        <option value="" selected disabled>Choisir un motif...</option>
+                                                                        <option value="fraude_averee">Fraude avérée sur cette réservation ou ce compte</option>
+                                                                        <option value="doublon">Doublon avec une demande déjà traitée</option>
+                                                                        <option value="deja_rembourse_autre_canal">Déjà remboursé par un autre canal</option>
+                                                                        <option value="erreur_de_saisie">Erreur de saisie (cliente/réservation non identifiable)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div class="mb-20">
+                                                                    <label class="form-label fw-semibold">Détails <strong style="color:red">*</strong></label>
+                                                                    <textarea name="details" required class="form-control radius-8" rows="3" placeholder="Précisez les éléments qui justifient ce motif"></textarea>
                                                                 </div>
                                                                 <p>Êtes-vous sûr de vouloir rejeter ce remboursement ?</p>
                                                                 <div class="d-flex align-items-center justify-content-center gap-3 mt-24">

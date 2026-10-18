@@ -167,6 +167,14 @@ class RemboursementController extends Controller
             return $this->remettreEnAttenteEtEchouer($reservation, 'Aucun paiement réussi trouvé pour cette réservation.');
         }
 
+        // Stockée avant l'appel réseau : c'est par cette référence que le
+        // webhook Jèko (confirmation ou échec du transfert) retrouvera ce
+        // dossier après coup, y compris si la réponse synchrone de Jèko se
+        // perd (voir ApiPaiementsController::traiterWebhookTransfertRemboursement).
+        if ($paiement->payment_method === 'mobile_money') {
+            $reservation->update(['remboursement_reference' => self::referenceTransfertJeko($paiement->id_paiement)]);
+        }
+
         // La commission Afrolia reste due en cas d'annulation : si c'est la
         // cliente qui annule, elle la supporte (remboursée du prix moins la
         // commission) ; si c'est la coiffeuse, la cliente est remboursée
@@ -211,7 +219,7 @@ class RemboursementController extends Controller
                     // tentative après un échec ambigu réutilise la même
                     // référence, pour que Jèko puisse la reconnaître plutôt
                     // que de traiter un deuxième transfert distinct.
-                    reference: "REMB-PAIEMENT-{$paiement->id_paiement}"
+                    reference: self::referenceTransfertJeko($paiement->id_paiement)
                 );
 
                 if (($resultat['status'] ?? null) === 'error') {
@@ -246,6 +254,18 @@ class RemboursementController extends Controller
     }
 
     /**
+     * Référence stable envoyée à Jèko pour le transfert de remboursement
+     * d'un paiement donné — une seule définition, réutilisée à la fois
+     * pour l'appel à Jèko et pour la colonne remboursement_reference, afin
+     * qu'elles ne puissent jamais diverger (le webhook retrouve le dossier
+     * par cette colonne, voir ApiPaiementsController::traiterWebhookTransfertRemboursement).
+     */
+    public static function referenceTransfertJeko(int $idPaiement): string
+    {
+        return "REMB-PAIEMENT-{$idPaiement}";
+    }
+
+    /**
      * Remet un dossier en "en_attente" après un échec (jamais "rejete" : un
      * échec technique n'est pas une décision de refuser un remboursement
      * dû), journalise la raison, et renvoie l'erreur à afficher.
@@ -259,20 +279,27 @@ class RemboursementController extends Controller
     }
 
     /**
+     * Motifs de rejet acceptés : tous situés HORS du droit automatique que
+     * les CGU (§7) accordent à toute annulation d'une réservation déjà
+     * payée (intégral si la coiffeuse annule, diminué des frais si la
+     * cliente annule). Un commentaire et un motif libre obligatoire ne
+     * suffisaient pas à empêcher un rejet d'un remboursement par ailleurs
+     * dû (demandé le 18/10/2026) : la validation ci-dessous REFUSE
+     * désormais toute catégorie qui ne figure pas dans cette liste fermée,
+     * donc un rejet "ordinaire" (la cliente ou la coiffeuse a simplement
+     * annulé) ne peut plus passer la validation, quel que soit le texte
+     * saisi en détail. N'ajoutez une catégorie ici que si elle décrit
+     * réellement un cas hors CGU.
+     */
+    private const MOTIFS_REJET_HORS_CGU = [
+        'fraude_averee' => 'Fraude avérée sur cette réservation ou ce compte',
+        'doublon' => 'Doublon : une autre demande concernant le même paiement est déjà traitée',
+        'deja_rembourse_autre_canal' => 'Déjà remboursé par un autre canal (hors de l\'application)',
+        'erreur_de_saisie' => 'Erreur de saisie empêchant d\'identifier la cliente ou la réservation',
+    ];
+
+    /**
      * Rejeter une demande de remboursement.
-     *
-     * IMPORTANT — ce que "rejeter" ne doit jamais servir à faire : les CGU
-     * (§7) font du remboursement un droit automatique selon qui annule
-     * (intégral si la coiffeuse annule, diminué des frais si la cliente
-     * annule), pas une décision au cas par cas. "Rejeter" n'est donc PAS un
-     * moyen de refuser un remboursement par ailleurs dû selon les CGU — à
-     * réserver aux cas qui sortent de ce cadre (fraude avérée, doublon,
-     * erreur de saisie, remboursement déjà effectué par un autre canal...).
-     * Le code ne peut pas juger lui-même si un motif donné respecte cette
-     * règle : la raison saisie reste obligatoire et horodatée dans
-     * l'historique pour que ce soit vérifiable après coup, mais la
-     * responsabilité du bien-fondé du rejet reste humaine (demandé le
-     * 18/10/2026).
      *
      * Ne peut s'appliquer qu'à un dossier "en_attente" : impossible de
      * rejeter un dossier déjà remboursé (incohérent) ou déjà rejeté
@@ -282,9 +309,12 @@ class RemboursementController extends Controller
     public function rejeter(Request $request, string $id)
     {
         $request->validate([
-            'raison' => 'required|string|max:500',
+            'motif' => 'required|in:' . implode(',', array_keys(self::MOTIFS_REJET_HORS_CGU)),
+            'details' => 'required|string|max:500',
         ], [
-            'raison.required' => 'Veuillez indiquer la raison du rejet.',
+            'motif.required' => 'Veuillez choisir un motif.',
+            'motif.in' => 'Ce motif n\'est pas accepté : un remboursement dû selon les CGU ne peut pas être rejeté.',
+            'details.required' => 'Veuillez préciser les détails de ce motif.',
         ]);
 
         $admin = Auth::user();
@@ -307,13 +337,16 @@ class RemboursementController extends Controller
             ]);
         }
 
+        $libelleMotif = self::MOTIFS_REJET_HORS_CGU[$request->motif];
+        $raisonComplete = "{$libelleMotif} — {$request->details}";
+
         $reservation->update([
             'statut_remboursement' => 'rejete',
-            'raison_rejet_remboursement' => $request->raison,
+            'raison_rejet_remboursement' => $raisonComplete,
         ]);
         $reservation->ajouterHistoriqueRemboursement(
             'rejete',
-            ($admin ? "par {$admin->name} : " : '') . $request->raison
+            ($admin ? "par {$admin->name} : " : '') . $raisonComplete
         );
 
         return back()->with('succes', 'La demande de remboursement a été rejetée.');

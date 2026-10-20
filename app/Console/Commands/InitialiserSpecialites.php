@@ -35,6 +35,17 @@ class InitialiserSpecialites extends Command
         'Lissage brésilien',
         'Coiffure de mariée',
         'Crochet braids',
+        // Catégories précises ajoutées le 20/10/2026, en complément des
+        // catégories plus larges ci-dessus (ex. "Tresses africaines",
+        // "Locks / Dreadlocks") qu'on garde telles quelles pour ne pas
+        // invalider les services déjà créés sous ces libellés.
+        'Box braids',
+        'Knotless braids',
+        'Boho braids',
+        'Nattes collées',
+        'Vanilles',
+        'Départ de locks',
+        'Entretien des locks',
     ];
 
     public function handle(): int

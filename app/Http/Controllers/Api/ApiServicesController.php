@@ -44,10 +44,20 @@ class ApiServicesController extends Controller
         $servicesData = $isMultiple ? $request->services : [$request->all()];
 
         // Règles de validation
+        //
+        // longueur et meches_comprises restent facultatifs : ils ne
+        // s'appliquent qu'aux prestations à mèches (ex. box braids), pas à
+        // toutes (ex. coupe, soin). nom est en revanche exigé : c'est lui qui
+        // distingue deux prestations d'une même catégorie (ex. "Box braids
+        // courtes" / "Box braids longues"), contrairement à description qui
+        // ne joue que le rôle de détail libre.
         $rules = [
+            '*.nom' => 'required|string|max:255',
             '*.prix' => 'required|numeric',
             '*.minute' => 'required|integer',
             '*.description' => 'required|string',
+            '*.longueur' => 'nullable|string|max:255',
+            '*.meches_comprises' => 'nullable|boolean',
             '*.id_speciale' => 'required|integer|exists:specialites,id_specialite',
         ];
 
@@ -70,9 +80,12 @@ class ApiServicesController extends Controller
         foreach ($servicesData as $serviceData) {
             $createdServices[] = Services::create([
                 'id_utilisateur' => $id_utilisateur,
+                'nom' => $serviceData['nom'],
                 'prix' => $serviceData['prix'],
                 'minute' => $serviceData['minute'],
                 'description' => $serviceData['description'],
+                'longueur' => $serviceData['longueur'] ?? null,
+                'meches_comprises' => $serviceData['meches_comprises'] ?? null,
                 'id_speciale' => $serviceData['id_speciale'],
             ]);
         }
@@ -106,9 +119,12 @@ class ApiServicesController extends Controller
         }
 
         $rules = [
+            'nom' => 'sometimes|required|string|max:255',
             'prix' => 'sometimes|required|numeric',
             'minute' => 'sometimes|required|integer',
             'description' => 'sometimes|required|string',
+            'longueur' => 'sometimes|nullable|string|max:255',
+            'meches_comprises' => 'sometimes|nullable|boolean',
             'id_speciale' => 'sometimes|required|integer|exists:specialites,id_specialite',
         ];
 

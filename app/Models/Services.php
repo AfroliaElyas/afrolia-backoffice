@@ -11,9 +11,12 @@ class Services extends Model
     use HasFactory, Notifiable;
 
     protected $fillable = [
+        'nom',
         'prix',
         'minute',
         'description',
+        'longueur',
+        'meches_comprises',
         'id_utilisateur',
         'id_speciale',
     ];
@@ -27,6 +30,7 @@ class Services extends Model
     // côté Flutter (champs typés num). Même correctif que sur Produits::prix.
     protected $casts = [
         'prix' => 'float',
+        'meches_comprises' => 'boolean',
     ];
 
     public function utilisateur()

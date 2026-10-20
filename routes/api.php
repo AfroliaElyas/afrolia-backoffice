@@ -134,7 +134,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/user/{id_utilisateur}', [ApiPaiementsController::class, 'getPaiementByUser']);
         Route::get('/reservation/{id_reservation}', [ApiPaiementsController::class, 'getPaiementStatusByReservation']);
         Route::get('/commande/{id_commande}', [ApiPaiementsController::class, 'getPaiementStatusByCommande']);
+        Route::get('/abonnement/{id_abonnement_paiement}', [ApiPaiementsController::class, 'getPaiementStatusByAbonnement']);
         Route::post('/', [ApiPaiementsController::class, 'store']);
+        Route::post('/abonnement', [ApiPaiementsController::class, 'storeAbonnement']);
     });
 
     Route::prefix('produits')->group(function () {

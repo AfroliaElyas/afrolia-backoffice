@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AbonnementPaiement;
 use App\Models\Commandes;
 use App\Models\Gains;
 use App\Models\Paiements;
@@ -108,6 +109,101 @@ class ApiPaiementsController extends Controller
                 'paiement' => $paiement,
             ],
         ]);
+    }
+
+    // ✅ 1quater. Statut d'un paiement d'abonnement (pour le polling client)
+    public function getPaiementStatusByAbonnement(Request $request, $id_abonnement_paiement)
+    {
+        $abonnementPaiement = AbonnementPaiement::find($id_abonnement_paiement);
+
+        if (!$abonnementPaiement) {
+            return response()->json(['success' => false, 'message' => 'Paiement d\'abonnement non trouvé'], 404);
+        }
+
+        if ((int) $abonnementPaiement->id_coiffeur !== (int) $request->user()->id_user_app) {
+            return response()->json(['success' => false, 'message' => 'Paiement d\'abonnement non trouvé'], 404);
+        }
+
+        $paiement = Paiements::where('id_abonnement_paiement', $id_abonnement_paiement)
+            ->latest()
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'statut_abonnement_paiement' => $abonnementPaiement->statut,
+                'formule_actuelle' => $request->user()->fresh()->formule_abonnement,
+                'paiement' => $paiement,
+            ],
+        ]);
+    }
+
+    // ✅ 2bis. Paiement direct (Stripe/Mobile Money) pour passer à une formule
+    // payante immédiatement, sans attendre d'avoir des gains disponibles sur
+    // la plateforme (contrairement à AbonnementService::preleverPour, utilisé
+    // lui pour le renouvellement mensuel automatique sur le solde de gains).
+    public function storeAbonnement(Request $request)
+    {
+        $rules = [
+            'formule' => 'required|string|in:' . implode(',', AbonnementService::FORMULES),
+            'methode' => 'sometimes|string|in:stripe,mobile_money',
+            'operateur' => 'required_if:methode,mobile_money|string|in:orange,mtn,moov',
+            'telephone' => 'required_if:methode,mobile_money|string',
+        ];
+
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($validator->errors()->all()),
+            ], 422);
+        }
+
+        $formule = $request->input('formule');
+        $prix = $this->abonnements->prix($formule);
+
+        if ($prix <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette formule ne nécessite aucun paiement.',
+            ], 422);
+        }
+
+        // Un abonnement se paie toujours pour l'utilisateur authentifié,
+        // jamais pour un id transmis par le client.
+        $coiffeuse = $request->user();
+
+        // Une nouvelle tentative (timeout réseau, écran relancé...) réutilise
+        // la demande déjà en attente plutôt que d'en empiler une nouvelle à
+        // chaque fois : storeStripePaiement()/storeMobileMoneyPaiement()
+        // dédoublonnent déjà le paiement lui-même, mais seulement pour un
+        // $paiementBase identique, donc il faut aussi réutiliser la même
+        // ligne abonnement_paiements d'un appel à l'autre.
+        $abonnementPaiement = AbonnementPaiement::where('id_coiffeur', $coiffeuse->id_user_app)
+            ->where('formule', $formule)
+            ->where('statut', 'en_attente')
+            ->latest('id_abonnement_paiement')
+            ->first();
+
+        if (!$abonnementPaiement) {
+            $abonnementPaiement = AbonnementPaiement::create([
+                'id_coiffeur' => $coiffeuse->id_user_app,
+                'formule' => $formule,
+                'montant' => $prix,
+                'statut' => 'en_attente',
+                'date_prelevement' => now(),
+            ]);
+        }
+
+        $paiementBase = ['id_abonnement_paiement' => $abonnementPaiement->id_abonnement_paiement];
+        $methode = $request->input('methode', 'stripe');
+
+        if ($methode === 'mobile_money') {
+            return $this->storeMobileMoneyPaiement($request, $paiementBase, $prix);
+        }
+
+        return $this->storeStripePaiement($request, $paiementBase, $prix);
     }
 
     // ✅ 2. Création d’un paiement (pour une réservation OU une commande boutique)
@@ -435,6 +531,11 @@ class ApiPaiementsController extends Controller
             'processed_at' => now(),
         ]);
 
+        if ($paiement->id_abonnement_paiement) {
+            $this->activerAbonnementPaye($paiement);
+            return;
+        }
+
         if ($paiement->id_commande) {
             $this->marquerCommandePayee($paiement);
             return;
@@ -463,6 +564,27 @@ class ApiPaiementsController extends Controller
             'montant_commission' => $commission,
             'montant_net' => $montant_net,
             'statut' => 'en_attente',
+        ]);
+    }
+
+    /**
+     * Idempotent : si une livraison en double du webhook arrive après coup,
+     * abonnement_paiements.statut n'est déjà plus "en_attente" et on
+     * n'active/ne renouvelle rien une seconde fois.
+     */
+    private function activerAbonnementPaye(Paiements $paiement): void
+    {
+        $abonnementPaiement = AbonnementPaiement::whereKey($paiement->id_abonnement_paiement)->lockForUpdate()->first();
+
+        if (!$abonnementPaiement || $abonnementPaiement->statut !== 'en_attente') {
+            return;
+        }
+
+        $abonnementPaiement->update(['statut' => 'reussi']);
+
+        UsersApp::where('id_user_app', $abonnementPaiement->id_coiffeur)->update([
+            'formule_abonnement' => $abonnementPaiement->formule,
+            'prochain_prelevement_le' => now()->addMonthNoOverflow(),
         ]);
     }
 
@@ -509,6 +631,13 @@ class ApiPaiementsController extends Controller
             'failure_reason' => $raison,
             'processed_at' => now(),
         ]);
+
+        if ($paiement->id_abonnement_paiement) {
+            AbonnementPaiement::whereKey($paiement->id_abonnement_paiement)
+                ->where('statut', 'en_attente')
+                ->update(['statut' => 'echec']);
+            return;
+        }
 
         if ($paiement->id_commande) {
             $this->annulerCommandeEtRestituerStock($paiement, $raison);

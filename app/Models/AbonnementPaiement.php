@@ -27,4 +27,9 @@ class AbonnementPaiement extends Model
     {
         return $this->belongsTo(UsersApp::class, 'id_coiffeur', 'id_user_app');
     }
+
+    public function paiement()
+    {
+        return $this->hasOne(Paiements::class, 'id_abonnement_paiement');
+    }
 }

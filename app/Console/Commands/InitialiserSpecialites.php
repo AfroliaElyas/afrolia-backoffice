@@ -46,6 +46,15 @@ class InitialiserSpecialites extends Command
         'Vanilles',
         'Départ de locks',
         'Entretien des locks',
+        // "À propos" mentionne explicitement les coiffeurs (hommes) comme
+        // professionnels de la plateforme, au même titre que les coiffeuses :
+        // le catalogue doit donc aussi couvrir la coiffure/barbier homme,
+        // pas seulement les prestations afro/femme ci-dessus (signalé le
+        // 20/10/2026).
+        'Coupe homme',
+        'Dégradé / Fade',
+        'Taille de barbe',
+        'Rasage',
     ];
 
     public function handle(): int

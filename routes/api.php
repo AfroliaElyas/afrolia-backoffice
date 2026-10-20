@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\ApiDashboardCoiffeuseController;
 use App\Http\Controllers\Api\ApiGainsCoiffeuseController;
 use App\Http\Controllers\Api\ApiLegalController;
 use App\Http\Controllers\Api\ApiLitigeController;
+use App\Http\Controllers\Api\ApiMessagesController;
 use App\Http\Controllers\Api\ApiPaiementsController;
 use App\Http\Controllers\Api\ApiProduitsController;
 use App\Http\Controllers\Api\ApiReservationsController;
@@ -126,7 +127,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/statistiques/{id_coiffeur}', [ApiReservationsController::class, 'reservationStatsByCoiffeur']);
 
         Route::get('/populaires/{id_coiffeur}', [ApiReservationsController::class, 'topServices']);
+
+        Route::get('/{id_reservation}/messages', [ApiMessagesController::class, 'index']);
+        Route::post('/{id_reservation}/messages', [ApiMessagesController::class, 'store']);
     });
+
+    Route::get('/messages/non-lus', [ApiMessagesController::class, 'nonLus']);
 
     // Le statut d'un paiement ne change que par webhook (Stripe / mobile
     // money) : pas de update()/destroy() ici.

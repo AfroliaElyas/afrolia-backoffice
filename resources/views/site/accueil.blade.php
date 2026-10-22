@@ -160,6 +160,7 @@ header.top{
 .store-badge .txt small{font-size:0.75rem;letter-spacing:.02em;opacity:.9;margin-top:2px;white-space:nowrap}
 
 section{padding-block:40px}
+section[id]{scroll-margin-top:84px}
 .section-head{text-align:center;max-width:46ch;margin:0 auto 26px}
 .section-head .eyebrow{
   display:block;
@@ -173,22 +174,12 @@ section{padding-block:40px}
 .section-head h2{font-size:clamp(1.5rem,4vw,2rem)}
 .section-head p{color:var(--fg-mute);margin-top:10px;font-size:0.98rem}
 
-.tracks{display:grid;gap:36px}
-@media (min-width:760px){ .tracks{grid-template-columns:1fr 1fr;gap:28px} }
 .track{
   background:var(--surface);
   border:1px solid var(--border);
   border-radius:20px;
   padding:28px 24px;
 }
-.track-title{display:flex;align-items:center;gap:10px;margin-bottom:22px}
-.track-title .dot{
-  width:30px;height:30px;border-radius:50%;
-  background:var(--accent);color:#fff;
-  display:flex;align-items:center;justify-content:center;
-  font-size:0.85rem;font-weight:700;flex:none;
-}
-.track-title h3{font-size:1.15rem}
 .step{display:flex;gap:14px;padding-block:12px}
 .step + .step{border-top:1px solid var(--border)}
 .step .num{
@@ -201,39 +192,68 @@ section{padding-block:40px}
 .step-body h4{font-size:0.98rem;font-weight:700;margin-bottom:3px}
 .step-body p{font-size:0.88rem;color:var(--fg-mute)}
 
-.phone-mock{flex:none;width:88px;border:3px solid var(--fg);border-radius:16px;background:var(--fg);padding:3px 3px 6px}
-.phone-mock .notch{width:26px;height:4px;border-radius:3px;background:rgba(255,255,255,.3);margin:3px auto 4px}
-.phone-screen{background:var(--surface);border-radius:11px;padding:8px 7px;display:flex;flex-direction:column;gap:6px;min-height:150px}
-.phone-screen .m-bar{font-size:0.52rem;font-weight:800;color:var(--fg);text-align:center;line-height:1.2}
-.phone-screen .m-input{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 5px;font-size:0.4rem;color:var(--fg-mute);line-height:1.2}
-.phone-screen .m-row{display:flex;align-items:center;gap:5px}
-.phone-screen .m-avatar{flex:none;width:14px;height:14px;border-radius:50%;background:var(--border)}
-.phone-screen .m-lines{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.phone-screen .m-line{height:4px;border-radius:2px;background:var(--border)}
-.phone-screen .m-line.w70{width:70%}
-.phone-screen .m-line.w60{width:60%}
-.phone-screen .m-line.w50{width:50%}
-.phone-screen .m-line.w40{width:40%}
-.phone-screen .m-line.w30{width:30%}
-.phone-screen .m-line.muted{background:rgba(146,64,14,.18)}
-.phone-screen .m-chips{display:flex;gap:4px;justify-content:center;margin-top:2px}
-.phone-screen .m-chip{width:12px;height:12px;border-radius:50%}
-.phone-screen .m-amount{text-align:center;margin-top:1px}
-.phone-screen .m-amount .label{font-size:0.38rem;color:var(--fg-mute)}
-.phone-screen .m-amount .value{font-size:0.62rem;font-weight:700;color:var(--fg)}
-.phone-screen .m-btn{background:var(--accent);color:#fff;border-radius:99px;font-size:0.4rem;font-weight:700;text-align:center;padding:4px 3px;margin-top:auto}
-.phone-screen .m-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
-.phone-screen .m-cal span{aspect-ratio:1;border-radius:2px;background:var(--border)}
-.phone-screen .m-cal span.on{background:var(--accent2)}
-.phone-screen .m-legend{display:flex;gap:4px;font-size:0.36rem;color:var(--fg-mute);align-items:center}
-.phone-screen .m-dot{width:6px;height:6px;border-radius:50%;flex:none}
-.phone-screen .m-price-row{display:flex;justify-content:space-between;align-items:center;gap:6px}
-.phone-screen .m-price-row .m-line{flex:1}
-.phone-screen .m-price{font-size:0.4rem;color:var(--fg-mute);flex:none}
-.phone-screen .m-actions{display:flex;gap:4px;margin-top:auto}
-.phone-screen .m-actions span{flex:1;text-align:center;border-radius:99px;padding:3px 2px;font-size:0.36rem;font-weight:700}
-.phone-screen .m-actions .refuse{border:1px solid var(--border);color:var(--fg-mute)}
-.phone-screen .m-actions .confirm{background:var(--accent);color:#fff}
+.preview-layout{display:grid;gap:32px;align-items:center}
+@media (min-width:760px){ .preview-layout{grid-template-columns:300px 1fr;gap:52px} }
+.preview-phone-wrap{display:flex;flex-direction:column;align-items:center;gap:14px}
+.preview-phone{
+  position:relative;
+  width:252px;max-width:72vw;
+  aspect-ratio:9/19.5;
+  margin:0 auto;
+  background:linear-gradient(155deg,#2a2a2c,#050506);
+  border-radius:46px;
+  padding:14px;
+  box-shadow:0 40px 70px -28px rgba(0,0,0,.5), inset 0 0 0 2px rgba(255,255,255,.07);
+}
+.preview-notch{
+  position:absolute;
+  top:24px;left:50%;transform:translateX(-50%);
+  width:80px;height:22px;
+  background:#050506;
+  border-radius:14px;
+  z-index:3;
+}
+.preview-screen{
+  position:relative;
+  width:100%;height:100%;
+  background:var(--surface);
+  border-radius:32px;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.preview-topbar{
+  display:flex;align-items:center;gap:7px;
+  padding:30px 16px 10px;
+  font-family:"Fraunces",serif;font-weight:600;font-size:0.92rem;color:var(--fg);
+  flex:none;
+}
+.preview-topbar img{width:18px;height:18px}
+.preview-photo-wrap{flex:1;min-height:0;position:relative;overflow:hidden}
+.preview-photo-wrap img{width:100%;height:100%;object-fit:cover;object-position:50% 30%;display:block}
+.preview-profile-name{
+  position:absolute;left:14px;bottom:12px;
+  color:#fff;font-weight:700;font-size:0.98rem;
+  text-shadow:0 2px 10px rgba(0,0,0,.45);
+}
+.preview-info{flex:none;padding:12px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.preview-prestation{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+  background:var(--bg);border:1px solid var(--border);border-radius:14px;
+  padding:10px 14px;
+}
+.preview-prestation strong{display:block;font-size:0.86rem;color:var(--fg);margin-bottom:1px}
+.preview-prestation .duree{font-size:0.7rem;color:var(--fg-mute)}
+.preview-prix{font-weight:700;color:var(--fg);font-size:0.84rem;white-space:nowrap;flex:none}
+.preview-btn{
+  background:var(--accent);color:#fff;text-align:center;
+  border-radius:99px;padding:12px;font-weight:700;font-size:0.88rem;
+  box-shadow:0 10px 20px -12px rgba(234,88,12,.55);
+}
+.preview-disclaimer{
+  font-size:0.72rem;color:var(--fg-mute);
+  background:var(--surface);border:1px solid var(--border);
+  padding:4px 14px;border-radius:99px;
+}
 
 .duo-photos{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .duo-photos img{border-radius:16px;aspect-ratio:3/4;object-fit:cover;width:100%}
@@ -383,10 +403,12 @@ footer ul a:hover{color:#fff}
 .footer-bottom p{color:rgba(255,255,255,.82);font-size:0.8rem;margin-bottom:4px}
 
 @media (max-width:600px){
+  .nav-right{flex-wrap:wrap;justify-content:flex-end;row-gap:8px;width:100%}
+  .nav-cta{white-space:normal;text-align:center;flex:1 1 100%;max-width:100%}
   .hero{padding-block:24px 18px}
   section{padding-block:20px}
   .section-head{margin-bottom:16px}
-  .tracks{gap:16px}
+  .preview-layout{gap:20px}
   .contact{padding:24px 18px}
   footer{padding-block:24px 14px}
   .footer-grid{gap:20px}
@@ -458,112 +480,53 @@ footer ul a:hover{color:#fff}
       <h2>{{ __('accueil.comment.titre') }}</h2>
       <p>{{ __('accueil.comment.texte') }}</p>
     </div>
-    <div class="tracks">
-      <div class="track">
-        <div class="track-title"><span class="dot">C</span><h3>{{ __('accueil.comment.clientes.titre') }}</h3></div>
-        <div class="step">
-          <span class="num">1</span>
-          <div class="step-body">
-            <h4>{{ __('accueil.comment.clientes.etape1_titre') }}</h4>
-            <p>{{ __('accueil.comment.clientes.etape1_texte') }}</p>
-          </div>
-          <div class="phone-mock">
-            <div class="notch"></div>
-            <div class="phone-screen">
-              <div class="m-bar">{{ __('accueil.comment.clientes.etape1_mock_bar') }}</div>
-              <div class="m-input">{{ __('accueil.comment.clientes.etape1_mock_input') }}</div>
-              <div class="m-row"><span class="m-avatar"></span><div class="m-lines"><span class="m-line w70"></span><span class="m-line w40 muted"></span></div></div>
-              <div class="m-row"><span class="m-avatar"></span><div class="m-lines"><span class="m-line w50"></span><span class="m-line w30 muted"></span></div></div>
+    <div class="preview-layout">
+      <div class="preview-phone-wrap">
+        <div class="preview-phone">
+          <div class="preview-notch"></div>
+          <div class="preview-screen">
+            <div class="preview-topbar">
+              <img src="{{ asset('images/afrolia-logo.png') }}" alt="">
+              <span>Afrolia</span>
             </div>
-          </div>
-        </div>
-        <div class="step">
-          <span class="num">2</span>
-          <div class="step-body">
-            <h4>{{ __('accueil.comment.clientes.etape2_titre') }}</h4>
-            <p>{{ __('accueil.comment.clientes.etape2_texte') }}</p>
-          </div>
-          <div class="phone-mock">
-            <div class="notch"></div>
-            <div class="phone-screen">
-              <div class="m-bar">{{ __('accueil.comment.clientes.etape2_mock_bar') }}</div>
-              <div class="m-row"><span class="m-avatar"></span><div class="m-lines"><span class="m-line w60"></span><span class="m-line w40 muted"></span></div></div>
-              <div class="m-price-row"><span class="m-line w40"></span><span class="m-price">—</span></div>
-              <div class="m-price-row"><span class="m-line w50"></span><span class="m-price">—</span></div>
+            <div class="preview-photo-wrap">
+              <img src="{{ asset('images/site/coiffure-tresses.jpg') }}" alt="{{ __('accueil.comment.preview_photo_alt') }}">
+              <span class="preview-profile-name">{{ __('accueil.comment.preview_nom') }}</span>
             </div>
-          </div>
-        </div>
-        <div class="step">
-          <span class="num">3</span>
-          <div class="step-body">
-            <h4>{{ __('accueil.comment.clientes.etape3_titre') }}</h4>
-            <p>{{ __('accueil.comment.clientes.etape3_texte') }}</p>
-          </div>
-          <div class="phone-mock">
-            <div class="notch"></div>
-            <div class="phone-screen">
-              <div class="m-bar">{{ __('accueil.comment.clientes.etape3_mock_bar') }}</div>
-              <div class="m-chips">
-                <span class="m-chip" style="background:#00A9E0"></span>
-                <span class="m-chip" style="background:#FF6600"></span>
-                <span class="m-chip" style="background:#FFCC00"></span>
-                <span class="m-chip" style="background:#0066B3"></span>
+            <div class="preview-info">
+              <div class="preview-prestation">
+                <div>
+                  <strong>{{ __('accueil.comment.preview_prestation_nom') }}</strong>
+                  <span class="duree">{{ __('accueil.comment.preview_prestation_duree') }}</span>
+                </div>
+                <span class="preview-prix">{{ __('accueil.comment.preview_prestation_prix') }}</span>
               </div>
-              <div class="m-amount"><div class="label">{{ __('accueil.comment.clientes.etape3_mock_montant') }}</div><div class="value">—</div></div>
-              <div class="m-btn">{{ __('accueil.comment.clientes.etape3_mock_payer') }}</div>
+              <div class="preview-btn">{{ __('accueil.comment.preview_reserver') }}</div>
             </div>
           </div>
         </div>
+        <span class="preview-disclaimer">{{ __('accueil.comment.preview_disclaimer') }}</span>
       </div>
       <div class="track">
-        <div class="track-title"><span class="dot">P</span><h3>{{ __('accueil.comment.coiffeuses.titre') }}</h3></div>
         <div class="step">
           <span class="num">1</span>
           <div class="step-body">
-            <h4>{{ __('accueil.comment.coiffeuses.etape1_titre') }}</h4>
-            <p>{{ __('accueil.comment.coiffeuses.etape1_texte') }}</p>
-          </div>
-          <div class="phone-mock">
-            <div class="notch"></div>
-            <div class="phone-screen">
-              <div class="m-bar">{{ __('accueil.comment.coiffeuses.etape1_mock_bar') }}</div>
-              <div class="m-price-row"><span class="m-line w50"></span><span class="m-price">—</span></div>
-              <div class="m-price-row"><span class="m-line w60"></span><span class="m-price">—</span></div>
-              <div class="m-btn">{{ __('accueil.comment.coiffeuses.etape1_mock_ajouter') }}</div>
-            </div>
+            <h4>{{ __('accueil.comment.etape1_titre') }}</h4>
+            <p>{{ __('accueil.comment.etape1_texte') }}</p>
           </div>
         </div>
         <div class="step">
           <span class="num">2</span>
           <div class="step-body">
-            <h4>{{ __('accueil.comment.coiffeuses.etape2_titre') }}</h4>
-            <p>{{ __('accueil.comment.coiffeuses.etape2_texte') }}</p>
-          </div>
-          <div class="phone-mock">
-            <div class="notch"></div>
-            <div class="phone-screen">
-              <div class="m-bar">{{ __('accueil.comment.coiffeuses.etape2_mock_bar') }}</div>
-              <div class="m-cal">
-                <span class="on"></span><span class="on"></span><span></span><span class="on"></span><span></span><span class="on"></span><span></span>
-                <span></span><span class="on"></span><span class="on"></span><span></span><span class="on"></span><span></span><span class="on"></span>
-              </div>
-              <div class="m-legend"><span class="m-dot" style="background:var(--accent2)"></span>{{ __('accueil.comment.coiffeuses.etape2_mock_legende') }}</div>
-            </div>
+            <h4>{{ __('accueil.comment.etape2_titre') }}</h4>
+            <p>{{ __('accueil.comment.etape2_texte') }}</p>
           </div>
         </div>
         <div class="step">
           <span class="num">3</span>
           <div class="step-body">
-            <h4>{{ __('accueil.comment.coiffeuses.etape3_titre') }}</h4>
-            <p>{{ __('accueil.comment.coiffeuses.etape3_texte') }}</p>
-          </div>
-          <div class="phone-mock">
-            <div class="notch"></div>
-            <div class="phone-screen">
-              <div class="m-bar">{{ __('accueil.comment.coiffeuses.etape3_mock_bar') }}</div>
-              <div class="m-row"><span class="m-avatar"></span><div class="m-lines"><span class="m-line w60"></span><span class="m-line w40 muted"></span></div></div>
-              <div class="m-actions"><span class="refuse">{{ __('accueil.comment.coiffeuses.etape3_mock_refuser') }}</span><span class="confirm">{{ __('accueil.comment.coiffeuses.etape3_mock_confirmer') }}</span></div>
-            </div>
+            <h4>{{ __('accueil.comment.etape3_titre') }}</h4>
+            <p>{{ __('accueil.comment.etape3_texte') }}</p>
           </div>
         </div>
       </div>

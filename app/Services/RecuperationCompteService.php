@@ -45,6 +45,18 @@ class RecuperationCompteService
     }
 
     /**
+     * Vérifie qu'un jeton de vérification d'e-mail est valable, sans le
+     * consommer. Sert à afficher la page de confirmation (avec son bouton)
+     * sans invalider le lien si un scanner anti-hameçonnage de la
+     * messagerie (Outlook/Hotmail notamment) l'ouvre automatiquement avant
+     * la personne elle-même.
+     */
+    public function jetonVerificationValide(string $tokenBrut): bool
+    {
+        return $this->trouverJetonValide($tokenBrut, 'verification_email') !== null;
+    }
+
+    /**
      * Consomme un jeton de vérification d'e-mail. Retourne true si
      * l'e-mail a bien été marqué vérifié.
      */

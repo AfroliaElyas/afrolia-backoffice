@@ -75,6 +75,8 @@ Route::get('forgot', function () {
 // tentatives répétées de deviner un jeton.
 Route::get('verifier-email/{token}', [RecuperationCompteController::class, 'verifierEmail'])
     ->middleware('throttle:20,1');
+Route::post('verifier-email/{token}', [RecuperationCompteController::class, 'confirmerVerificationEmail'])
+    ->middleware('throttle:20,1');
 Route::get('reinitialiser-mot-de-passe/{token}', [RecuperationCompteController::class, 'formulaireReinitialisation'])
     ->middleware('throttle:20,1');
 Route::post('reinitialiser-mot-de-passe/{token}', [RecuperationCompteController::class, 'traiterReinitialisation'])

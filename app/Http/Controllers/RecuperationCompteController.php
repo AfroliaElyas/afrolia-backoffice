@@ -17,11 +17,36 @@ class RecuperationCompteController extends Controller
     {
     }
 
+    /**
+     * N'affiche qu'une page de confirmation (avec un bouton à cliquer) sans
+     * consommer le jeton : certains clients mail (Outlook/Hotmail) ouvrent
+     * automatiquement les liens reçus pour les scanner, ce qui invaliderait
+     * un lien à usage unique avant même que la personne ne le voie.
+     */
     public function verifierEmail(string $token)
+    {
+        $valide = $this->service->jetonVerificationValide($token);
+
+        return view('recuperation.verification-email', [
+            'valide' => $valide,
+            'reussi' => false,
+            'token' => $token,
+        ]);
+    }
+
+    /**
+     * Ce POST, déclenché uniquement par un vrai clic sur le bouton de la
+     * page de confirmation, consomme le jeton pour de bon.
+     */
+    public function confirmerVerificationEmail(string $token)
     {
         $reussi = $this->service->verifierEmailAvecJeton($token);
 
-        return view('recuperation.verification-email', ['reussi' => $reussi]);
+        return view('recuperation.verification-email', [
+            'valide' => $reussi,
+            'reussi' => $reussi,
+            'token' => $token,
+        ]);
     }
 
     public function formulaireReinitialisation(string $token)

@@ -151,8 +151,12 @@ class RecuperationCompteTest extends TestCase
         Mail::assertNothingSent();
     }
 
-    public function test_cliquer_le_lien_de_verification_marque_lemail_verifie(): void
+    public function test_ouvrir_le_lien_de_verification_ne_consomme_pas_le_jeton(): void
     {
+        // Un simple GET (par exemple un scanner anti-hameçonnage d'Outlook/
+        // Hotmail qui ouvre automatiquement les liens reçus par e-mail) ne
+        // doit jamais marquer le jeton comme utilisé : seul un vrai clic
+        // sur le bouton de confirmation (POST) le fait.
         $utilisateur = $this->creerUtilisateur(['email' => 'test@example.com']);
         $tokenBrut = 'jeton-de-test-1234567890';
         ActionToken::create([
@@ -163,6 +167,23 @@ class RecuperationCompteTest extends TestCase
         ]);
 
         $response = $this->get("/verifier-email/{$tokenBrut}");
+
+        $response->assertStatus(200)->assertSee('Confirmer');
+        $this->assertNull($utilisateur->fresh()->email_verified_at);
+    }
+
+    public function test_confirmer_le_lien_de_verification_marque_lemail_verifie(): void
+    {
+        $utilisateur = $this->creerUtilisateur(['email' => 'test@example.com']);
+        $tokenBrut = 'jeton-de-test-1234567890';
+        ActionToken::create([
+            'id_user_app' => $utilisateur->id_user_app,
+            'type' => 'verification_email',
+            'token_hash' => hash('sha256', $tokenBrut),
+            'expire_le' => now()->addHours(24),
+        ]);
+
+        $response = $this->post("/verifier-email/{$tokenBrut}");
 
         $response->assertStatus(200)->assertSee('confirmée');
         $this->assertNotNull($utilisateur->fresh()->email_verified_at);
@@ -181,7 +202,9 @@ class RecuperationCompteTest extends TestCase
         ]);
 
         $response = $this->get("/verifier-email/{$tokenBrut}");
+        $response->assertStatus(200)->assertSee('invalide');
 
+        $response = $this->post("/verifier-email/{$tokenBrut}");
         $response->assertStatus(200)->assertSee('invalide');
     }
 
@@ -197,7 +220,9 @@ class RecuperationCompteTest extends TestCase
         ]);
 
         $response = $this->get("/verifier-email/{$tokenBrut}");
+        $response->assertStatus(200)->assertSee('invalide');
 
+        $response = $this->post("/verifier-email/{$tokenBrut}");
         $response->assertStatus(200)->assertSee('invalide');
         $this->assertNull($utilisateur->fresh()->email_verified_at);
     }

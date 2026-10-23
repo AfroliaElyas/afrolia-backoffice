@@ -44,4 +44,34 @@ class AdminComptesCommandsTest extends TestCase
             ->assertExitCode(1)
             ->expectsOutputToContain('Aucun compte admin trouvé');
     }
+
+    public function test_reinitialiser_mot_de_passe_accepte_un_mot_de_passe_choisi(): void
+    {
+        $utilisateur = User::create(['name' => 'Ruth', 'email' => 'ruth@example.com', 'password' => Hash::make('ancien')]);
+
+        $this->artisan('admin:reinitialiser-mot-de-passe', [
+            'email' => 'ruth@example.com',
+            'motdepasse' => 'MonChoixPerso123',
+        ])
+            ->assertExitCode(0)
+            ->expectsOutputToContain('Mot de passe mis à jour');
+
+        $utilisateur->refresh();
+        $this->assertTrue(Hash::check('MonChoixPerso123', $utilisateur->password));
+    }
+
+    public function test_reinitialiser_mot_de_passe_refuse_un_mot_de_passe_trop_court(): void
+    {
+        $utilisateur = User::create(['name' => 'Ruth', 'email' => 'ruth@example.com', 'password' => Hash::make('ancien')]);
+
+        $this->artisan('admin:reinitialiser-mot-de-passe', [
+            'email' => 'ruth@example.com',
+            'motdepasse' => 'court',
+        ])
+            ->assertExitCode(1)
+            ->expectsOutputToContain('au moins 8 caractères');
+
+        $utilisateur->refresh();
+        $this->assertTrue(Hash::check('ancien', $utilisateur->password));
+    }
 }

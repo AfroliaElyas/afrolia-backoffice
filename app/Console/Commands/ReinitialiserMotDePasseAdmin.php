@@ -11,14 +11,16 @@ use Illuminate\Support\Str;
  * Le compte admin (back-office) n'a pas de "mot de passe oublié" en
  * self-service (contrairement aux comptes client/coiffeuse de l'app) ; cette
  * commande donne un moyen sûr de reprendre la main sans passer par Tinker en
- * production. Le nouveau mot de passe est généré aléatoirement et affiché
- * une seule fois dans la sortie de la commande : à changer après connexion.
+ * production. Un mot de passe choisi peut être fourni directement (demandé
+ * le 23/10/2026 : recopier un mot de passe généré à la main est source
+ * d'erreurs de frappe) ; sans argument, un mot de passe aléatoire est
+ * généré et affiché une seule fois dans la sortie de la commande.
  */
 class ReinitialiserMotDePasseAdmin extends Command
 {
-    protected $signature = 'admin:reinitialiser-mot-de-passe {email}';
+    protected $signature = 'admin:reinitialiser-mot-de-passe {email} {motdepasse?}';
 
-    protected $description = "Génère un nouveau mot de passe aléatoire pour un compte admin existant";
+    protected $description = "Définit (ou génère) un nouveau mot de passe pour un compte admin existant";
 
     public function handle(): int
     {
@@ -31,12 +33,23 @@ class ReinitialiserMotDePasseAdmin extends Command
             return self::FAILURE;
         }
 
-        $nouveauMotDePasse = Str::password(16);
+        $motDePasseChoisi = $this->argument('motdepasse');
+
+        if ($motDePasseChoisi !== null && mb_strlen($motDePasseChoisi) < 8) {
+            $this->error('Le mot de passe doit contenir au moins 8 caractères.');
+            return self::FAILURE;
+        }
+
+        $nouveauMotDePasse = $motDePasseChoisi ?? Str::password(16);
         $utilisateur->update(['password' => Hash::make($nouveauMotDePasse)]);
 
-        $this->info("Mot de passe réinitialisé pour {$utilisateur->email}.");
-        $this->warn("Nouveau mot de passe (à noter maintenant, il ne sera plus jamais affiché) :");
-        $this->line($nouveauMotDePasse);
+        if ($motDePasseChoisi !== null) {
+            $this->info("Mot de passe mis à jour pour {$utilisateur->email}.");
+        } else {
+            $this->info("Mot de passe réinitialisé pour {$utilisateur->email}.");
+            $this->warn("Nouveau mot de passe (à noter maintenant, il ne sera plus jamais affiché) :");
+            $this->line($nouveauMotDePasse);
+        }
 
         return self::SUCCESS;
     }

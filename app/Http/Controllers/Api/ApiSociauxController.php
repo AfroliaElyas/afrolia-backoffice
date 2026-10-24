@@ -132,7 +132,7 @@ class ApiSociauxController extends Controller
                 }
 
                 // 🔗 URL publique
-                $photoUrl = url('afrolia/public/salon/gallery/' . $photoName);
+                $photoUrl = url('salon/gallery/' . $photoName);
 
                 $createdImages[] = Gallery::create([
                     'id_utilisateur' => $id_utilisateur,
@@ -210,7 +210,7 @@ class ApiSociauxController extends Controller
             $timestamp = Carbon::now()->format('Ymd_His');
             $photoName = 'gallery_' . $timestamp . '_' . uniqid() . '.' . $request->file('image')->getClientOriginalExtension();
             $request->file('image')->move(public_path('salon/gallery'), $photoName);
-            $gallery->image = url('afrolia/public/salon/gallery/' . $photoName);
+            $gallery->image = url('salon/gallery/' . $photoName);
         }
 
         if ($request->filled('description')) {

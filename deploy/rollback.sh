@@ -68,9 +68,13 @@ case "$DB_CONN" in
         ;;
 esac
 
-echo "==> [3/3] Redémarrage"
+echo "==> [3/3] Redémarrage et remise en ligne"
 php artisan config:cache
 php artisan route:cache
 php artisan queue:restart
+# forge-deploy.sh laisse volontairement le site en maintenance quand la
+# migration échoue (voir son étape 6) : c'est ici, une fois le code et la
+# base effectivement cohérents, qu'on le remet en ligne.
+php artisan up
 
-echo "Restauration terminée : code à $PREVIOUS_SHA, base restaurée depuis $BACKUP_FILE."
+echo "Restauration terminée : code à $PREVIOUS_SHA, base restaurée depuis $BACKUP_FILE, site de nouveau en ligne."

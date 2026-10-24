@@ -9,29 +9,24 @@
 # Logique, dans l'ordre :
 #   1. Sauvegarde la base de données et VÉRIFIE que la sauvegarde est
 #      exploitable avant de toucher à quoi que ce soit d'autre.
-#   2. Récupère le nouveau code, installe les dépendances, puis rejoue les
-#      tests automatiques comme filet de sécurité final (la vérification
-#      principale a déjà eu lieu dans GitHub Actions avant que cette
+#   2. Récupère le nouveau code et installe les dépendances. Les tests
+#      automatiques ne sont PAS rejoués ici (demandé le 24/10/2026) : la
+#      seule vérification a lieu dans GitHub Actions, avant que la
 #      branche ait pu être fusionnée dans main — voir
-#      deploy/README-deploiement.md). Ces tests ne peuvent pas toucher à
-#      la vraie base ni aux vrais Stripe/Jèko : voir phpunit.xml
-#      (force="true") et AppServiceProvider (gateways bloqués en
-#      environnement "testing"). Le site reste normalement accessible
-#      pendant cette phase (le mode maintenance la casserait : les tests
-#      HTTP recevraient 503, testé et corrigé le 24/10/2026) — à n'importe
-#      quelle étape jusqu'ici, un échec restaure automatiquement le code
-#      précédent (git reset), sans aucun risque pour les données.
-#   3. Seulement une fois les tests passés : met le site en maintenance
-#      (page d'attente propre) pour la partie réellement risquée — la
+#      deploy/README-deploiement.md pour la règle de protection de
+#      branche qui rend ça obligatoire. Si la récupération du code ou
+#      l'installation échoue, restaure automatiquement le code précédent
+#      (git reset), sans aucun risque pour les données.
+#   3. Une fois le code en place : met le site en maintenance (page
+#      d'attente propre) pour la partie réellement risquée — la
 #      migration et le redémarrage des services — et le remet en ligne
 #      automatiquement à la sortie du script, SAUF en cas d'échec de
 #      migration, où rester en maintenance est plus sûr qu'exposer un
 #      site dont le code et la base ne correspondent plus.
-#   4. Si c'est la migration qui échoue (rare, après des tests pourtant
-#      réussis) : le script s'arrête, laisse le site en maintenance, et
-#      affiche exactement quoi exécuter dans deploy/rollback.sh — une
-#      restauration automatique de la base à ce stade serait plus
-#      risquée qu'utile.
+#   4. Si c'est la migration qui échoue : le script s'arrête, laisse le
+#      site en maintenance, et affiche exactement quoi exécuter dans
+#      deploy/rollback.sh — une restauration automatique de la base à ce
+#      stade serait plus risquée qu'utile.
 #   5. Sinon, redémarre les services et remet le site en ligne.
 
 set -e
@@ -51,7 +46,7 @@ get_env() {
     grep -E "^$1=" .env | head -n1 | cut -d '=' -f2- | tr -d '"'
 }
 
-echo "==> [1/7] Sauvegarde de la base de données avant toute modification"
+echo "==> [1/5] Sauvegarde de la base de données avant toute modification"
 DB_CONN=$(get_env DB_CONNECTION)
 DB_HOST_V=$(get_env DB_HOST)
 DB_PORT_V=$(get_env DB_PORT)
@@ -111,46 +106,27 @@ restaurer_code_precedent_et_quitter() {
     exit 1
 }
 
-echo "==> [2/7] Récupération du code ($FORGE_SITE_BRANCH)"
+echo "==> [2/5] Récupération du code ($FORGE_SITE_BRANCH)"
 git pull origin "$FORGE_SITE_BRANCH" || restaurer_code_precedent_et_quitter "ÉCHEC DE LA RÉCUPÉRATION DU CODE"
 
-# Installation AVEC les dépendances de dev (donc PHPUnit/Pest) : artisan
-# test en a besoin pour tourner. --no-dev est appliqué seulement après coup,
-# une fois les tests passés, pour la version qui tourne réellement en
-# production. Sans ça, cette étape échouait toujours : "artisan test"
-# dépend d'un paquet retiré par --no-dev juste avant (relevé en revue le
-# 24/10/2026).
-echo "==> [3/7] Installation des dépendances (avec les outils de test)"
-$FORGE_COMPOSER install --no-interaction --prefer-dist --optimize-autoloader \
+# Pas de --no-dev à retirer après coup : les tests ne tournent plus ici
+# (voir l'en-tête du fichier), donc l'installation de production se fait
+# directement en une seule fois.
+echo "==> [3/5] Installation des dépendances"
+$FORGE_COMPOSER install --no-dev --no-interaction --prefer-dist --optimize-autoloader \
     || restaurer_code_precedent_et_quitter "ÉCHEC DE L'INSTALLATION DES DÉPENDANCES"
 
-# Le site reste normalement en ligne pendant ce test : le mode maintenance
-# n'est volontairement activé qu'après (voir plus bas), parce qu'il ferait
-# échouer les tests HTTP eux-mêmes (503 systématique, constaté et corrigé
-# le 24/10/2026 — le fichier de maintenance de Laravel s'applique à toute
-# requête, y compris celles des tests). Ces tests tournent sur une base de
-# données isolée en mémoire et ne peuvent pas appeler les vrais Stripe/Jèko
-# (voir phpunit.xml et AppServiceProvider), donc sans danger pour la
-# production même pendant qu'elle reste accessible.
-echo "==> [4/7] Vérification finale (filet de sécurité)"
-$FORGE_PHP artisan test || restaurer_code_precedent_et_quitter "ÉCHEC DES TESTS APRÈS MISE À JOUR DU CODE"
-
-# Les tests ont tourné avec les outils de dev présents ; on repasse sur
-# l'installation de production (sans ces outils) avant de toucher à la base.
-echo "==> [5/7] Réinstallation sans les outils de développement (production)"
-$FORGE_COMPOSER install --no-dev --no-interaction --prefer-dist --optimize-autoloader \
-    || restaurer_code_precedent_et_quitter "ÉCHEC DE LA RÉINSTALLATION DE PRODUCTION"
-
-# À partir d'ici seulement : le code est déjà validé par les tests, il ne
-# reste que la migration et le redémarrage, la partie réellement risquée
-# pour les visiteurs (schéma de base et code temporairement désynchronisés).
-# Remis en ligne automatiquement à la sortie du script grâce au trap — sauf
-# en cas d'échec de migration, qui le retire volontairement pour laisser
-# le site en maintenance (voir plus bas).
+# À partir d'ici : le code vient de GitHub Actions, déjà vérifié (branche
+# protégée, voir deploy/README-deploiement.md) ; il ne reste que la
+# migration et le redémarrage, la partie réellement risquée pour les
+# visiteurs (schéma de base et code temporairement désynchronisés). Remis
+# en ligne automatiquement à la sortie du script grâce au trap — sauf en
+# cas d'échec de migration, qui le retire volontairement pour laisser le
+# site en maintenance (voir plus bas).
 $FORGE_PHP artisan down --retry=30 2>/dev/null || true
 trap '$FORGE_PHP artisan up 2>/dev/null || true' EXIT
 
-echo "==> [6/7] Mise en maintenance effectuée, mise à jour de la base de données"
+echo "==> [4/5] Mise en maintenance effectuée, mise à jour de la base de données"
 if ! $FORGE_PHP artisan migrate --force; then
     echo "ÉCHEC DE LA MIGRATION — le code est resté sur la nouvelle version mais la base peut être incohérente."
     echo "Le site reste volontairement EN MAINTENANCE (pas de remise en ligne automatique ici) pour ne jamais exposer cet état intermédiaire."
@@ -161,7 +137,7 @@ if ! $FORGE_PHP artisan migrate --force; then
     exit 1
 fi
 
-echo "==> [7/7] Redémarrage des services"
+echo "==> [5/5] Redémarrage des services"
 ( flock -w 10 9 || exit 1
     sudo -S service "$FORGE_PHP_FPM" reload ) 9>/tmp/fpmlock
 

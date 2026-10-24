@@ -25,6 +25,11 @@
 #   6. Sinon, redémarre les services normalement.
 
 set -e
+set -o pipefail
+# pipefail est indispensable ici : sans lui, "mysqldump ... | gzip > fichier"
+# renvoie le code de sortie de gzip (qui réussit même si mysqldump a échoué
+# avant lui, ex. identifiants refusés), pas celui de mysqldump — un échec de
+# sauvegarde passerait alors inaperçu (relevé en revue le 24/10/2026).
 
 BACKUP_DIR="$HOME/backups/afrolia-db"
 mkdir -p "$BACKUP_DIR"
@@ -81,8 +86,14 @@ ls -1t "$BACKUP_DIR"/afrolia-db-*.sql.gz 2>/dev/null | tail -n +11 | xargs -r rm
 echo "==> [2/6] Récupération du code ($FORGE_SITE_BRANCH)"
 git pull origin "$FORGE_SITE_BRANCH"
 
-echo "==> [3/6] Installation des dépendances"
-$FORGE_COMPOSER install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+# Installation AVEC les dépendances de dev (donc PHPUnit/Pest) : artisan
+# test en a besoin pour tourner. --no-dev est appliqué seulement après coup,
+# une fois les tests passés, pour la version qui tourne réellement en
+# production. Sans ça, cette étape échouait toujours : "artisan test"
+# dépend d'un paquet retiré par --no-dev juste avant (relevé en revue le
+# 24/10/2026).
+echo "==> [3/6] Installation des dépendances (avec les outils de test)"
+$FORGE_COMPOSER install --no-interaction --prefer-dist --optimize-autoloader
 
 echo "==> [4/6] Vérification finale (filet de sécurité)"
 if ! $FORGE_PHP artisan test; then
@@ -93,6 +104,11 @@ if ! $FORGE_PHP artisan test; then
     echo "Sauvegarde conservée au cas où : $BACKUP_FILE"
     exit 1
 fi
+
+# Les tests ont tourné avec les outils de dev présents ; on repasse sur
+# l'installation de production (sans ces outils) avant de toucher à la base.
+echo "==> [4b/6] Réinstallation sans les outils de développement (production)"
+$FORGE_COMPOSER install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
 echo "==> [5/6] Mise à jour de la base de données"
 if ! $FORGE_PHP artisan migrate --force; then

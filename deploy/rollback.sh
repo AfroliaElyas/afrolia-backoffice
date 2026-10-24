@@ -14,6 +14,10 @@
 # de l'échec.
 
 set -e
+set -o pipefail
+# Même raison que dans forge-deploy.sh : "gunzip -c fichier | mysql ..."
+# doit remonter l'échec de n'importe quel maillon du pipeline, pas
+# seulement du dernier.
 
 BACKUP_FILE="$1"
 PREVIOUS_SHA="$2"

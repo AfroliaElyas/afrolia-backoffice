@@ -7,6 +7,7 @@ use App\Models\Gallery;
 use App\Models\Sociaux;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class ApiSociauxController extends Controller
@@ -98,17 +99,37 @@ class ApiSociauxController extends Controller
 
         $id_utilisateur = $request->user()->id_user_app;
         $createdImages = [];
+        $echecs = [];
 
         // 🔁 Parcourir chaque image reçue
         foreach ($request->images as $index => $img) {
             $file = $request->file("images.$index.image");
 
-            if ($file && $file->isValid()) {
+            if (!$file || !$file->isValid()) {
+                $echecs[] = "Image #" . ((int) $index + 1) . " : fichier invalide ou non reçu.";
+                continue;
+            }
+
+            try {
+                $dossier = public_path('salon/gallery');
                 $timestamp = Carbon::now()->format('Ymd_His');
                 $photoName = 'gallery_' . $timestamp . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
 
                 // 📂 Enregistre dans public/salon/gallery
-                $file->move(public_path('salon/gallery'), $photoName);
+                $file->move($dossier, $photoName);
+
+                $cheminReel = $dossier . DIRECTORY_SEPARATOR . $photoName;
+
+                // Vérifie que le fichier existe réellement là où on s'apprête à
+                // dire qu'il se trouve — un move() qui réussit sans exception
+                // peut tout de même ne pas produire un fichier lisible par le
+                // serveur web (permissions, disque différent), ce qui créait
+                // jusqu'ici une ligne en base pointant vers une image qui
+                // n'existe pas, sans jamais le signaler (constaté le
+                // 24/10/2026 : galerie affichant des icônes d'image cassée).
+                if (!is_file($cheminReel)) {
+                    throw new \RuntimeException("Le fichier n'existe pas après l'enregistrement : {$cheminReel}");
+                }
 
                 // 🔗 URL publique
                 $photoUrl = url('afrolia/public/salon/gallery/' . $photoName);
@@ -118,12 +139,28 @@ class ApiSociauxController extends Controller
                     'image' => $photoUrl,
                     'description' => $img['description'] ?? '',
                 ]);
+            } catch (\Throwable $e) {
+                Log::error('Échec de l\'enregistrement d\'une photo de galerie', [
+                    'id_utilisateur' => $id_utilisateur,
+                    'index' => $index,
+                    'erreur' => $e->getMessage(),
+                ]);
+                $echecs[] = "Image #" . ((int) $index + 1) . " : " . $e->getMessage();
             }
+        }
+
+        if (empty($createdImages)) {
+            return response()->json([
+                'success' => false,
+                'message' => $echecs ?: ['Aucune image n\'a pu être enregistrée.'],
+            ], 500);
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Images ajoutées avec succès',
+            'message' => $echecs
+                ? 'Certaines images ont été ajoutées, d\'autres ont échoué : ' . implode(' ', $echecs)
+                : 'Images ajoutées avec succès',
             'data' => $createdImages
         ]);
     }

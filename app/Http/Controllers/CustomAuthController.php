@@ -10,10 +10,22 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Str;
 
 class CustomAuthController extends Controller
 {
+    /**
+     * 5 essais par minute, par couple e-mail + IP : assez pour une vraie
+     * erreur de frappe, trop peu pour un essai systématique de mots de
+     * passe (faille relevée par Emergent AI le 25/10/2026 — aucune limite
+     * n'existait avant). Combiner e-mail et IP évite qu'un visiteur sur la
+     * même IP (réseau partagé) ne bloque les autres.
+     */
+    private const MAX_TENTATIVES_CONNEXION = 5;
+    private const DUREE_BLOCAGE_SECONDES = 60;
+
     public function index()
     {
         return view('auth.sign-in');
@@ -32,13 +44,25 @@ class CustomAuthController extends Controller
 
         $request->validate($roles, $customMessages);
 
+        $cleLimitation = Str::lower($request->input('email')) . '|' . $request->ip();
+
+        if (RateLimiter::tooManyAttempts($cleLimitation, self::MAX_TENTATIVES_CONNEXION)) {
+            $secondesRestantes = RateLimiter::availableIn($cleLimitation);
+
+            return back()->withErrors([
+                "Trop de tentatives de connexion. Réessayez dans {$secondesRestantes} secondes.",
+            ]);
+        }
+
         $credentials = $request->only('email', 'password');
         $user = User::where('email', $credentials['email'])->first();
 
         if ($user && Hash::check($credentials['password'], $user->password)) {
+            RateLimiter::clear($cleLimitation);
             Auth::login($user);
             return redirect()->intended('index');
         } else {
+            RateLimiter::hit($cleLimitation, self::DUREE_BLOCAGE_SECONDES);
             return back()->withErrors(['E-mail ou mot de passe incorrect.']);
         }
     }

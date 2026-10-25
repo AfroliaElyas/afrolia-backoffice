@@ -37,6 +37,19 @@ class UsersApp extends Model implements AuthenticatableContract
         'payout_operateur',
     ];
 
+    /**
+     * Attributs jamais inclus quand ce modèle est converti en JSON — sans
+     * ça, le mot de passe haché (et le remember_token, hérité de
+     * Authenticatable) partent dans toute réponse API qui renvoie
+     * l'utilisateur authentifié tel quel (ex. GET /user).
+     *
+     * @var list<string>
+     */
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
     protected $table = 'users_app';
 
     protected $primaryKey = 'id_user_app';

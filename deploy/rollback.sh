@@ -1,29 +1,38 @@
 #!/usr/bin/env bash
 #
-# Restauration manuelle après un déploiement raté dont forge-deploy.sh
-# n'a pas pu se remettre tout seul (typiquement : une migration a
-# échoué après avoir déjà modifié la base — voir l'étape 5 de
-# forge-deploy.sh). N'efface jamais rien avant d'avoir confirmé que la
-# sauvegarde donnée existe et semble valide.
+# Restauration manuelle après un déploiement Zero-Downtime (Forge) raté
+# dont le filet de sécurité intégré n'a pas pu se rattraper tout seul —
+# typiquement une migration qui a échoué après avoir déjà modifié la
+# base (voir l'étape correspondante du script de déploiement).
 #
-# Utilisation (depuis l'onglet "Commands" de Forge, ou en SSH, dans le
-# dossier du site) :
-#   bash deploy/rollback.sh /home/forge/backups/afrolia-db/afrolia-db-XXXXXXXX_XXXXXX.sql.gz <sha-git-precedent>
+# Contrairement à l'ancienne version de ce fichier (modèle "en place",
+# avec git reset), il n'y a rien à restaurer côté code avec git : Forge
+# garde déjà les anciennes versions sur le disque (dossier "releases"),
+# il suffit de rebasculer le lien symbolique "current" vers l'une
+# d'elles — c'est exactement ce que fait $ACTIVATE_RELEASE() pendant un
+# déploiement normal, reproduit ici à la main.
 #
-# Les deux valeurs exactes sont affichées par forge-deploy.sh au moment
-# de l'échec.
+# Utilisation (depuis l'onglet "Commands" de Forge, ou en SSH) :
+#   bash deploy/rollback.sh <fichier-sauvegarde.sql.gz> <racine-du-site> [dossier-de-la-version-precedente]
+#
+#   <racine-du-site>                    ex: /home/forge/afrolia-app.com
+#                                        (le dossier qui contient releases/ et current)
+#   [dossier-de-la-version-precedente]  optionnel — si omis, le script
+#                                        prend automatiquement la version
+#                                        juste avant celle actuellement active.
+#
+# Le fichier de sauvegarde exact à utiliser est affiché par le script de
+# déploiement au moment de l'échec.
 
 set -e
 set -o pipefail
-# Même raison que dans forge-deploy.sh : "gunzip -c fichier | mysql ..."
-# doit remonter l'échec de n'importe quel maillon du pipeline, pas
-# seulement du dernier.
 
 BACKUP_FILE="$1"
-PREVIOUS_SHA="$2"
+SITE_ROOT="$2"
+PREVIOUS_RELEASE_DIR="$3"
 
-if [ -z "$BACKUP_FILE" ] || [ -z "$PREVIOUS_SHA" ]; then
-    echo "Usage : rollback.sh <fichier-sauvegarde.sql.gz> <sha-git-precedent>"
+if [ -z "$BACKUP_FILE" ] || [ -z "$SITE_ROOT" ]; then
+    echo "Usage : rollback.sh <fichier-sauvegarde.sql.gz> <racine-du-site> [dossier-de-la-version-precedente]"
     exit 1
 fi
 
@@ -32,8 +41,64 @@ if [ ! -f "$BACKUP_FILE" ]; then
     exit 1
 fi
 
+CURRENT_LINK="$SITE_ROOT/current"
+RELEASES_DIR="$SITE_ROOT/releases"
+
+if [ ! -d "$RELEASES_DIR" ]; then
+    echo "ÉCHEC : '$RELEASES_DIR' introuvable — vérifie la racine du site passée en argument. Rien n'a été touché."
+    exit 1
+fi
+
+if [ -z "$PREVIOUS_RELEASE_DIR" ]; then
+    echo "==> Aucune version précédente précisée : détection automatique dans $RELEASES_DIR"
+    ACTIVE_RELEASE=$(readlink -f "$CURRENT_LINK" 2>/dev/null) || true
+    if [ -z "$ACTIVE_RELEASE" ]; then
+        echo "ÉCHEC : impossible de lire le lien '$CURRENT_LINK' pour savoir quelle version est active. Précise toi-même le dossier de la version précédente en 3e argument. Rien n'a été touché."
+        exit 1
+    fi
+
+    # Triés par nom : les dossiers de version Forge sont des horodatages,
+    # donc l'ordre alphabétique correspond aussi à l'ordre chronologique.
+    mapfile -t RELEASES < <(find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+
+    INDEX_ACTIF=-1
+    for i in "${!RELEASES[@]}"; do
+        if [ "$RELEASES_DIR/${RELEASES[$i]}" = "$ACTIVE_RELEASE" ]; then
+            INDEX_ACTIF=$i
+            break
+        fi
+    done
+
+    if [ "$INDEX_ACTIF" -le 0 ]; then
+        echo "ÉCHEC : impossible de déterminer automatiquement la version précédente (version active introuvable dans '$RELEASES_DIR', ou c'est déjà la plus ancienne conservée). Précise toi-même le dossier en 3e argument. Rien n'a été touché."
+        exit 1
+    fi
+
+    PREVIOUS_RELEASE_DIR="$RELEASES_DIR/${RELEASES[$((INDEX_ACTIF - 1))]}"
+    echo "    Version précédente détectée : $PREVIOUS_RELEASE_DIR"
+fi
+
+if [ ! -d "$PREVIOUS_RELEASE_DIR" ] || [ ! -f "$PREVIOUS_RELEASE_DIR/artisan" ]; then
+    echo "ÉCHEC : '$PREVIOUS_RELEASE_DIR' n'existe pas ou ne ressemble pas à une version Laravel valide (pas de fichier 'artisan'). Rien n'a été touché."
+    exit 1
+fi
+
+if [ ! -r "$PREVIOUS_RELEASE_DIR/.env" ]; then
+    echo "ÉCHEC : '$PREVIOUS_RELEASE_DIR/.env' introuvable ou illisible. Rien n'a été touché."
+    exit 1
+fi
+
+# Lit une variable de .env sans jamais arrêter le script si elle est
+# absente (le "|| true" porte uniquement sur cette ligne) et ne retire
+# que les guillemets qui encadrent toute la valeur — jamais un guillemet
+# qui ferait partie du mot de passe lui-même.
 get_env() {
-    grep -E "^$1=" .env | head -n1 | cut -d '=' -f2- | tr -d '"'
+    local raw
+    raw=$(grep -E "^$1=" "$PREVIOUS_RELEASE_DIR/.env" | head -n1 | cut -d '=' -f2-) || true
+    if [[ "$raw" == \"*\" && ${#raw} -ge 2 ]]; then
+        raw=${raw:1:-1}
+    fi
+    printf '%s' "$raw"
 }
 
 DB_CONN=$(get_env DB_CONNECTION)
@@ -43,38 +108,56 @@ DB_DATABASE_V=$(get_env DB_DATABASE)
 DB_USERNAME_V=$(get_env DB_USERNAME)
 DB_PASSWORD_V=$(get_env DB_PASSWORD)
 
-echo "==> [1/3] Restauration du code vers $PREVIOUS_SHA"
-git reset --hard "$PREVIOUS_SHA"
-composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+if [ "$DB_CONN" != "mysql" ]; then
+    echo "ÉCHEC : DB_CONNECTION=$DB_CONN dans .env, mais ce script ne sait restaurer que MySQL. Rien n'a été touché — restauration manuelle nécessaire."
+    exit 1
+fi
 
-echo "==> [2/3] Restauration de la base de données depuis $BACKUP_FILE"
-case "$DB_CONN" in
-    mysql)
-        gunzip -c "$BACKUP_FILE" | MYSQL_PWD="$DB_PASSWORD_V" mysql \
-            -h "${DB_HOST_V:-127.0.0.1}" -P "${DB_PORT_V:-3306}" -u "$DB_USERNAME_V" \
-            "$DB_DATABASE_V"
-        ;;
-    pgsql)
-        gunzip -c "$BACKUP_FILE" | PGPASSWORD="$DB_PASSWORD_V" psql \
-            -h "${DB_HOST_V:-127.0.0.1}" -p "${DB_PORT_V:-5432}" -U "$DB_USERNAME_V" \
-            "$DB_DATABASE_V"
-        ;;
-    sqlite)
-        gunzip -c "$BACKUP_FILE" > "$DB_DATABASE_V"
-        ;;
-    *)
-        echo "ÉCHEC : type de base de données non reconnu ($DB_CONN), restauration de la base impossible automatiquement."
+for paire in "DB_DATABASE_V:DB_DATABASE" "DB_USERNAME_V:DB_USERNAME" "DB_PASSWORD_V:DB_PASSWORD"; do
+    variable_interne="${paire%%:*}"
+    nom_dans_env="${paire##*:}"
+    if [ -z "${!variable_interne}" ]; then
+        echo "ÉCHEC : la variable obligatoire $nom_dans_env est absente ou vide dans .env. Rien n'a été touché."
         exit 1
-        ;;
-esac
+    fi
+done
 
-echo "==> [3/3] Redémarrage et remise en ligne"
-php artisan config:cache
-php artisan route:cache
-php artisan queue:restart
-# forge-deploy.sh laisse volontairement le site en maintenance quand la
-# migration échoue (voir son étape 6) : c'est ici, une fois le code et la
-# base effectivement cohérents, qu'on le remet en ligne.
-php artisan up
+echo "==> [1/4] Mise en maintenance (le temps de restaurer la base et de changer de version)"
+"$CURRENT_LINK/artisan" down --retry=30 2>/dev/null || true
 
-echo "Restauration terminée : code à $PREVIOUS_SHA, base restaurée depuis $BACKUP_FILE, site de nouveau en ligne."
+echo "==> [2/4] Restauration de la base de données depuis $BACKUP_FILE"
+if ! gunzip -c "$BACKUP_FILE" | MYSQL_PWD="$DB_PASSWORD_V" mysql \
+    -h "${DB_HOST_V:-127.0.0.1}" -P "${DB_PORT_V:-3306}" -u "$DB_USERNAME_V" \
+    "$DB_DATABASE_V"; then
+    echo "ÉCHEC CRITIQUE : la restauration de la base a échoué en cours de route — elle peut être dans un état intermédiaire incohérent. Le site reste volontairement en maintenance. Intervention manuelle nécessaire avant de le remettre en ligne."
+    exit 1
+fi
+
+echo "==> [3/4] Réactivation de la version précédente ($PREVIOUS_RELEASE_DIR)"
+ln -nfs "$PREVIOUS_RELEASE_DIR" "$CURRENT_LINK"
+
+echo "==> [4/4] Redémarrage des services et remise en ligne"
+# Le nom exact du service PHP-FPM dépend de la version de PHP du site
+# (ex. php8.3-fpm) ; Forge ne fournit ce nom que pendant un déploiement
+# normal ($FORGE_PHP_FPM), pas ici. On essaie les noms courants : sans
+# ce rechargement, PHP peut continuer à servir l'ancien code en mémoire
+# (cache de chemins réels) même après le changement du lien symbolique.
+FPM_RECHARGE=0
+for fpm in php8.4-fpm php8.3-fpm php8.2-fpm php8.1-fpm; do
+    if sudo -S service "$fpm" status >/dev/null 2>&1; then
+        sudo -S service "$fpm" reload
+        echo "    $fpm rechargé."
+        FPM_RECHARGE=1
+        break
+    fi
+done
+if [ "$FPM_RECHARGE" -eq 0 ]; then
+    echo "    AVERTISSEMENT : aucun service PHP-FPM reconnu n'a pu être rechargé automatiquement. Si le site affiche encore l'ancien comportement après cette restauration, recharge-le manuellement (ex. sudo service phpX.Y-fpm reload, en remplaçant X.Y par la version PHP du site)."
+fi
+
+"$CURRENT_LINK/artisan" config:cache
+"$CURRENT_LINK/artisan" route:cache
+"$CURRENT_LINK/artisan" queue:restart
+"$CURRENT_LINK/artisan" up
+
+echo "Restauration terminée : version active = $PREVIOUS_RELEASE_DIR, base restaurée depuis $BACKUP_FILE, site de nouveau en ligne."

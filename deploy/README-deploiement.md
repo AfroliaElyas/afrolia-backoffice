@@ -76,13 +76,28 @@ fusion dans `main` déploiera automatiquement.
 
 ## En cas de problème pendant un déploiement
 
-Le script affiche toujours exactement quoi faire :
-- Si les tests échouent juste après avoir récupéré le nouveau code : il
-  restaure l'ancien code tout seul, rien à faire de ta part.
-- Si c'est la mise à jour de la base de données qui échoue (plus rare) :
-  le script indique le fichier de sauvegarde et le commit précédent à
-  utiliser, à coller dans `deploy/rollback.sh` (via l'onglet "Commands"
-  de Forge).
+Forge (modèle Zero-Downtime) garde l'ancienne version du site en ligne
+tant que le nouveau déploiement n'a pas entièrement réussi : un
+problème pendant la récupération du code ou l'installation des
+dépendances n'interrompt donc jamais le site, Forge ne bascule
+simplement pas vers la nouvelle version.
+
+Le seul cas qui demande une action manuelle, c'est une migration qui
+échoue après avoir déjà modifié la base : `deploy/rollback.sh` restaure
+alors la base depuis la sauvegarde ET réactive la version précédente
+(il n'y a plus de commit Git à restaurer — Forge garde déjà les
+anciennes versions sur le disque). Depuis l'onglet "Commands" de Forge
+(ou en SSH) :
+
+```
+bash deploy/rollback.sh <fichier-sauvegarde.sql.gz> <racine-du-site>
+```
+
+`<racine-du-site>` est le dossier qui contient `releases/` et
+`current` (ex. `/home/forge/afrolia-app.com`) — visible dans
+Forge → ton site → en-tête de la page. Le script détecte lui-même
+quelle version réactiver ; le fichier de sauvegarde exact à utiliser
+est affiché par le script de déploiement au moment de l'échec.
 
 Les sauvegardes sont gardées dans `~/backups/afrolia-db/` sur le
 serveur (les 10 dernières), en dehors du dossier du site.

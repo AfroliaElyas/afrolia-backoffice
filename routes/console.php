@@ -19,3 +19,12 @@ Schedule::command('abonnements:prelever')->daily();
 Schedule::command('remboursements:debloquer-en-cours')
     ->everyFiveMinutes()
     ->appendOutputTo(storage_path('logs/scheduler-remboursements.log'));
+
+// Sauvegarde externe (Backblaze B2) de la base de données, indépendante des
+// déploiements : les données changent tous les jours même sans déploiement.
+// Mêmes raisons qu'au-dessus pour appendOutputTo() — et ici d'autant plus
+// utile qu'un échec silencieux de cette tâche précise (identifiants B2
+// expirés, quota dépassé...) ne casserait rien de visible sur le site.
+Schedule::command('sauvegarde:externe')
+    ->daily()
+    ->appendOutputTo(storage_path('logs/scheduler-sauvegarde-externe.log'));

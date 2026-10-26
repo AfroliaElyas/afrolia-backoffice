@@ -60,6 +60,22 @@ return [
             'report' => false,
         ],
 
+        // Sauvegarde externe de la base de données (hors du serveur Forge),
+        // sur Backblaze B2 — compatible S3, utilisé via le même pilote "s3".
+        // Variables dédiées (BACKBLAZE_*) plutôt que AWS_* : ce n'est pas
+        // Amazon, et ça évite toute confusion avec un futur usage réel d'AWS.
+        'backblaze' => [
+            'driver' => 's3',
+            'key' => env('BACKBLAZE_KEY_ID'),
+            'secret' => env('BACKBLAZE_APPLICATION_KEY'),
+            'region' => env('BACKBLAZE_REGION'),
+            'bucket' => env('BACKBLAZE_BUCKET'),
+            'endpoint' => env('BACKBLAZE_ENDPOINT'),
+            'use_path_style_endpoint' => false,
+            'throw' => true,
+            'report' => false,
+        ],
+
     ],
 
     /*

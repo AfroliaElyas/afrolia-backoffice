@@ -171,7 +171,7 @@ echo "==> [4/4] Redémarrage des services et remise en ligne"
 # ce rechargement, PHP peut continuer à servir l'ancien code en mémoire
 # (cache de chemins réels) même après le changement du lien symbolique.
 FPM_RECHARGE=0
-for fpm in php8.4-fpm php8.3-fpm php8.2-fpm php8.1-fpm; do
+for fpm in php8.6-fpm php8.5-fpm php8.4-fpm php8.3-fpm php8.2-fpm php8.1-fpm; do
     if sudo -S service "$fpm" status >/dev/null 2>&1; then
         sudo -S service "$fpm" reload
         echo "    $fpm rechargé."

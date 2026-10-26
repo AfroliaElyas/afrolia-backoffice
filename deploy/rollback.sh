@@ -12,6 +12,11 @@
 # d'elles — c'est exactement ce que fait $ACTIVATE_RELEASE() pendant un
 # déploiement normal, reproduit ici à la main.
 #
+# Cas le plus courant (migration qui échoue dans forge-deploy.sh) :
+# $ACTIVATE_RELEASE() n'a alors jamais été appelé, "current" pointe
+# donc déjà sur la bonne version — ce script le détecte tout seul et ne
+# touche alors qu'à la base, sans rebasculer aucun lien.
+#
 # Utilisation (depuis l'onglet "Commands" de Forge, ou en SSH) :
 #   bash deploy/rollback.sh <fichier-sauvegarde.sql.gz> <racine-du-site> [dossier-de-la-version-precedente]
 #
@@ -49,6 +54,8 @@ if [ ! -d "$RELEASES_DIR" ]; then
     exit 1
 fi
 
+REACTIVER=1
+
 if [ -z "$PREVIOUS_RELEASE_DIR" ]; then
     echo "==> Aucune version précédente précisée : détection automatique dans $RELEASES_DIR"
     ACTIVE_RELEASE=$(readlink -f "$CURRENT_LINK" 2>/dev/null) || true
@@ -69,13 +76,30 @@ if [ -z "$PREVIOUS_RELEASE_DIR" ]; then
         fi
     done
 
-    if [ "$INDEX_ACTIF" -le 0 ]; then
-        echo "ÉCHEC : impossible de déterminer automatiquement la version précédente (version active introuvable dans '$RELEASES_DIR', ou c'est déjà la plus ancienne conservée). Précise toi-même le dossier en 3e argument. Rien n'a été touché."
+    if [ "$INDEX_ACTIF" -eq -1 ]; then
+        echo "ÉCHEC : la version active ('$ACTIVE_RELEASE') est introuvable dans '$RELEASES_DIR'. Précise toi-même le dossier de la version précédente en 3e argument. Rien n'a été touché."
         exit 1
     fi
 
-    PREVIOUS_RELEASE_DIR="$RELEASES_DIR/${RELEASES[$((INDEX_ACTIF - 1))]}"
-    echo "    Version précédente détectée : $PREVIOUS_RELEASE_DIR"
+    DERNIER_INDEX=$(( ${#RELEASES[@]} - 1 ))
+
+    if [ "$INDEX_ACTIF" -lt "$DERNIER_INDEX" ]; then
+        # La version active n'est PAS la plus récente sur le disque : un
+        # déploiement plus récent existe mais n'a jamais été activé
+        # (cas normal d'une migration qui échoue avant $ACTIVATE_RELEASE()).
+        # La bonne version est déjà en ligne, rien à réactiver — seule la
+        # base a besoin d'être restaurée.
+        echo "    Version active déjà correcte (un déploiement plus récent existe mais n'a jamais été activé) : rien à réactiver, seule la base sera restaurée."
+        REACTIVER=0
+        PREVIOUS_RELEASE_DIR="$ACTIVE_RELEASE"
+    else
+        if [ "$INDEX_ACTIF" -le 0 ]; then
+            echo "ÉCHEC : impossible de déterminer automatiquement une version précédente (c'est déjà la plus ancienne conservée dans '$RELEASES_DIR'). Précise toi-même le dossier en 3e argument. Rien n'a été touché."
+            exit 1
+        fi
+        PREVIOUS_RELEASE_DIR="$RELEASES_DIR/${RELEASES[$((INDEX_ACTIF - 1))]}"
+        echo "    Version précédente détectée : $PREVIOUS_RELEASE_DIR"
+    fi
 fi
 
 if [ ! -d "$PREVIOUS_RELEASE_DIR" ] || [ ! -f "$PREVIOUS_RELEASE_DIR/artisan" ]; then
@@ -133,8 +157,12 @@ if ! gunzip -c "$BACKUP_FILE" | MYSQL_PWD="$DB_PASSWORD_V" mysql \
     exit 1
 fi
 
-echo "==> [3/4] Réactivation de la version précédente ($PREVIOUS_RELEASE_DIR)"
-ln -nfs "$PREVIOUS_RELEASE_DIR" "$CURRENT_LINK"
+if [ "$REACTIVER" -eq 1 ]; then
+    echo "==> [3/4] Réactivation de la version précédente ($PREVIOUS_RELEASE_DIR)"
+    ln -nfs "$PREVIOUS_RELEASE_DIR" "$CURRENT_LINK"
+else
+    echo "==> [3/4] Version déjà correcte — aucun changement de version nécessaire"
+fi
 
 echo "==> [4/4] Redémarrage des services et remise en ligne"
 # Le nom exact du service PHP-FPM dépend de la version de PHP du site
@@ -160,4 +188,8 @@ fi
 "$CURRENT_LINK/artisan" queue:restart
 "$CURRENT_LINK/artisan" up
 
-echo "Restauration terminée : version active = $PREVIOUS_RELEASE_DIR, base restaurée depuis $BACKUP_FILE, site de nouveau en ligne."
+if [ "$REACTIVER" -eq 1 ]; then
+    echo "Restauration terminée : version active = $PREVIOUS_RELEASE_DIR, base restaurée depuis $BACKUP_FILE, site de nouveau en ligne."
+else
+    echo "Restauration terminée : version active inchangée ($PREVIOUS_RELEASE_DIR), base restaurée depuis $BACKUP_FILE, site de nouveau en ligne."
+fi

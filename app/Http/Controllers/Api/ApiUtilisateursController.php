@@ -457,6 +457,16 @@ class ApiUtilisateursController extends Controller
             ], 401);
         }
 
+        // Une session volée ou laissée ouverte ne doit pas suffire à
+        // supprimer le compte : on redemande le mot de passe, comme pour
+        // toute action irréversible.
+        if (!Hash::check((string) $request->input('password'), $utilisateur->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Mot de passe incorrect.",
+            ], 403);
+        }
+
         try {
             (new SuppressionCompteService())->supprimer($utilisateur);
         } catch (SuppressionCompteBloqueeException $e) {

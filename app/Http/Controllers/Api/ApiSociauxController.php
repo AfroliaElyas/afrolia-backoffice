@@ -107,11 +107,14 @@ class ApiSociauxController extends Controller
                 $timestamp = Carbon::now()->format('Ymd_His');
                 $photoName = 'gallery_' . $timestamp . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
 
-                // 📂 Enregistre dans public/salon/gallery
-                $file->move(public_path('salon/gallery'), $photoName);
+                // 📂 Enregistre dans storage/app/public, partagé entre toutes
+                // les versions par Forge (déploiement zero-downtime) — contrairement
+                // à public/salon, réinitialisé à chaque déploiement, où les photos
+                // disparaissaient silencieusement (confirmé le 29/10/2026).
+                $file->storeAs('salon/gallery', $photoName, 'public');
 
                 // 🔗 URL publique
-                $photoUrl = url('afrolia/public/salon/gallery/' . $photoName);
+                $photoUrl = url('afrolia/public/storage/salon/gallery/' . $photoName);
 
                 $createdImages[] = Gallery::create([
                     'id_utilisateur' => $id_utilisateur,
@@ -172,8 +175,8 @@ class ApiSociauxController extends Controller
 
             $timestamp = Carbon::now()->format('Ymd_His');
             $photoName = 'gallery_' . $timestamp . '_' . uniqid() . '.' . $request->file('image')->getClientOriginalExtension();
-            $request->file('image')->move(public_path('salon/gallery'), $photoName);
-            $gallery->image = url('afrolia/public/salon/gallery/' . $photoName);
+            $request->file('image')->storeAs('salon/gallery', $photoName, 'public');
+            $gallery->image = url('afrolia/public/storage/salon/gallery/' . $photoName);
         }
 
         if ($request->filled('description')) {

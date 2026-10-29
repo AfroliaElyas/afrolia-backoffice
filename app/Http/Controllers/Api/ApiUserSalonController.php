@@ -65,11 +65,14 @@ class ApiUserSalonController extends Controller
                 $photo = $request->file('photo');
                 $photoName = 'photo_' . $timestamp . '_' . uniqid() . '.' . $photo->getClientOriginalExtension();
 
-                // 📂 Enregistre dans public/salon/user
-                $photo->move(public_path('salon/user'), $photoName);
+                // 📂 Enregistre dans storage/app/public, partagé entre toutes
+                // les versions par Forge (déploiement zero-downtime) — contrairement
+                // à public/salon, réinitialisé à chaque déploiement, où les photos
+                // disparaissaient silencieusement (confirmé le 29/10/2026).
+                $photo->storeAs('salon/user', $photoName, 'public');
 
                 // 🔗 URL publique
-                $photoUrl = url('afrolia/public/salon/user/' . $photoName);
+                $photoUrl = url('afrolia/public/storage/salon/user/' . $photoName);
                 $utilisateur->photo = $photoUrl;
             }
 

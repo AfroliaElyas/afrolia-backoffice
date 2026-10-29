@@ -183,7 +183,7 @@ class SuppressionCompteTest extends TestCase
         $this->creerReservation($client, $coiffeuse, 'en_attente');
 
         Sanctum::actingAs($client);
-        $response = $this->deleteJson("/api/delete/{$client->id_user_app}");
+        $response = $this->deleteJson("/api/delete/{$client->id_user_app}", ['password' => 'motdepasse']);
 
         $response->assertStatus(409);
         $this->assertSame('Active', $client->fresh()->statut);
@@ -194,9 +194,20 @@ class SuppressionCompteTest extends TestCase
         $client = $this->creerUtilisateur();
 
         Sanctum::actingAs($client);
-        $response = $this->deleteJson("/api/delete/{$client->id_user_app}");
+        $response = $this->deleteJson("/api/delete/{$client->id_user_app}", ['password' => 'motdepasse']);
 
         $response->assertStatus(200)->assertJsonPath('success', true);
         $this->assertSame('Supprime', $client->fresh()->statut);
+    }
+
+    public function test_api_supprimer_compte_refuse_un_mauvais_mot_de_passe(): void
+    {
+        $client = $this->creerUtilisateur();
+
+        Sanctum::actingAs($client);
+        $response = $this->deleteJson("/api/delete/{$client->id_user_app}", ['password' => 'mauvais-mot-de-passe']);
+
+        $response->assertStatus(403);
+        $this->assertSame('Active', $client->fresh()->statut);
     }
 }

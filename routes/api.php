@@ -36,7 +36,8 @@ use Illuminate\Support\Facades\Route;
 // répétées de mot de passe ou de code de secours.
 Route::post('login', [ApiUtilisateursController::class, 'login'])
     ->middleware('throttle:5,1');
-Route::post('register', [ApiUtilisateursController::class, 'register']);
+Route::post('register', [ApiUtilisateursController::class, 'register'])
+    ->middleware('throttle:5,1');
 Route::post('mot-de-passe/email/demander', [ApiUtilisateursController::class, 'demanderReinitialisationParEmail'])
     ->middleware('throttle:5,1');
 Route::post('mot-de-passe/code-secours', [ApiUtilisateursController::class, 'reinitialiserAvecCodeSecours'])

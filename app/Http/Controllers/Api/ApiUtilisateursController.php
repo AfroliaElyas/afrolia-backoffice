@@ -214,8 +214,13 @@ class ApiUtilisateursController extends Controller
             $timestamp = Carbon::now()->format('Ymd_His');
             $photo = $request->file('photo');
             $photoName = 'photo_' . $timestamp . '_' . uniqid() . '.' . $photo->getClientOriginalExtension();
-            $photo->move(public_path('salon/user'), $photoName);
-            $utilisateur->photo = url('afrolia/public/salon/user/' . $photoName);
+            // storeAs(..., 'public') : stocke dans storage/app/public, partagé
+            // entre toutes les versions par Forge (déploiement zero-downtime),
+            // contrairement à public/salon qui est réinitialisé à chaque
+            // déploiement (dossier de version neuf à chaque fois) — les
+            // photos y disparaissaient silencieusement (confirmé le 29/10/2026).
+            $photo->storeAs('salon/user', $photoName, 'public');
+            $utilisateur->photo = url('afrolia/public/storage/salon/user/' . $photoName);
         }
 
         // Mise à jour des champs modifiables

@@ -70,8 +70,13 @@ class ApiProduitsController extends Controller
         $file = $request->file('photo');
         $timestamp = Carbon::now()->format('Ymd_His');
         $photoName = 'produit_' . $timestamp . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-        $file->move(public_path('salon/produits'), $photoName);
-        $photoUrl = url('afrolia/public/salon/produits/' . $photoName);
+        // storeAs(..., 'public') : stocke dans storage/app/public, partagé
+        // entre toutes les versions par Forge (déploiement zero-downtime),
+        // contrairement à public/salon qui est réinitialisé à chaque
+        // déploiement — les photos y disparaissaient silencieusement
+        // (confirmé le 29/10/2026).
+        $file->storeAs('salon/produits', $photoName, 'public');
+        $photoUrl = url('afrolia/public/storage/salon/produits/' . $photoName);
 
         $produit = Produits::create([
             'id_coiffeur' => $request->user()->id_user_app,
@@ -137,8 +142,8 @@ class ApiProduitsController extends Controller
             $file = $request->file('photo');
             $timestamp = Carbon::now()->format('Ymd_His');
             $photoName = 'produit_' . $timestamp . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-            $file->move(public_path('salon/produits'), $photoName);
-            $produit->photo = url('afrolia/public/salon/produits/' . $photoName);
+            $file->storeAs('salon/produits', $photoName, 'public');
+            $produit->photo = url('afrolia/public/storage/salon/produits/' . $photoName);
         }
 
         $produit->fill($request->only(['nom', 'description', 'prix', 'quantite_stock', 'statut']));

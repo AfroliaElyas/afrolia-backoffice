@@ -149,6 +149,21 @@ npm run build
 $FORGE_PHP artisan optimize
 $FORGE_PHP artisan storage:link
 
+# Migration ponctuelle des photos envoyées avant le correctif de
+# persistance du stockage (29/10/2026) : elles vivent encore dans
+# public/salon de la version actuellement active ($FORGE_SITE_PATH),
+# jamais partagé entre versions — contrairement à storage/, partagé par
+# Forge, où les nouvelles photos vont désormais. "cp -rn" ne touche
+# jamais l'ancien emplacement (aucune suppression) et n'écrase jamais un
+# fichier déjà migré : sans danger de relancer ce déploiement, et sans
+# danger si la migration a déjà eu lieu lors d'un déploiement précédent.
+if [ -d "$FORGE_SITE_PATH/public/salon" ]; then
+    mkdir -p "$FORGE_RELEASE_DIRECTORY/storage/app/public/salon"
+    if ! cp -rn "$FORGE_SITE_PATH/public/salon/." "$FORGE_RELEASE_DIRECTORY/storage/app/public/salon/" 2>/dev/null; then
+        echo "AVERTISSEMENT : migration des anciennes photos incomplète — rien n'est perdu (l'ancien dossier n'est jamais touché), à réessayer au prochain déploiement."
+    fi
+fi
+
 echo "==> [3/4] Mise à jour de la base de données"
 # Forge n'appelle $ACTIVATE_RELEASE() que si tout ce qui précède a réussi :
 # tant que cette ligne n'est pas atteinte, l'ancienne version reste celle

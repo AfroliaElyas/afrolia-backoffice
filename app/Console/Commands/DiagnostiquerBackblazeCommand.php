@@ -78,16 +78,34 @@ class DiagnostiquerBackblazeCommand extends Command
         $endpoint = trim((string) ($valeurs['BACKBLAZE_ENDPOINT'] ?? ''));
 
         if ($region !== '' && $endpoint !== '') {
-            if (str_contains($endpoint, $region)) {
-                $this->line("  OK : l'endpoint ({$endpoint}) contient bien la région ({$region}).");
-            } else {
-                $this->error("  INCOHÉRENT : l'endpoint ({$endpoint}) ne contient pas la région déclarée ({$region}).");
-                $this->line('  → Backblaze B2 affiche la région exacte à côté du nom du bucket dans son tableau de bord ("Application Keys" / détails du bucket) : copie-la exactement telle qu\'elle apparaît dans l\'endpoint.');
+            $anomalies = $this->verifierRegionEtEndpoint($region, $endpoint);
+            foreach ($anomalies as $anomalie) {
+                $this->error("  {$anomalie}");
                 $problemeDetecte = true;
+            }
+
+            if ($anomalies === []) {
+                $this->line("  OK : région ({$region}) et endpoint ({$endpoint}) cohérents.");
             }
         } else {
             $this->line('  (ignoré : région ou endpoint absent, déjà signalé ci-dessus)');
         }
+
+        // Longueurs habituelles des clés Backblaze : simples indices (jamais
+        // bloquants), utiles pour repérer une clé tronquée au copier-coller
+        // ou le nom de la clé saisi à la place de son identifiant.
+        $longueurKeyId = strlen(trim((string) ($valeurs['BACKBLAZE_KEY_ID'] ?? '')));
+        $longueurAppKey = strlen(trim((string) ($valeurs['BACKBLAZE_APPLICATION_KEY'] ?? '')));
+        if ($longueurKeyId > 0 && $longueurKeyId !== 25) {
+            $this->warn("  Indice : BACKBLAZE_KEY_ID fait {$longueurKeyId} caractères ; l'identifiant d'une clé d'application Backblaze en fait généralement 25 (12 pour la clé principale « master », déconseillée pour l'API S3). Vérifie que c'est bien le « keyID » et non le « keyName ».");
+        }
+        if ($longueurAppKey > 0 && $longueurAppKey !== 31) {
+            $this->warn("  Indice : BACKBLAZE_APPLICATION_KEY fait {$longueurAppKey} caractères ; une clé d'application Backblaze en fait généralement 31. Une clé tronquée au copier-coller donne exactement « Signature validation failed ».");
+        }
+
+        // Une horloge serveur décalée de plus de quelques minutes fait aussi
+        // rejeter les signatures : l'heure est affichée pour comparaison.
+        $this->line('  Heure du serveur (UTC) : '.gmdate('Y-m-d H:i:s').' — doit correspondre à l\'heure réelle à quelques secondes près.');
 
         $this->newLine();
         $this->info('=== 3. Test de connexion réel (lecture seule, aucune donnée modifiée) ===');
@@ -113,5 +131,49 @@ class DiagnostiquerBackblazeCommand extends Command
 
             return self::FAILURE;
         }
+    }
+
+    /**
+     * Vérifie que la région et l'endpoint ont exactement la forme attendue
+     * par Backblaze. L'ancienne vérification (« l'endpoint contient la
+     * région ») laissait passer l'erreur la plus courante : une région
+     * copiée avec son préfixe, ex. « s3.us-west-004 », qui est bien
+     * contenue dans l'endpoint mais fausse la signature, car la région
+     * fait partie de ce qui est signé.
+     *
+     * @return list<string> Les anomalies trouvées (vide si tout est cohérent).
+     */
+    private function verifierRegionEtEndpoint(string $region, string $endpoint): array
+    {
+        $anomalies = [];
+
+        if (! preg_match('/^[a-z]{2}-[a-z]+-\d{3}$/', $region)) {
+            $anomalies[] = "INCOHÉRENT : BACKBLAZE_REGION vaut « {$region} », alors qu'une région Backblaze a la forme « us-west-004 » ou « eu-central-003 » — seule, sans « s3. » devant ni « .backblazeb2.com » derrière. Une région mal formée fausse la signature (« Signature validation failed »).";
+        }
+
+        if (! preg_match('#^https?://#i', $endpoint)) {
+            $anomalies[] = "INCOHÉRENT : BACKBLAZE_ENDPOINT doit commencer par « https:// » (valeur actuelle : « {$endpoint} »).";
+
+            return $anomalies;
+        }
+
+        $hote = strtolower((string) parse_url($endpoint, PHP_URL_HOST));
+        $chemin = (string) parse_url($endpoint, PHP_URL_PATH);
+
+        if (str_ends_with($hote, 'backblazeb2.com')) {
+            $hoteAttendu = 's3.'.$region.'.backblazeb2.com';
+            if ($hote !== $hoteAttendu) {
+                $anomalies[] = "INCOHÉRENT : l'endpoint pointe vers « {$hote} », mais pour la région « {$region} » il devrait être exactement « https://{$hoteAttendu} » (sans le nom du bucket devant).";
+            }
+            if ($chemin !== '' && $chemin !== '/') {
+                $anomalies[] = "INCOHÉRENT : l'endpoint ne doit contenir aucun chemin après le domaine (trouvé : « {$chemin} ») — le bucket se règle uniquement dans BACKBLAZE_BUCKET.";
+            }
+        } elseif (! str_contains($endpoint, $region)) {
+            // Endpoint non Backblaze (tests, autre fournisseur compatible S3) :
+            // on garde au moins la vérification d'origine.
+            $anomalies[] = "INCOHÉRENT : l'endpoint ({$endpoint}) ne contient pas la région déclarée ({$region}).";
+        }
+
+        return $anomalies;
     }
 }

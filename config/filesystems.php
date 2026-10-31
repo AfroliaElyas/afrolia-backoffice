@@ -64,14 +64,27 @@ return [
         // sur Backblaze B2 — compatible S3, utilisé via le même pilote "s3".
         // Variables dédiées (BACKBLAZE_*) plutôt que AWS_* : ce n'est pas
         // Amazon, et ça évite toute confusion avec un futur usage réel d'AWS.
+        //
+        // trim() : un espace ou un retour à la ligne resté collé en
+        // copiant-collant une valeur depuis Backblaze vers Forge suffit à
+        // fausser la signature (« Signature validation failed »). Aucune
+        // valeur Backblaze légitime ne commence ni ne finit par un espace.
+        // `?: null` garde "absente" distinct de "vide" pour le diagnostic.
         'backblaze' => [
             'driver' => 's3',
-            'key' => env('BACKBLAZE_KEY_ID'),
-            'secret' => env('BACKBLAZE_APPLICATION_KEY'),
-            'region' => env('BACKBLAZE_REGION'),
-            'bucket' => env('BACKBLAZE_BUCKET'),
-            'endpoint' => env('BACKBLAZE_ENDPOINT'),
+            'key' => trim((string) env('BACKBLAZE_KEY_ID')) ?: null,
+            'secret' => trim((string) env('BACKBLAZE_APPLICATION_KEY')) ?: null,
+            'region' => trim((string) env('BACKBLAZE_REGION')) ?: null,
+            'bucket' => trim((string) env('BACKBLAZE_BUCKET')) ?: null,
+            'endpoint' => trim((string) env('BACKBLAZE_ENDPOINT')) ?: null,
             'use_path_style_endpoint' => false,
+            // Les SDK AWS récents (aws-sdk-php ≥ 3.337) ajoutent par défaut
+            // des sommes de contrôle CRC aux envois et lectures. Backblaze
+            // B2 n'est pas Amazon S3 et a eu des incompatibilités avec ces
+            // en-têtes : ne les envoyer que lorsque l'opération l'exige,
+            // comme avant ce changement de comportement du SDK.
+            'request_checksum_calculation' => 'when_required',
+            'response_checksum_validation' => 'when_required',
             'throw' => true,
             'report' => false,
         ],

@@ -166,7 +166,13 @@ class SauvegardeExterneCommand extends Command
             return true;
         }
 
-        $cheminArchive = tempnam(sys_get_temp_dir(), 'sauvegarde-afrolia-photos-').'.tar.gz';
+        // Même piège que pour la base : tempnam() crée réellement un fichier
+        // vide à son chemin exact. On le supprime aussitôt et on n'utilise
+        // que le chemin suffixé, sinon un fichier vide resterait dans /tmp à
+        // chaque exécution quotidienne.
+        $cheminTemporaire = tempnam(sys_get_temp_dir(), 'sauvegarde-afrolia-photos-');
+        @unlink($cheminTemporaire);
+        $cheminArchive = $cheminTemporaire.'.tar.gz';
 
         $tar = Process::fromShellCommandline(sprintf(
             'tar -czf %s -C %s .',
@@ -217,18 +223,32 @@ class SauvegardeExterneCommand extends Command
 
     private function purgerAnciennesSauvegardes(string $prefixe, string $suffixe): void
     {
-        $disque = Storage::disk('backblaze');
+        // Le préfixe doit être suivi directement de l'horodatage : sans ça,
+        // « afrolia-photos-* » englobait aussi « afrolia-photos-heritage-* »
+        // et les deux séries étaient comptées ensemble, ce qui supprimait
+        // des sauvegardes récentes de photos avant l'heure.
+        $motif = '/^'.preg_quote($prefixe, '/').'\d{8}_\d{6}'.preg_quote($suffixe, '/').'$/';
 
-        $fichiers = collect($disque->files())
-            ->filter(fn (string $f) => str_starts_with($f, $prefixe) && str_ends_with($f, $suffixe))
-            ->sort()
-            ->values();
+        // La sauvegarde du jour est déjà envoyée à ce stade : un échec de la
+        // purge (réseau, permission de suppression absente sur la clé) ne
+        // doit ni la faire passer pour un échec, ni empêcher la sauvegarde
+        // suivante (photos après base) de s'exécuter.
+        try {
+            $disque = Storage::disk('backblaze');
 
-        $aSupprimer = $fichiers->count() - self::NOMBRE_SAUVEGARDES_CONSERVEES;
+            $fichiers = collect($disque->files())
+                ->filter(fn (string $f) => preg_match($motif, $f) === 1)
+                ->sort()
+                ->values();
 
-        if ($aSupprimer > 0) {
-            $disque->delete($fichiers->take($aSupprimer)->all());
-            $this->info("{$aSupprimer} ancienne(s) sauvegarde(s) '{$prefixe}*{$suffixe}' supprimée(s) (conservation : ".self::NOMBRE_SAUVEGARDES_CONSERVEES.').');
+            $aSupprimer = $fichiers->count() - self::NOMBRE_SAUVEGARDES_CONSERVEES;
+
+            if ($aSupprimer > 0) {
+                $disque->delete($fichiers->take($aSupprimer)->all());
+                $this->info("{$aSupprimer} ancienne(s) sauvegarde(s) '{$prefixe}*{$suffixe}' supprimée(s) (conservation : ".self::NOMBRE_SAUVEGARDES_CONSERVEES.').');
+            }
+        } catch (\Throwable $e) {
+            $this->warn("AVERTISSEMENT : purge des anciennes sauvegardes '{$prefixe}*{$suffixe}' impossible — la sauvegarde du jour est bien envoyée. Détail : ".$e->getMessage());
         }
     }
 }

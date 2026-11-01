@@ -12,9 +12,21 @@
 
 set -e
 
-SITE_DIR="/home/forge/afrolia-app.com/current"
+echo "=== Recherche du dossier du site ==="
+if [ -d "/home/forge/afrolia-app.com/current" ]; then
+    SITE_DIR="/home/forge/afrolia-app.com/current"
+elif [ -f "/home/forge/afrolia-app.com/artisan" ]; then
+    SITE_DIR="/home/forge/afrolia-app.com"
+else
+    echo "ÉCHEC : dossier du site introuvable aux emplacements attendus."
+    echo "Contenu de /home/forge :"
+    ls -la /home/forge
+    exit 1
+fi
+echo "Dossier trouvé : $SITE_DIR"
 cd "$SITE_DIR"
 
+echo
 echo "=== Commit déployé ==="
 git log -1 --format='%H (%ad) — %s' --date=iso
 

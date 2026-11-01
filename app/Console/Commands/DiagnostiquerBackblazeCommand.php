@@ -104,8 +104,33 @@ class DiagnostiquerBackblazeCommand extends Command
         } catch (\Throwable $e) {
             $this->error('  ❌ ÉCHEC : ' . get_class($e));
             $this->error('  Message complet renvoyé par Backblaze : ' . $e->getMessage());
+
+            // League\Flysystem enveloppe toujours l'exception réelle du SDK
+            // AWS (ex. Aws\S3\Exception\S3Exception) dans sa propre exception
+            // générique ("Unable to check existence for: ..."). Le vrai code
+            // d'erreur ("SignatureDoesNotMatch", "InvalidAccessKeyId"...) ne
+            // vit que dans cette exception d'origine, récupérable via la
+            // chaîne getPrevious() — jamais affiché avant ce correctif
+            // (demandé après un premier diagnostic resté trop vague le
+            // 01/11/2026).
+            $cause = $e->getPrevious();
+            while ($cause !== null) {
+                $this->newLine();
+                $this->error('  Cause réelle : ' . get_class($cause));
+                $this->error('  Message : ' . $cause->getMessage());
+
+                if (method_exists($cause, 'getAwsErrorCode')) {
+                    $this->error('  Code d\'erreur AWS/Backblaze : ' . ($cause->getAwsErrorCode() ?? '(absent)'));
+                }
+                if (method_exists($cause, 'getStatusCode')) {
+                    $this->error('  Code HTTP renvoyé par Backblaze : ' . $cause->getStatusCode());
+                }
+
+                $cause = $cause->getPrevious();
+            }
+
             $this->newLine();
-            $this->line('  Ce message précis (pas juste "Signature validation failed") indique généralement :');
+            $this->line('  Ce code précis (pas juste "Signature validation failed") indique généralement :');
             $this->line('  - "SignatureDoesNotMatch" → une faute dans BACKBLAZE_APPLICATION_KEY (le plus souvent une faute de transcription).');
             $this->line('  - "InvalidAccessKeyId" → une faute dans BACKBLAZE_KEY_ID, ou une clé supprimée/régénérée côté Backblaze.');
             $this->line('  - "NoSuchBucket" → BACKBLAZE_BUCKET ne correspond pas exactement au nom du bucket.');

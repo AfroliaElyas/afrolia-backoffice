@@ -45,5 +45,10 @@ echo -n "storage -> "
 readlink -f storage
 
 echo
+echo "=== État du site (HTTP, depuis le serveur lui-même) ==="
+HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://afrolia-app.com" 2>/dev/null || echo "000")
+echo "Code HTTP reçu pour https://afrolia-app.com : $HTTP_CODE"
+
+echo
 echo "=== Diagnostic Backblaze (ne révèle jamais les secrets) ==="
 php artisan backblaze:diagnostiquer

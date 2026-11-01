@@ -1,19 +1,20 @@
 name: Diagnostic Afrolia (lecture seule)
 
-# Déclenché uniquement à la main (jamais automatiquement) : sert à faire tourner
-# des diagnostics en lecture seule sur le serveur Forge de production, sans
-# jamais rien y modifier, sans déploiement, et sans qu'aucun secret (clé SSH,
-# identifiants Backblaze/DB) n'apparaisse jamais dans les journaux.
+# Déclenché uniquement à la main (jamais automatiquement). La clé SSH utilisée
+# ici est une clé DÉDIÉE et RESTREINTE côté serveur par une "forced command"
+# dans authorized_keys : quelle que soit la commande demandée depuis ce fichier
+# (ou depuis n'importe où ailleurs avec cette même clé), le serveur exécute
+# toujours et uniquement /home/forge/diagnostic-afrolia.sh — un script fixe,
+# en lecture seule, qui ne prend aucun paramètre. Cette clé ne peut donc pas
+# être détournée pour exécuter une autre commande, même en cas de fuite du
+# secret GitHub ou de modification de ce fichier.
 #
 # Un seul secret GitHub est nécessaire : FORGE_SSH_PRIVATE_KEY (la clé privée
-# d'une paire SSH dédiée à cet usage, dont la clé publique est ajoutée dans
-# Forge > SSH Keys — jamais la clé principale du compte).
+# correspondante — jamais la clé principale du compte Forge).
 #
-# Chaque étape ci-dessous est volontairement une simple lecture (git log,
-# readlink, une commande Artisan déjà conçue pour ne jamais afficher de
-# secret) : aucune écriture sur le serveur, aucune commande destructrice,
-# pas de sudo. Toute nouvelle étape ajoutée ici passe par une Pull Request
-# comme le reste du code, donc reste visible et review-able avant d'exister.
+# Aucun secret (clé SSH, identifiants Backblaze/DB) n'apparaît jamais dans les
+# journaux : aucune commande ci-dessous ne les affiche, et backblaze:diagnostiquer
+# est lui-même conçu pour ne jamais les révéler en clair.
 
 on:
   workflow_dispatch:
@@ -24,7 +25,6 @@ permissions:
 env:
   FORGE_SSH_HOST: "164.92.230.201"
   FORGE_SSH_USER: "forge"
-  FORGE_SITE_DIR: "/home/forge/afrolia-app.com/current"
 
 jobs:
   diagnostic:
@@ -38,24 +38,12 @@ jobs:
           chmod 600 ~/.ssh/afrolia_diagnostic
           ssh-keyscan -H "$FORGE_SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Connexion de test (lecture seule) — confirme juste que la clé fonctionne
+      - name: Lance le diagnostic (la clé force toujours ce script précis, rien d'autre)
         run: |
-          ssh -i ~/.ssh/afrolia_diagnostic "$FORGE_SSH_USER@$FORGE_SSH_HOST" "whoami && echo 'Connexion SSH OK (lecture seule).'"
-
-      - name: Dernier commit réellement déployé
-        run: |
-          ssh -i ~/.ssh/afrolia_diagnostic "$FORGE_SSH_USER@$FORGE_SSH_HOST" \
-            "cd $FORGE_SITE_DIR && git log -1 --format='Commit déployé : %H (%ad) — %s' --date=iso"
-
-      - name: Vérifie que storage/ est bien persistant entre les déploiements
-        run: |
-          ssh -i ~/.ssh/afrolia_diagnostic "$FORGE_SSH_USER@$FORGE_SSH_HOST" \
-            "cd $FORGE_SITE_DIR && echo -n 'storage -> ' && readlink -f storage"
-
-      - name: Diagnostic Backblaze (commande dédiée, ne révèle jamais les secrets)
-        run: |
-          ssh -i ~/.ssh/afrolia_diagnostic "$FORGE_SSH_USER@$FORGE_SSH_HOST" \
-            "cd $FORGE_SITE_DIR && php artisan backblaze:diagnostiquer"
+          ssh -i ~/.ssh/afrolia_diagnostic "$FORGE_SSH_USER@$FORGE_SSH_HOST" "diagnostic afrolia"
+          # Le texte "diagnostic afrolia" ci-dessus n'a aucune importance :
+          # la "forced command" côté serveur ignore tout ce qui est demandé
+          # et exécute toujours /home/forge/diagnostic-afrolia.sh à la place.
 
       - name: Supprime la clé SSH temporaire
         if: always()

@@ -92,4 +92,21 @@ class DiagnostiquerBackblazeTest extends TestCase
             ->expectsOutputToContain('ÉCHEC')
             ->assertExitCode(1);
     }
+
+    public function test_affiche_la_cause_reelle_derriere_l_exception_flysystem(): void
+    {
+        // League\Flysystem enveloppe toujours l'erreur du SDK AWS dans sa
+        // propre exception générique ("Unable to check existence for..."),
+        // qui ne contient jamais le vrai code renvoyé par Backblaze
+        // (SignatureDoesNotMatch, InvalidAccessKeyId...) — seule la cause
+        // d'origine, récupérable via getPrevious(), le contient. Confirmé
+        // trop tard sur un vrai diagnostic en production le 01/11/2026 :
+        // le premier message affiché restait "Unable to check existence
+        // for: ..." sans jamais révéler le code AWS réel.
+        config(self::CONFIG_VALIDE);
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->expectsOutputToContain('Cause réelle')
+            ->assertExitCode(1);
+    }
 }

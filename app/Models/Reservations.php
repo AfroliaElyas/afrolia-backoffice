@@ -36,6 +36,7 @@ class Reservations extends Model
         'annule_le',
         'confirme_le',
         'termine_le',
+        'rappel_envoye_at',
     ];
 
     protected $table = 'reservations';

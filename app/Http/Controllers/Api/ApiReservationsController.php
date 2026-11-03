@@ -8,6 +8,7 @@ use App\Models\Reservations;
 use App\Models\Services;
 use App\Models\UsersApp;
 use App\Services\AbonnementService;
+use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,8 @@ use Illuminate\Support\Str;
 class ApiReservationsController extends Controller
 {
     public function __construct(
-        private readonly AbonnementService $abonnements
+        private readonly AbonnementService $abonnements,
+        private readonly NotificationService $notifications
     ) {
     }
 
@@ -233,6 +235,13 @@ class ApiReservationsController extends Controller
 
         $reservation = Reservations::create($validated);
 
+        $this->notifications->envoyerAUtilisateur(
+            UsersApp::find($reservation->id_coiffeur),
+            'Nouvelle réservation',
+            sprintf('%s a réservé un rendez-vous.', $request->user()->last_name),
+            ['type' => 'reservation', 'id_reservation' => $reservation->id_reservation],
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Réservation créée avec succès',
@@ -296,6 +305,13 @@ class ApiReservationsController extends Controller
             if ($etaitDejaPayee) {
                 $reservation->ajouterHistoriqueRemboursement('demande_creee', 'Annulation par la cliente');
             }
+
+            $this->notifications->envoyerAUtilisateur(
+                UsersApp::find($reservation->id_coiffeur),
+                'Réservation annulée',
+                sprintf('%s a annulé sa réservation.', $request->user()->last_name),
+                ['type' => 'reservation', 'id_reservation' => $reservation->id_reservation],
+            );
         }
 
         return response()->json([
@@ -379,6 +395,13 @@ class ApiReservationsController extends Controller
             'confirme_le' => now()
         ]);
 
+        $this->notifications->envoyerAUtilisateur(
+            UsersApp::find($reservation->id_client),
+            'Réservation confirmée',
+            'Votre réservation a été confirmée par la coiffeuse.',
+            ['type' => 'reservation', 'id_reservation' => $reservation->id_reservation],
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Réservation confirmée avec succès',
@@ -415,6 +438,13 @@ class ApiReservationsController extends Controller
         if ($etaitDejaPayee) {
             $reservation->ajouterHistoriqueRemboursement('demande_creee', 'Annulation par la coiffeuse');
         }
+
+        $this->notifications->envoyerAUtilisateur(
+            UsersApp::find($reservation->id_client),
+            'Réservation annulée',
+            'Votre réservation a été annulée par la coiffeuse.',
+            ['type' => 'reservation', 'id_reservation' => $reservation->id_reservation],
+        );
 
         return response()->json([
             'success' => true,

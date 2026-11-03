@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Message;
 use App\Models\Reservations;
 use App\Models\UsersApp;
+use App\Services\NotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
@@ -155,5 +156,41 @@ class MessagesReservationTest extends TestCase
         ]);
         Sanctum::actingAs($autreCoiffeuse);
         $this->getJson('/api/messages/non-lus')->assertJsonPath('data.non_lus', 0);
+    }
+
+    public function test_un_message_notifie_le_destinataire_sans_jamais_inclure_son_contenu(): void
+    {
+        [$client, $coiffeuse, , $reservation] = $this->creerReservation();
+
+        $this->mock(NotificationService::class)
+            ->shouldReceive('envoyerAUtilisateur')
+            ->once()
+            ->withArgs(function ($destinataire, $titre, $corps, $donnees) use ($coiffeuse) {
+                return $destinataire->id_user_app === $coiffeuse->id_user_app
+                    // Le texte du message (confidentiel, écran verrouillé)
+                    // ne doit jamais apparaître dans la notification.
+                    && !str_contains($corps, 'immeuble bleu')
+                    && $donnees['type'] === 'message';
+            });
+
+        Sanctum::actingAs($client);
+        $this->postJson("/api/reservations/{$reservation->id_reservation}/messages", [
+            'message' => "Je suis au rez-de-chaussée, immeuble bleu.",
+        ])->assertStatus(201);
+    }
+
+    public function test_une_reponse_de_la_coiffeuse_notifie_la_cliente(): void
+    {
+        [$client, $coiffeuse, , $reservation] = $this->creerReservation();
+
+        $this->mock(NotificationService::class)
+            ->shouldReceive('envoyerAUtilisateur')
+            ->once()
+            ->withArgs(fn ($destinataire) => $destinataire->id_user_app === $client->id_user_app);
+
+        Sanctum::actingAs($coiffeuse);
+        $this->postJson("/api/reservations/{$reservation->id_reservation}/messages", [
+            'message' => "J'arrive dans 5 minutes.",
+        ])->assertStatus(201);
     }
 }

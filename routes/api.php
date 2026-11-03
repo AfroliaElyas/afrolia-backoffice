@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ApiAvisController;
 use App\Http\Controllers\Api\ApiClientFavoriteController;
 use App\Http\Controllers\Api\ApiCommandesController;
 use App\Http\Controllers\Api\ApiDashboardCoiffeuseController;
+use App\Http\Controllers\Api\ApiDeviceTokenController;
 use App\Http\Controllers\Api\ApiGainsCoiffeuseController;
 use App\Http\Controllers\Api\ApiLegalController;
 use App\Http\Controllers\Api\ApiLitigeController;
@@ -90,6 +91,9 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
     Route::post('logout', [ApiUtilisateursController::class, 'logout']);
+
+    Route::post('device-tokens', [ApiDeviceTokenController::class, 'enregistrer']);
+    Route::delete('device-tokens', [ApiDeviceTokenController::class, 'supprimer']);
 
     Route::post('update/{id}', [ApiUtilisateursController::class, 'update']);
     Route::delete('delete/{id}', [ApiUtilisateursController::class, 'supprimerCompte']);

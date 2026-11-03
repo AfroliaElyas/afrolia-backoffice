@@ -9,6 +9,14 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('commandes:annuler-expirees')->everyFiveMinutes();
+
+// Rappel de rendez-vous (notification push), demandé le 03/11/2026 :
+// fenêtre d'envoi d'1h, vérifiée toutes les 5 minutes — largement
+// suffisant pour ne manquer aucune réservation (rappel_envoye_at
+// empêche tout doublon, voir EnvoyerRappelsReservationCommand).
+Schedule::command('rappels:envoyer')
+    ->everyFiveMinutes()
+    ->appendOutputTo(storage_path('logs/scheduler-rappels.log'));
 Schedule::command('abonnements:prelever')->daily();
 // ->appendOutputTo() : sans ça, rien ne prouve après coup que cette tâche
 // s'exécute réellement sur le serveur (le cron Forge peut très bien ne

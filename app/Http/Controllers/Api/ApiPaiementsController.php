@@ -13,6 +13,7 @@ use App\Models\UsersApp;
 use App\Services\AbonnementService;
 use App\Services\MobileMoney\JekoGateway;
 use App\Services\MobileMoney\MobileMoneyGatewayInterface;
+use App\Services\NotificationService;
 use App\Services\Stripe\StripeGatewayInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -27,7 +28,8 @@ class ApiPaiementsController extends Controller
     public function __construct(
         private readonly MobileMoneyGatewayInterface $mobileMoneyGateway,
         private readonly AbonnementService $abonnements,
-        private readonly StripeGatewayInterface $stripeGateway
+        private readonly StripeGatewayInterface $stripeGateway,
+        private readonly NotificationService $notifications
     ) {
     }
 
@@ -549,6 +551,13 @@ class ApiPaiementsController extends Controller
 
         $reservation->update(['statut_paiement' => 'paye']);
 
+        $this->notifications->envoyerAUtilisateur(
+            UsersApp::find($reservation->id_client),
+            'Paiement confirmé',
+            'Votre paiement a bien été reçu.',
+            ['type' => 'reservation', 'id_reservation' => $reservation->id_reservation],
+        );
+
         // Utiliser les montants de la réservation : une modification de
         // formule entre réservation et paiement ne doit pas changer le gain.
         // La retenue (commission Afrolia + frais de paiement) est déduite
@@ -586,6 +595,13 @@ class ApiPaiementsController extends Controller
             'formule_abonnement' => $abonnementPaiement->formule,
             'prochain_prelevement_le' => now()->addMonthNoOverflow(),
         ]);
+
+        $this->notifications->envoyerAUtilisateur(
+            UsersApp::find($abonnementPaiement->id_coiffeur),
+            'Abonnement activé',
+            sprintf('Votre abonnement %s est maintenant actif.', $abonnementPaiement->formule),
+            ['type' => 'abonnement'],
+        );
     }
 
     private function marquerCommandePayee(Paiements $paiement): void
@@ -597,6 +613,13 @@ class ApiPaiementsController extends Controller
         }
 
         $commande->update(['statut_paiement' => 'paye', 'statut_commande' => 'payee']);
+
+        $this->notifications->envoyerAUtilisateur(
+            UsersApp::find($commande->id_client),
+            'Paiement confirmé',
+            'Votre commande a été payée avec succès.',
+            ['type' => 'commande', 'id_commande' => $commande->id_commande],
+        );
 
         // La cliente a payé montant_total (= montant_produits désormais) ;
         // la commission est retenue sur le gain de la vendeuse, les frais du

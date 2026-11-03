@@ -71,4 +71,20 @@ return [
         'api_key' => env('ANTHROPIC_API_KEY'),
     ],
 
+    // Notifications push (Firebase Cloud Messaging), demandées le
+    // 03/11/2026. Voir App\Services\NotificationService : tant que
+    // credentials_json n'est pas renseigné (projet Firebase à créer), les
+    // notifications sont ignorées silencieusement plutôt que de faire
+    // échouer l'action qui les déclenche.
+    'firebase' => [
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        // Contenu intégral (JSON) du fichier de clé de compte de service
+        // Firebase (Paramètres du projet > Comptes de service > Générer
+        // une nouvelle clé privée), collé tel quel comme valeur de
+        // variable d'environnement — jamais un chemin de fichier, pour
+        // rester cohérent avec le reste de la configuration (Backblaze,
+        // Jèko...).
+        'credentials_json' => env('FIREBASE_CREDENTIALS_JSON'),
+    ],
+
 ];

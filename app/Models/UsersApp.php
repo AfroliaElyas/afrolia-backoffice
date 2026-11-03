@@ -165,4 +165,9 @@ class UsersApp extends Model implements AuthenticatableContract
             'id_methode'
         )->withTimestamps();
     }
+
+    public function deviceTokens()
+    {
+        return $this->hasMany(DeviceToken::class, 'id_user_app', 'id_user_app');
+    }
 }

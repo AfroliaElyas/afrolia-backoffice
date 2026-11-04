@@ -75,19 +75,47 @@ class AbonnementService
     /**
      * Tente un prélèvement pour la formule donnée sur le solde de la
      * coiffeuse.
-     * - Solde suffisant : historise le prélèvement, active/renouvelle la
-     *   formule et avance la date de prochain prélèvement d'un mois.
+     * - Passage à Gratuit avec des jours Premium déjà payés en cours : ne
+     *   repasse PAS immédiatement en Gratuite (elle a payé cette période) —
+     *   désactive seulement le renouvellement automatique ; c'est la tâche
+     *   planifiée (PreleverAbonnementsMensuels) qui la repassera en
+     *   Gratuite à l'échéance déjà payée (demandé le 04/11/2026, suite à
+     *   l'audit financier : avant ce correctif, changer de formule faisait
+     *   perdre les jours déjà payés).
+     * - Repasser à Premium alors qu'il reste des jours déjà payés : ne
+     *   prélève rien une deuxième fois, réactive juste le renouvellement
+     *   automatique (annule un passage à Gratuite programmé).
+     * - Solde suffisant (cas normal) : historise le prélèvement, active la
+     *   formule et avance la date de prochain prélèvement (voir
+     *   activerPeriode).
      * - Solde insuffisant : historise l'échec et repasse automatiquement
      *   la coiffeuse en formule Gratuite.
      *
-     * @return array{success: bool, montant?: float, solde?: float, prix?: float}
+     * @return array{success: bool, montant?: float, solde?: float, prix?: float, effectif_le?: \Carbon\Carbon}
      */
     public function preleverPour(UsersApp $coiffeuse, string $formule): array
     {
         $prix = $this->prix($formule);
+        $aDesJoursRestants = $coiffeuse->formule_abonnement === 'premium' && $coiffeuse->prochain_prelevement_le?->isFuture();
 
         if ($prix <= 0) {
-            $coiffeuse->update(['formule_abonnement' => 'gratuit', 'prochain_prelevement_le' => null]);
+            if ($aDesJoursRestants) {
+                $coiffeuse->update(['renouvellement_automatique' => false]);
+
+                return ['success' => true, 'montant' => 0.0, 'effectif_le' => $coiffeuse->prochain_prelevement_le];
+            }
+
+            $coiffeuse->update([
+                'formule_abonnement' => 'gratuit',
+                'prochain_prelevement_le' => null,
+                'renouvellement_automatique' => true,
+            ]);
+
+            return ['success' => true, 'montant' => 0.0];
+        }
+
+        if ($aDesJoursRestants) {
+            $coiffeuse->update(['renouvellement_automatique' => true]);
 
             return ['success' => true, 'montant' => 0.0];
         }
@@ -103,7 +131,11 @@ class AbonnementService
                 'date_prelevement' => now(),
             ]);
 
-            $coiffeuse->update(['formule_abonnement' => 'gratuit', 'prochain_prelevement_le' => null]);
+            $coiffeuse->update([
+                'formule_abonnement' => 'gratuit',
+                'prochain_prelevement_le' => null,
+                'renouvellement_automatique' => true,
+            ]);
 
             return ['success' => false, 'solde' => $solde, 'prix' => $prix];
         }
@@ -116,12 +148,37 @@ class AbonnementService
             'date_prelevement' => now(),
         ]);
 
-        $coiffeuse->update([
-            'formule_abonnement' => $formule,
-            'prochain_prelevement_le' => now()->addMonthNoOverflow(),
-        ]);
+        $this->activerPeriode($coiffeuse, $formule);
 
         return ['success' => true, 'montant' => $prix];
+    }
+
+    /**
+     * Active (ou prolonge) une période payante pour une coiffeuse : source
+     * unique de la logique de prolongation, utilisée à la fois par
+     * preleverPour() (prélèvement sur le solde de gains) et par
+     * ApiPaiementsController::activerAbonnementPaye() (paiement direct par
+     * carte/Mobile Money), pour qu'elles ne puissent jamais diverger.
+     *
+     * Si la coiffeuse est déjà Premium avec des jours payés en cours, la
+     * nouvelle période part de cette échéance existante plutôt que
+     * d'écraser les jours restants avec "maintenant + 1 mois".
+     */
+    public function activerPeriode(UsersApp $coiffeuse, string $formule): \Carbon\Carbon
+    {
+        $depart = ($coiffeuse->formule_abonnement === 'premium' && $coiffeuse->prochain_prelevement_le?->isFuture())
+            ? $coiffeuse->prochain_prelevement_le
+            : now();
+
+        $prochain = $depart->copy()->addMonthNoOverflow();
+
+        $coiffeuse->update([
+            'formule_abonnement' => $formule,
+            'prochain_prelevement_le' => $prochain,
+            'renouvellement_automatique' => true,
+        ]);
+
+        return $prochain;
     }
 
     private function parametre(string $cle, float $defaut): float

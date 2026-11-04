@@ -22,14 +22,30 @@ class PreleverAbonnementsMensuels extends Command
 
         $reussis = 0;
         $echecs = 0;
+        $annulationsSurDemande = 0;
 
         foreach ($coiffeuses as $coiffeuse) {
+            // Passage à Gratuite déjà demandé (voir AbonnementService::preleverPour) :
+            // ce n'est pas un échec de paiement, aucun prélèvement à tenter.
+            if (!$coiffeuse->renouvellement_automatique) {
+                $coiffeuse->update([
+                    'formule_abonnement' => 'gratuit',
+                    'prochain_prelevement_le' => null,
+                    'renouvellement_automatique' => true,
+                ]);
+                $annulationsSurDemande++;
+                continue;
+            }
+
             $resultat = $abonnements->preleverPour($coiffeuse, $coiffeuse->formule_abonnement);
 
             $resultat['success'] ? $reussis++ : $echecs++;
         }
 
-        $this->info("{$reussis} prélèvement(s) d'abonnement réussi(s), {$echecs} échec(s) (repassage en formule Gratuite).");
+        $this->info(
+            "{$reussis} prélèvement(s) d'abonnement réussi(s), {$echecs} échec(s) (repassage en formule Gratuite), "
+            . "{$annulationsSurDemande} passage(s) en formule Gratuite sur demande."
+        );
 
         return self::SUCCESS;
     }

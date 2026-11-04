@@ -85,6 +85,7 @@ class ApiAbonnementController extends Controller
         }
 
         $formule = $request->input('formule');
+        $etaitPremiumAvecJoursRestants = $coiffeuse->formule_abonnement === 'premium' && $coiffeuse->prochain_prelevement_le?->isFuture();
         $resultat = $this->abonnements->preleverPour($coiffeuse, $formule);
 
         if (!$resultat['success']) {
@@ -94,9 +95,21 @@ class ApiAbonnementController extends Controller
             ], 422);
         }
 
+        // Passage à Gratuite programmé (des jours Premium restaient payés) :
+        // la formule actuelle n'a pas changé tout de suite, dites-le clairement.
+        if ($formule === 'gratuit' && isset($resultat['effectif_le'])) {
+            $message = 'Vous resterez en formule Premium jusqu\'au '
+                . $resultat['effectif_le']->format('d/m/Y')
+                . ', puis passerez automatiquement en formule Gratuite.';
+        } elseif ($formule === 'premium' && $etaitPremiumAvecJoursRestants) {
+            $message = 'Formule Premium déjà active jusqu\'au ' . $coiffeuse->fresh()->prochain_prelevement_le->format('d/m/Y') . '.';
+        } else {
+            $message = 'Formule ' . ucfirst($formule) . ' activée';
+        }
+
         return response()->json([
             'success' => true,
-            'message' => 'Formule ' . ucfirst($formule) . ' activée',
+            'message' => $message,
             'data' => $coiffeuse->fresh(),
         ]);
     }

@@ -182,7 +182,7 @@ class ApiUtilisateursController extends Controller
             'prenom' => 'sometimes|required|string',
             //'phone' => 'sometimes|required|string|unique:utilisateurs,phone_utilisateur,' . $id,
             //'commune' => 'sometimes|required|integer',
-            'photo' => 'nullable|image',
+            'photo' => 'nullable|image|max:5120', // 5MB, cohérent avec les autres endpoints d'upload
         ];
 
         $messages = [

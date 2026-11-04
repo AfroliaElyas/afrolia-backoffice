@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Commandes;
 use App\Models\Gains;
 use App\Models\Reservations;
 use App\Models\UsersApp;
@@ -87,6 +88,24 @@ class SuppressionCompteTest extends TestCase
         $client = $this->creerUtilisateur();
         $coiffeuse = $this->creerUtilisateur(['role' => 'hair']);
         $this->creerReservation($client, $coiffeuse, 'annulee', 'en_attente');
+
+        $this->expectException(SuppressionCompteBloqueeException::class);
+
+        (new SuppressionCompteService())->supprimer($client);
+    }
+
+    public function test_la_suppression_est_refusee_si_un_remboursement_de_commande_est_en_attente(): void
+    {
+        $client = $this->creerUtilisateur();
+        $coiffeuse = $this->creerUtilisateur(['role' => 'hair']);
+        Commandes::create([
+            'numero_commande' => 'CMD-' . uniqid(),
+            'id_client' => $client->id_user_app,
+            'id_coiffeur' => $coiffeuse->id_user_app,
+            'montant_produits' => 10000, 'montant_commission' => 800, 'montant_total' => 10000,
+            'methode_paiement' => 'stripe', 'statut_paiement' => 'paye', 'statut_commande' => 'annulee',
+            'statut_remboursement' => 'en_attente',
+        ]);
 
         $this->expectException(SuppressionCompteBloqueeException::class);
 

@@ -11,6 +11,7 @@ use App\Http\Controllers\PaiementController;
 use App\Http\Controllers\PolitiqueController;
 use App\Http\Controllers\RapportController;
 use App\Http\Controllers\RecuperationCompteController;
+use App\Http\Controllers\RemboursementCommandeController;
 use App\Http\Controllers\RemboursementController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\TarifController;
@@ -125,6 +126,8 @@ Route::middleware('auth')->group(function () {
     Route::post('remboursements/{id}/traiter', [RemboursementController::class, 'traiter'])->name('remboursements.traiter');
     Route::post('remboursements/{id}/rejeter', [RemboursementController::class, 'rejeter'])->name('remboursements.rejeter');
     Route::post('remboursements/{id}/confirmer-verification', [RemboursementController::class, 'confirmerVerification'])->name('remboursements.confirmerVerification');
+
+    Route::post('remboursements-commandes/{id}/traiter', [RemboursementCommandeController::class, 'traiter'])->name('remboursements-commandes.traiter');
 
     Route::get('versements', [VersementController::class, 'index'])->name('versements');
     Route::post('versements/coiffeuse/{idCoiffeur}/infos', [VersementController::class, 'definirInfosVersement'])->name('versements.infos');

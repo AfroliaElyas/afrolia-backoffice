@@ -164,6 +164,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/coiffeuse/{id_coiffeur}', [ApiCommandesController::class, 'getCommandesByCoiffeuse']);
         Route::put('/expedier/{id_commande}', [ApiCommandesController::class, 'expedier']);
         Route::put('/livrer/{id_commande}', [ApiCommandesController::class, 'livrer']);
+        Route::post('/{id_commande}/annuler', [ApiCommandesController::class, 'annuler']);
+        Route::post('/{id_commande}/refuser', [ApiCommandesController::class, 'refuser']);
     });
 
     // Lecture seule : un gain ne naît que d'un paiement vérifié par

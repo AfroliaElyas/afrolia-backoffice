@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Paiements;
 use App\Models\Reservations;
+use App\Services\NotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -227,5 +228,20 @@ class StripeWebhookTest extends TestCase
         $this->notifier($paiement, 'payment_intent.succeeded');
         $this->notifier($autre, 'payment_intent.succeeded');
         $this->assertDatabaseCount('gains', 1);
+    }
+
+    public function test_la_relivraison_du_webhook_ne_double_pas_la_notification_push(): void
+    {
+        $paiement = $this->creerReservationAvecPaiementPending();
+
+        // Même garde d'idempotence que pour le gain (statut_paiement déjà
+        // "paye" au deuxième passage) : la notification de paiement reçu
+        // ne doit jamais partir deux fois pour une même réservation.
+        $this->mock(NotificationService::class)
+            ->shouldReceive('envoyerAUtilisateur')
+            ->once();
+
+        $this->notifier($paiement, 'payment_intent.succeeded');
+        $this->notifier($paiement, 'payment_intent.succeeded');
     }
 }

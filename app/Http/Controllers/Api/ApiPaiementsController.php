@@ -13,6 +13,7 @@ use App\Models\UsersApp;
 use App\Services\AbonnementService;
 use App\Services\MobileMoney\JekoGateway;
 use App\Services\MobileMoney\MobileMoneyGatewayInterface;
+use App\Services\NotificationService;
 use App\Services\Stripe\StripeGatewayInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -27,7 +28,8 @@ class ApiPaiementsController extends Controller
     public function __construct(
         private readonly MobileMoneyGatewayInterface $mobileMoneyGateway,
         private readonly AbonnementService $abonnements,
-        private readonly StripeGatewayInterface $stripeGateway
+        private readonly StripeGatewayInterface $stripeGateway,
+        private readonly NotificationService $notifications
     ) {
     }
 
@@ -476,14 +478,26 @@ class ApiPaiementsController extends Controller
     {
         $reservation = Reservations::where('remboursement_reference', $transaction['reference'])->first();
 
-        if (!$reservation) {
-            // Ce n'est pas forcément une anomalie : un versement de gains
-            // (VersementController) est aussi un transfert Jèko, avec sa
-            // propre référence "VERS-...", qui ne correspond à aucune
-            // réservation.
+        if ($reservation) {
+            $this->appliquerWebhookTransfertRemboursementReservation($reservation, $transaction);
             return;
         }
 
+        $commande = Commandes::where('remboursement_reference', $transaction['reference'])->first();
+
+        if ($commande) {
+            $this->appliquerWebhookTransfertRemboursementCommande($commande, $transaction);
+            return;
+        }
+
+        // Ce n'est pas forcément une anomalie : un versement de gains
+        // (VersementController) est aussi un transfert Jèko, avec sa
+        // propre référence "VERS-...", qui ne correspond ni à une
+        // réservation ni à une commande.
+    }
+
+    private function appliquerWebhookTransfertRemboursementReservation(Reservations $reservation, array $transaction): void
+    {
         DB::transaction(function () use ($reservation, $transaction) {
             $reservation = Reservations::whereKey($reservation->id_reservation)->lockForUpdate()->first();
 
@@ -507,6 +521,32 @@ class ApiPaiementsController extends Controller
                 // deuxième fois ni dupliquer l'entrée d'historique.
                 $reservation->update(['statut_remboursement' => 'en_attente']);
                 $reservation->ajouterHistoriqueRemboursement('echec', 'Transfert refusé, confirmé par webhook Jèko');
+            }
+        });
+    }
+
+    /**
+     * Pendant de appliquerWebhookTransfertRemboursementReservation() pour
+     * les commandes boutique (voir RemboursementCommandeController).
+     */
+    private function appliquerWebhookTransfertRemboursementCommande(Commandes $commande, array $transaction): void
+    {
+        DB::transaction(function () use ($commande, $transaction) {
+            $commande = Commandes::whereKey($commande->id_commande)->lockForUpdate()->first();
+
+            if ($transaction['statut'] === 'success') {
+                if ($commande->statut_remboursement === 'traite') {
+                    return;
+                }
+
+                $commande->update(['statut_paiement' => 'rembourse', 'statut_remboursement' => 'traite']);
+                Paiements::where('id_commande', $commande->id_commande)
+                    ->where('status', 'succeeded')
+                    ->update(['status' => 'refunded', 'processed_at' => now()]);
+                $commande->ajouterHistoriqueRemboursement('rembourse', 'Confirmé par webhook Jèko');
+            } elseif ($transaction['statut'] === 'error' && $commande->statut_remboursement === 'en_cours') {
+                $commande->update(['statut_remboursement' => 'en_attente']);
+                $commande->ajouterHistoriqueRemboursement('echec', 'Transfert refusé, confirmé par webhook Jèko');
             }
         });
     }
@@ -549,6 +589,13 @@ class ApiPaiementsController extends Controller
 
         $reservation->update(['statut_paiement' => 'paye']);
 
+        $this->notifications->envoyerAUtilisateur(
+            UsersApp::find($reservation->id_client),
+            'Paiement confirmé',
+            'Votre paiement a bien été reçu.',
+            ['type' => 'reservation', 'id_reservation' => $reservation->id_reservation],
+        );
+
         // Utiliser les montants de la réservation : une modification de
         // formule entre réservation et paiement ne doit pas changer le gain.
         // La retenue (commission Afrolia + frais de paiement) est déduite
@@ -582,10 +629,21 @@ class ApiPaiementsController extends Controller
 
         $abonnementPaiement->update(['statut' => 'reussi']);
 
-        UsersApp::where('id_user_app', $abonnementPaiement->id_coiffeur)->update([
-            'formule_abonnement' => $abonnementPaiement->formule,
-            'prochain_prelevement_le' => now()->addMonthNoOverflow(),
-        ]);
+        // activerPeriode() prolonge depuis l'échéance déjà payée s'il en
+        // restait une, au lieu de l'écraser avec "maintenant + 1 mois"
+        // (même logique que AbonnementService::preleverPour, demandé le
+        // 04/11/2026 suite à l'audit financier).
+        $coiffeuse = UsersApp::whereKey($abonnementPaiement->id_coiffeur)->lockForUpdate()->first();
+        if ($coiffeuse) {
+            $this->abonnements->activerPeriode($coiffeuse, $abonnementPaiement->formule);
+        }
+
+        $this->notifications->envoyerAUtilisateur(
+            UsersApp::find($abonnementPaiement->id_coiffeur),
+            'Abonnement activé',
+            sprintf('Votre abonnement %s est maintenant actif.', $abonnementPaiement->formule),
+            ['type' => 'abonnement'],
+        );
     }
 
     private function marquerCommandePayee(Paiements $paiement): void
@@ -597,6 +655,13 @@ class ApiPaiementsController extends Controller
         }
 
         $commande->update(['statut_paiement' => 'paye', 'statut_commande' => 'payee']);
+
+        $this->notifications->envoyerAUtilisateur(
+            UsersApp::find($commande->id_client),
+            'Paiement confirmé',
+            'Votre commande a été payée avec succès.',
+            ['type' => 'commande', 'id_commande' => $commande->id_commande],
+        );
 
         // La cliente a payé montant_total (= montant_produits désormais) ;
         // la commission est retenue sur le gain de la vendeuse, les frais du

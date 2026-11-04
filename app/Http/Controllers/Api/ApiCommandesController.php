@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CommandeLignes;
 use App\Models\Commandes;
+use App\Models\Gains;
 use App\Models\Produits;
 use App\Models\UsersApp;
 use App\Services\AbonnementService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -16,8 +18,10 @@ use Illuminate\Validation\ValidationException;
 
 class ApiCommandesController extends Controller
 {
-    public function __construct(private readonly AbonnementService $abonnements)
-    {
+    public function __construct(
+        private readonly AbonnementService $abonnements,
+        private readonly NotificationService $notifications
+    ) {
     }
 
     // ✅ 1. Passer commande (checkout) : réserve le stock avant paiement
@@ -235,6 +239,114 @@ class ApiCommandesController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Commande marquée comme livrée',
+            'data' => $commande,
+        ]);
+    }
+
+    // ✅ 6. La cliente annule sa propre commande payée, pas encore expédiée
+    public function annuler(Request $request, $id_commande)
+    {
+        $commande = Commandes::where('id_commande', $id_commande)
+            ->where('id_client', $request->user()->id_user_app)
+            ->first();
+
+        if (!$commande) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Commande introuvable ou non autorisée',
+            ], 404);
+        }
+
+        return $this->ouvrirDossierRemboursement($commande, 'client', $request->input('raison'));
+    }
+
+    // 🚫 7. La coiffeuse refuse une commande reçue, payée, pas encore expédiée
+    public function refuser(Request $request, $id_commande)
+    {
+        $commande = Commandes::where('id_commande', $id_commande)
+            ->where('id_coiffeur', $request->user()->id_user_app)
+            ->first();
+
+        if (!$commande) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Commande introuvable ou non autorisée',
+            ], 404);
+        }
+
+        return $this->ouvrirDossierRemboursement($commande, 'coiffeur', $request->input('raison'));
+    }
+
+    /**
+     * Annule une commande payée et ouvre son dossier de remboursement :
+     * restitue le stock immédiatement (le produit redevient disponible
+     * sans attendre que l'argent soit réellement rendu, même principe que
+     * commandes:annuler-expirees pour les commandes jamais payées) et
+     * annule le gain en attente de la coiffeuse. Le remboursement réel
+     * (appel Stripe/Mobile Money) est un acte distinct, traité ensuite côté
+     * back-office (voir RemboursementCommandeController), jamais déclenché
+     * directement depuis l'app — même principe de sécurité que pour les
+     * réservations (demandé le 04/11/2026).
+     *
+     * Contrairement aux réservations, aucune pénalité de commission n'est
+     * appliquée à la coiffeuse quand c'est elle qui refuse : rien n'a
+     * encore été expédié, et la commission boutique n'a jamais été ajoutée
+     * à la charge de la cliente (voir AbonnementService::tauxCommissionBoutique).
+     */
+    private function ouvrirDossierRemboursement(Commandes $commande, string $annulePar, ?string $raison)
+    {
+        if ($commande->statut_commande !== 'payee') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette commande ne peut plus être annulée (pas encore payée, déjà expédiée, livrée ou annulée).',
+            ], 400);
+        }
+
+        DB::transaction(function () use ($commande, $annulePar, $raison) {
+            $commande = Commandes::whereKey($commande->id_commande)->lockForUpdate()->first();
+
+            if ($commande->statut_commande !== 'payee') {
+                return;
+            }
+
+            $idsProduits = $commande->lignes()->pluck('id_produit')->unique()->sort()->values();
+            $produits = Produits::whereIn('id_produit', $idsProduits)->lockForUpdate()->get()->keyBy('id_produit');
+
+            foreach ($commande->lignes as $ligne) {
+                $produits->get($ligne->id_produit)?->increment('quantite_stock', $ligne->quantite);
+            }
+
+            $commande->update([
+                'statut_commande' => 'annulee',
+                'raison_annulation' => $raison ?: 'Aucune raison spécifiée',
+                'annulee_le' => now(),
+                'statut_remboursement' => 'en_attente',
+            ]);
+
+            $gain = Gains::where('id_commande', $commande->id_commande)->first();
+            $gain?->update(['montant_net' => 0, 'statut' => 'annulee']);
+
+            $commande->ajouterHistoriqueRemboursement(
+                'demande_creee',
+                $annulePar === 'client' ? 'Annulation par la cliente' : 'Annulation par la coiffeuse'
+            );
+        });
+
+        $commande->refresh();
+
+        $destinataire = $annulePar === 'client' ? $commande->id_coiffeur : $commande->id_client;
+        $libelle = $annulePar === 'client' ? 'La cliente a annulé sa commande.' : 'La coiffeuse a annulé votre commande.';
+
+        $this->notifications->envoyerAUtilisateur(
+            UsersApp::find($destinataire),
+            'Commande annulée',
+            $libelle,
+            ['type' => 'commande', 'id_commande' => $commande->id_commande],
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Commande annulée, remboursement en cours de traitement',
             'data' => $commande,
         ]);
     }

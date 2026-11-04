@@ -35,7 +35,7 @@ class ApiUserSalonController extends Controller
                 'prenom' => 'sometimes|required|string',
                 'commune' => 'sometimes|required|string',
                 'adresse' => 'nullable|string',
-                'email' => 'nullable|string',
+                'email' => 'nullable|email|max:100|unique:users_app,email,' . $id . ',id_user_app',
                 'experience' => 'nullable',
                 'password' => 'nullable|string',
                 'photo' => 'nullable|file|mimes:jpg,jpeg,png,webp|max:5120', // 5MB
@@ -82,7 +82,17 @@ class ApiUserSalonController extends Controller
             if ($request->filled('commune')) $utilisateur->commune = $request->commune;
             if ($request->filled('adresse')) $utilisateur->adresse = $request->adresse;
             if ($request->filled('experience')) $utilisateur->experience = (int)$request->experience;
-            if ($request->filled('email')) $utilisateur->email = $request->email;
+            if ($request->filled('email') && $request->email !== $utilisateur->email) {
+                // Une adresse e-mail changée par ce chemin n'a pas été
+                // prouvée : contrairement à demanderVerificationEmailCompte,
+                // qui est le seul endroit à envoyer un lien de vérification,
+                // ne jamais laisser une ancienne vérification (d'une adresse
+                // différente) s'appliquer à la nouvelle, sans quoi
+                // demanderReinitialisationParEmail() la traiterait à tort
+                // comme vérifiée.
+                $utilisateur->email = $request->email;
+                $utilisateur->email_verified_at = null;
+            }
             if ($request->filled('password')) $utilisateur->password = Hash::make($request->password);
             if ($request->filled('latitude') && $request->filled('longitude')) {
                 $utilisateur->latitude = $request->latitude;

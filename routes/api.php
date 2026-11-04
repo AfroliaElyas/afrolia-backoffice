@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ApiAvisController;
 use App\Http\Controllers\Api\ApiClientFavoriteController;
 use App\Http\Controllers\Api\ApiCommandesController;
 use App\Http\Controllers\Api\ApiDashboardCoiffeuseController;
+use App\Http\Controllers\Api\ApiDeviceTokenController;
 use App\Http\Controllers\Api\ApiGainsCoiffeuseController;
 use App\Http\Controllers\Api\ApiLegalController;
 use App\Http\Controllers\Api\ApiLitigeController;
@@ -91,6 +92,9 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::post('logout', [ApiUtilisateursController::class, 'logout']);
 
+    Route::post('device-tokens', [ApiDeviceTokenController::class, 'enregistrer']);
+    Route::delete('device-tokens', [ApiDeviceTokenController::class, 'supprimer']);
+
     Route::post('update/{id}', [ApiUtilisateursController::class, 'update']);
     Route::delete('delete/{id}', [ApiUtilisateursController::class, 'supprimerCompte']);
     Route::get('delete/{id}', [ApiUtilisateursController::class, 'supprimerCompte']);
@@ -160,6 +164,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/coiffeuse/{id_coiffeur}', [ApiCommandesController::class, 'getCommandesByCoiffeuse']);
         Route::put('/expedier/{id_commande}', [ApiCommandesController::class, 'expedier']);
         Route::put('/livrer/{id_commande}', [ApiCommandesController::class, 'livrer']);
+        Route::post('/{id_commande}/annuler', [ApiCommandesController::class, 'annuler']);
+        Route::post('/{id_commande}/refuser', [ApiCommandesController::class, 'refuser']);
     });
 
     // Lecture seule : un gain ne naît que d'un paiement vérifié par

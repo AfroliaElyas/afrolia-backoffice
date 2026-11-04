@@ -12,9 +12,16 @@ use Illuminate\Support\Facades\Storage;
  * parasites, région/endpoint incohérents) qui trahissent une faute de
  * transcription lors de la saisie dans Forge (demandé le 30/10/2026).
  *
- * N'écrit ni ne modifie aucune donnée : la seule opération réseau est une
- * vérification d'existence d'un objet qui n'existe pas (Storage::exists),
- * l'équivalent en lecture d'un simple "ping" du bucket.
+ * La section 3 écrit un unique petit fichier de diagnostic (préfixé
+ * "__diagnostic_afrolia_", horodaté pour être unique), le liste, puis le
+ * supprime aussitôt — exactement les trois opérations que sauvegarde:externe
+ * utilise réellement (écrire, lister pour la purge, supprimer les anciennes
+ * sauvegardes). Jamais de lecture du contenu d'un fichier existant, jamais de
+ * donnée réelle touchée. Un test en lecture seule (Storage::exists) avait été
+ * tenté d'abord, mais échouait par 403 sur une clé pourtant valide dont les
+ * capacités Backblaze ne couvrent que l'écriture — exactement ce que la
+ * sauvegarde utilise, donc sans rapport avec un vrai problème (confirmé en
+ * production le 01/11/2026).
  */
 class DiagnostiquerBackblazeCommand extends Command
 {
@@ -108,11 +115,26 @@ class DiagnostiquerBackblazeCommand extends Command
         $this->line('  Heure du serveur (UTC) : '.gmdate('Y-m-d H:i:s').' — doit correspondre à l\'heure réelle à quelques secondes près.');
 
         $this->newLine();
-        $this->info('=== 3. Test de connexion réel (lecture seule, aucune donnée modifiée) ===');
+        $this->info('=== 3. Test des capacités réellement utilisées par la sauvegarde ===');
+        $this->line('  (écrire, lister, supprimer — exactement ce que fait sauvegarde:externe ;');
+        $this->line('  jamais de lecture du contenu d\'un fichier existant.)');
+
+        $nomFichier = '__diagnostic_afrolia_' . now()->timestamp . '__';
 
         try {
-            Storage::disk('backblaze')->exists('__diagnostic_afrolia_' . now()->timestamp . '__');
-            $this->info('  ✅ Connexion réussie : les identifiants, la région, l\'endpoint et le bucket sont corrects.');
+            $disque = Storage::disk('backblaze');
+
+            $disque->put($nomFichier, 'diagnostic Afrolia — fichier temporaire, supprimé immédiatement');
+            $this->info('  ✅ Écriture (writeFiles) : réussie.');
+
+            $disque->files();
+            $this->info('  ✅ Listage (listFiles) : réussi.');
+
+            $disque->delete($nomFichier);
+            $this->info('  ✅ Suppression du fichier de test (deleteFiles) : réussie.');
+
+            $this->newLine();
+            $this->info('  ✅ Connexion réussie : la sauvegarde externe peut fonctionner normalement.');
 
             if ($problemeDetecte) {
                 $this->warn('  (Les anomalies listées plus haut n\'empêchent donc pas la connexion ici — à surveiller quand même.)');
@@ -120,14 +142,51 @@ class DiagnostiquerBackblazeCommand extends Command
 
             return self::SUCCESS;
         } catch (\Throwable $e) {
+            // Nettoyage best-effort : si l'échec a lieu après l'écriture
+            // (ex. lors du listage ou de la suppression), on essaie quand
+            // même de retirer le fichier de test pour ne rien laisser
+            // traîner dans le bucket.
+            try {
+                Storage::disk('backblaze')->delete($nomFichier);
+            } catch (\Throwable) {
+                // Ignoré : si la suppression échoue aussi, c'est déjà
+                // signalé par l'erreur principale ci-dessous.
+            }
+
             $this->error('  ❌ ÉCHEC : ' . get_class($e));
             $this->error('  Message complet renvoyé par Backblaze : ' . $e->getMessage());
+
+            // League\Flysystem enveloppe toujours l'exception réelle du SDK
+            // AWS (ex. Aws\S3\Exception\S3Exception) dans sa propre exception
+            // générique ("Unable to check existence for: ..."). Le vrai code
+            // d'erreur ("SignatureDoesNotMatch", "InvalidAccessKeyId"...) ne
+            // vit que dans cette exception d'origine, récupérable via la
+            // chaîne getPrevious() — jamais affiché avant ce correctif
+            // (demandé après un premier diagnostic resté trop vague le
+            // 01/11/2026).
+            $cause = $e->getPrevious();
+            while ($cause !== null) {
+                $this->newLine();
+                $this->error('  Cause réelle : ' . get_class($cause));
+                $this->error('  Message : ' . $cause->getMessage());
+
+                if (method_exists($cause, 'getAwsErrorCode')) {
+                    $this->error('  Code d\'erreur AWS/Backblaze : ' . ($cause->getAwsErrorCode() ?? '(absent)'));
+                }
+                if (method_exists($cause, 'getStatusCode')) {
+                    $this->error('  Code HTTP renvoyé par Backblaze : ' . $cause->getStatusCode());
+                }
+
+                $cause = $cause->getPrevious();
+            }
+
             $this->newLine();
-            $this->line('  Ce message précis (pas juste "Signature validation failed") indique généralement :');
+            $this->line('  Ce code précis (pas juste "Signature validation failed") indique généralement :');
             $this->line('  - "SignatureDoesNotMatch" → une faute dans BACKBLAZE_APPLICATION_KEY (le plus souvent une faute de transcription).');
             $this->line('  - "InvalidAccessKeyId" → une faute dans BACKBLAZE_KEY_ID, ou une clé supprimée/régénérée côté Backblaze.');
             $this->line('  - "NoSuchBucket" → BACKBLAZE_BUCKET ne correspond pas exactement au nom du bucket.');
             $this->line('  - "AccessDenied" → la clé d\'application existe mais n\'a pas la permission sur ce bucket précis.');
+            $this->line('  - 403 sans code précis → vérifier les "Capabilities" de la clé d\'application dans Backblaze (doit inclure au moins listFiles, writeFiles et deleteFiles pour que la sauvegarde fonctionne).');
 
             return self::FAILURE;
         }

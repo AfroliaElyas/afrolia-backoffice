@@ -77,7 +77,13 @@ return [
             'region' => trim((string) env('BACKBLAZE_REGION')) ?: null,
             'bucket' => trim((string) env('BACKBLAZE_BUCKET')) ?: null,
             'endpoint' => trim((string) env('BACKBLAZE_ENDPOINT')) ?: null,
-            'use_path_style_endpoint' => false,
+            // Backblaze B2 valide mal la signature SigV4 en style
+            // "virtual-hosted" (bucket.s3.region.backblazeb2.com) : c'est la
+            // cause la plus documentée de "Signature validation failed" côté
+            // B2 alors que clé/région/endpoint sont corrects. Le style
+            // "path" (s3.region.backblazeb2.com/bucket/...) est la forme
+            // que Backblaze attend réellement.
+            'use_path_style_endpoint' => true,
             // Les SDK AWS récents (aws-sdk-php ≥ 3.337) ajoutent par défaut
             // des sommes de contrôle CRC aux envois et lectures. Backblaze
             // B2 n'est pas Amazon S3 et a eu des incompatibilités avec ces

@@ -5,11 +5,18 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Message;
 use App\Models\Reservations;
+use App\Models\UsersApp;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class ApiMessagesController extends Controller
 {
+    public function __construct(
+        private readonly NotificationService $notifications
+    ) {
+    }
+
     /**
      * Vérifie que l'utilisateur authentifié est bien la cliente ou la
      * coiffeuse de cette réservation, seules autorisées à voir/écrire dans
@@ -88,6 +95,20 @@ class ApiMessagesController extends Controller
             'message' => $request->input('message'),
             'lu' => false,
         ]);
+
+        $expediteurId = (int) $request->user()->id_user_app;
+        $destinataireId = (int) $reservation->id_client === $expediteurId
+            ? $reservation->id_coiffeur
+            : $reservation->id_client;
+
+        // Jamais le texte du message lui-même dans la notification : il
+        // s'affiche sur l'écran verrouillé de l'appareil.
+        $this->notifications->envoyerAUtilisateur(
+            UsersApp::find($destinataireId),
+            sprintf('Nouveau message de %s', $request->user()->last_name),
+            'Vous avez reçu un nouveau message.',
+            ['type' => 'message', 'id_reservation' => $reservation->id_reservation],
+        );
 
         return response()->json([
             'success' => true,

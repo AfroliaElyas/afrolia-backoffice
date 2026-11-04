@@ -23,6 +23,9 @@ class Commandes extends Model
         'expediee_le',
         'livree_le',
         'annulee_le',
+        'statut_remboursement',
+        'remboursement_historique',
+        'remboursement_reference',
     ];
 
     protected $table = 'commandes';
@@ -51,5 +54,21 @@ class Commandes extends Model
     public function lignes()
     {
         return $this->hasMany(CommandeLignes::class, 'id_commande');
+    }
+
+    /**
+     * Ajoute une entrée à l'historique de remboursement sans écraser les
+     * précédentes — même principe que Reservations::ajouterHistoriqueRemboursement.
+     */
+    public function ajouterHistoriqueRemboursement(string $action, ?string $detail = null): void
+    {
+        $historique = json_decode($this->remboursement_historique ?? '[]', true) ?: [];
+        $historique[] = array_filter([
+            'au' => now()->toIso8601String(),
+            'action' => $action,
+            'detail' => $detail,
+        ], fn ($valeur) => $valeur !== null);
+
+        $this->update(['remboursement_historique' => json_encode($historique)]);
     }
 }

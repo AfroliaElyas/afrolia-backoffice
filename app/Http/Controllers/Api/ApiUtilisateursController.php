@@ -60,11 +60,11 @@ class ApiUtilisateursController extends Controller
                 'message' => 'Connexion réussie',
                 'data' => [
                     'id' => $utilisateur->id_user_app,
-                    'nom' => $utilisateur->name,
-                    'prenom' => $utilisateur->last_name,
+                    'nom' => $utilisateur->name ?? "",
+                    'prenom' => $utilisateur->last_name ?? "",
                     'email' => $utilisateur->email ?? "",
                     'presentation' => $utilisateur->presentation ?? "",
-                    'phone' => $utilisateur->phone,
+                    'phone' => $utilisateur->phone ?? "",
                     'adresse' => $utilisateur->adresse ?? "",
                     'experience' => $utilisateur->experience ?? 0,
                     'commune' => $utilisateur->commune ?? "",
@@ -182,7 +182,7 @@ class ApiUtilisateursController extends Controller
             'prenom' => 'sometimes|required|string',
             //'phone' => 'sometimes|required|string|unique:utilisateurs,phone_utilisateur,' . $id,
             //'commune' => 'sometimes|required|integer',
-            'photo' => 'nullable|image',
+            'photo' => 'nullable|image|max:5120', // 5MB, cohérent avec les autres endpoints d'upload
         ];
 
         $messages = [

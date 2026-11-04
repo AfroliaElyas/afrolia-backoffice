@@ -29,6 +29,7 @@ class UsersApp extends Model implements AuthenticatableContract
         'statut',
         'formule_abonnement',
         'prochain_prelevement_le',
+        'renouvellement_automatique',
         'latitude',
         'longitude',
         'derniere_maj_position',
@@ -56,6 +57,7 @@ class UsersApp extends Model implements AuthenticatableContract
 
     protected $casts = [
         'prochain_prelevement_le' => 'datetime',
+        'renouvellement_automatique' => 'boolean',
         'latitude' => 'float',
         'longitude' => 'float',
         'derniere_maj_position' => 'datetime',
@@ -164,5 +166,10 @@ class UsersApp extends Model implements AuthenticatableContract
             'id_utilisateur',
             'id_methode'
         )->withTimestamps();
+    }
+
+    public function deviceTokens()
+    {
+        return $this->hasMany(DeviceToken::class, 'id_user_app', 'id_user_app');
     }
 }

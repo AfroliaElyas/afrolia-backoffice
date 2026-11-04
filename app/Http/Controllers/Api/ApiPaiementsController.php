@@ -591,10 +591,14 @@ class ApiPaiementsController extends Controller
 
         $abonnementPaiement->update(['statut' => 'reussi']);
 
-        UsersApp::where('id_user_app', $abonnementPaiement->id_coiffeur)->update([
-            'formule_abonnement' => $abonnementPaiement->formule,
-            'prochain_prelevement_le' => now()->addMonthNoOverflow(),
-        ]);
+        // activerPeriode() prolonge depuis l'échéance déjà payée s'il en
+        // restait une, au lieu de l'écraser avec "maintenant + 1 mois"
+        // (même logique que AbonnementService::preleverPour, demandé le
+        // 04/11/2026 suite à l'audit financier).
+        $coiffeuse = UsersApp::whereKey($abonnementPaiement->id_coiffeur)->lockForUpdate()->first();
+        if ($coiffeuse) {
+            $this->abonnements->activerPeriode($coiffeuse, $abonnementPaiement->formule);
+        }
 
         $this->notifications->envoyerAUtilisateur(
             UsersApp::find($abonnementPaiement->id_coiffeur),

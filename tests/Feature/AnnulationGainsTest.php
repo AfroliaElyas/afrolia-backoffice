@@ -148,4 +148,74 @@ class AnnulationGainsTest extends TestCase
         $this->assertSame('en_attente', $gain->statut);
         $this->assertSame(-800.0, (float) $gain->montant_net);
     }
+
+    /**
+     * Marque une réservation payée comme confirmée puis terminée (même
+     * chemin qu'une vraie prestation réalisée), pour tester les tentatives
+     * d'annulation tardive ci-dessous.
+     */
+    private function terminerReservation(UsersApp $coiffeuse, int $idReservation): void
+    {
+        Sanctum::actingAs($coiffeuse);
+        $this->putJson("/api/reservations/confirmer/{$idReservation}")->assertStatus(200);
+        $this->putJson("/api/reservations/terminer/{$idReservation}")->assertStatus(200);
+    }
+
+    public function test_impossible_pour_la_cliente_d_annuler_une_reservation_deja_terminee(): void
+    {
+        [$client, $coiffeuse, $idReservation] = $this->creerReservationPayee();
+        $this->terminerReservation($coiffeuse, $idReservation);
+
+        $gainAvant = Gains::where('id_reservation', $idReservation)->first();
+
+        Sanctum::actingAs($client);
+        $this->putJson("/api/reservations/{$idReservation}", [
+            'statut' => 'annulee',
+            'raison_annulation' => 'Je ne veux plus',
+        ])->assertStatus(400);
+
+        $reservation = Reservations::find($idReservation);
+        $this->assertSame('terminee', $reservation->statut);
+        $this->assertSame('aucun', $reservation->statut_remboursement);
+
+        // Le gain déjà constitué pour la prestation réalisée (et
+        // potentiellement déjà versé à la coiffeuse) n'a pas été touché.
+        $gainApres = Gains::where('id_reservation', $idReservation)->first();
+        $this->assertSame($gainAvant->statut, $gainApres->statut);
+        $this->assertSame((float) $gainAvant->montant_net, (float) $gainApres->montant_net);
+    }
+
+    public function test_impossible_pour_la_coiffeuse_de_refuser_une_reservation_deja_terminee(): void
+    {
+        [$client, $coiffeuse, $idReservation] = $this->creerReservationPayee();
+        $this->terminerReservation($coiffeuse, $idReservation);
+
+        $gainAvant = Gains::where('id_reservation', $idReservation)->first();
+
+        Sanctum::actingAs($coiffeuse);
+        $this->putJson("/api/reservations/refuser/{$idReservation}", [
+            'raison' => 'Changement d\'avis',
+        ])->assertStatus(400);
+
+        $reservation = Reservations::find($idReservation);
+        $this->assertSame('terminee', $reservation->statut);
+        $this->assertSame('aucun', $reservation->statut_remboursement);
+
+        $gainApres = Gains::where('id_reservation', $idReservation)->first();
+        $this->assertSame($gainAvant->statut, $gainApres->statut);
+        $this->assertSame((float) $gainAvant->montant_net, (float) $gainApres->montant_net);
+    }
+
+    public function test_impossible_d_annuler_deux_fois_la_meme_reservation(): void
+    {
+        [$client, $coiffeuse, $idReservation] = $this->creerReservationPayee();
+
+        Sanctum::actingAs($client);
+        $this->putJson("/api/reservations/{$idReservation}", ['statut' => 'annulee'])->assertStatus(200);
+
+        // Deuxième tentative sur une réservation déjà annulée : refusée,
+        // pour ne jamais rejouer annulerGainsPourReservation() une seconde
+        // fois ni rouvrir un dossier de remboursement déjà créé.
+        $this->putJson("/api/reservations/{$idReservation}", ['statut' => 'annulee'])->assertStatus(400);
+    }
 }

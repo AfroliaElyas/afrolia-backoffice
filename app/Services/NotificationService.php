@@ -94,6 +94,112 @@ class NotificationService
     }
 
     /**
+     * Envoie une vraie notification de test à un utilisateur et rend compte,
+     * appareil par appareil, de ce qui s'est passé — jamais de secret dans le
+     * résultat, uniquement destiné à `notifications:tester` (voir ce fichier
+     * pour le contexte : vérifier FIREBASE_CREDENTIALS_JSON après un dépôt
+     * manuel dans l'Environnement Forge, sans accès serveur).
+     *
+     * @return array{
+     *   configure: bool,
+     *   nombre_appareils: int,
+     *   jeton_obtenu: ?bool,
+     *   resultats: list<array{plateforme: string, envoye: bool, erreur: ?string}>,
+     * }
+     */
+    public function diagnostiquerPourUtilisateur(UsersApp $utilisateur): array
+    {
+        if (!$this->estConfigure()) {
+            return [
+                'configure' => false,
+                'nombre_appareils' => 0,
+                'jeton_obtenu' => null,
+                'resultats' => [],
+            ];
+        }
+
+        $appareils = $utilisateur->deviceTokens()->get();
+
+        if ($appareils->isEmpty()) {
+            return [
+                'configure' => true,
+                'nombre_appareils' => 0,
+                'jeton_obtenu' => null,
+                'resultats' => [],
+            ];
+        }
+
+        $accessToken = $this->obtenirJetonAcces();
+
+        if ($accessToken === null) {
+            return [
+                'configure' => true,
+                'nombre_appareils' => $appareils->count(),
+                'jeton_obtenu' => false,
+                'resultats' => [],
+            ];
+        }
+
+        $resultats = [];
+        foreach ($appareils as $appareil) {
+            $resultats[] = $this->envoyerTestAUnAppareil($appareil, $accessToken);
+        }
+
+        return [
+            'configure' => true,
+            'nombre_appareils' => $appareils->count(),
+            'jeton_obtenu' => true,
+            'resultats' => $resultats,
+        ];
+    }
+
+    /**
+     * @return array{plateforme: string, envoye: bool, erreur: ?string}
+     */
+    private function envoyerTestAUnAppareil(DeviceToken $deviceToken, string $accessToken): array
+    {
+        $projetId = config('services.firebase.project_id');
+
+        $reponse = Http::withToken($accessToken)
+            ->timeout(10)
+            ->post("https://fcm.googleapis.com/v1/projects/{$projetId}/messages:send", [
+                'message' => [
+                    'token' => $deviceToken->token,
+                    'notification' => [
+                        'title' => 'Test Afrolia',
+                        'body' => 'Si tu vois cette notification, les notifications push fonctionnent correctement.',
+                    ],
+                    'android' => [
+                        'priority' => 'high',
+                    ],
+                    'apns' => [
+                        'headers' => ['apns-priority' => '10'],
+                    ],
+                ],
+            ]);
+
+        if ($reponse->successful()) {
+            return [
+                'plateforme' => $deviceToken->plateforme,
+                'envoye' => true,
+                'erreur' => null,
+            ];
+        }
+
+        $erreur = $reponse->json('error.status') ?? ('HTTP ' . $reponse->status());
+
+        if (in_array($erreur, ['UNREGISTERED', 'INVALID_ARGUMENT', 'NOT_FOUND'], true)) {
+            $deviceToken->delete();
+        }
+
+        return [
+            'plateforme' => $deviceToken->plateforme,
+            'envoye' => false,
+            'erreur' => (string) $erreur,
+        ];
+    }
+
+    /**
      * Jeton d'accès OAuth2 pour l'API FCM, obtenu à partir du compte de
      * service Firebase (JWT signé RS256, échangé contre un jeton auprès de
      * Google). Mis en cache 55 minutes (durée de vie réelle : 1h) pour ne

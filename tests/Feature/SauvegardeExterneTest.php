@@ -98,4 +98,51 @@ class SauvegardeExterneTest extends TestCase
         array_map('unlink', glob($dossier.'/*'));
         rmdir($dossier);
     }
+
+    public function test_la_purge_des_photos_ne_compte_pas_les_archives_heritage(): void
+    {
+        Storage::fake('backblaze');
+        $disque = Storage::disk('backblaze');
+
+        // 14 archives « heritage » : elles partagent le début du nom
+        // (« test-photos-heritage-… ») mais forment une série distincte,
+        // qui ne doit jamais être comptée ni purgée avec les photos.
+        for ($i = 1; $i <= 14; $i++) {
+            $disque->put(sprintf('test-photos-heritage-19990101_%06d.tar.gz', $i), 'x');
+        }
+        $disque->put('test-photos-19990101_000001.tar.gz', 'x');
+
+        $dossier = sys_get_temp_dir().'/test-photos-'.uniqid();
+        mkdir($dossier);
+        file_put_contents($dossier.'/photo1.jpg', 'contenu-test');
+
+        $this->appellerArchiverEtEnvoyerDossier($dossier, 'test-photos-');
+
+        // 14 heritage + l'ancienne + la nouvelle : rien n'a été supprimé.
+        $this->assertCount(16, $disque->files());
+        $this->assertTrue($disque->exists('test-photos-19990101_000001.tar.gz'));
+        $this->assertTrue($disque->exists('test-photos-heritage-19990101_000001.tar.gz'));
+
+        array_map('unlink', glob($dossier.'/*'));
+        rmdir($dossier);
+    }
+
+    public function test_ne_laisse_aucun_fichier_temporaire_apres_l_archive_des_photos(): void
+    {
+        Storage::fake('backblaze');
+
+        $avant = glob(sys_get_temp_dir().'/sauvegarde-afrolia-photos-*') ?: [];
+
+        $dossier = sys_get_temp_dir().'/test-photos-'.uniqid();
+        mkdir($dossier);
+        file_put_contents($dossier.'/photo1.jpg', 'contenu-test');
+
+        $this->appellerArchiverEtEnvoyerDossier($dossier, 'test-photos-');
+
+        $apres = glob(sys_get_temp_dir().'/sauvegarde-afrolia-photos-*') ?: [];
+        $this->assertSame([], array_values(array_diff($apres, $avant)));
+
+        array_map('unlink', glob($dossier.'/*'));
+        rmdir($dossier);
+    }
 }

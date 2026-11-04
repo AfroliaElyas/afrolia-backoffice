@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Commandes;
 use App\Models\Gains;
 use App\Models\Reservations;
 use App\Models\UsersApp;
@@ -85,6 +86,23 @@ class SuppressionCompteService
         if ($reservationsNonSoldees) {
             throw new SuppressionCompteBloqueeException(
                 "Impossible de supprimer ce compte : une réservation est encore en cours ou un remboursement est en attente. Veuillez attendre qu'ils soient terminés."
+            );
+        }
+
+        // Même garde que pour les réservations, pour les commandes boutique
+        // (remboursement ajouté le 04/11/2026) : sans ça, supprimer son
+        // compte pendant qu'un remboursement de commande est en attente ou
+        // en cours de traitement contournerait le dossier en cours.
+        $commandesNonSoldees = Commandes::where(function ($requete) use ($utilisateur) {
+            $requete->where('id_client', $utilisateur->id_user_app)
+                ->orWhere('id_coiffeur', $utilisateur->id_user_app);
+        })
+            ->whereIn('statut_remboursement', ['en_attente', 'en_cours'])
+            ->exists();
+
+        if ($commandesNonSoldees) {
+            throw new SuppressionCompteBloqueeException(
+                "Impossible de supprimer ce compte : un remboursement de commande boutique est en attente. Veuillez attendre qu'il soit terminé."
             );
         }
 

@@ -478,14 +478,26 @@ class ApiPaiementsController extends Controller
     {
         $reservation = Reservations::where('remboursement_reference', $transaction['reference'])->first();
 
-        if (!$reservation) {
-            // Ce n'est pas forcément une anomalie : un versement de gains
-            // (VersementController) est aussi un transfert Jèko, avec sa
-            // propre référence "VERS-...", qui ne correspond à aucune
-            // réservation.
+        if ($reservation) {
+            $this->appliquerWebhookTransfertRemboursementReservation($reservation, $transaction);
             return;
         }
 
+        $commande = Commandes::where('remboursement_reference', $transaction['reference'])->first();
+
+        if ($commande) {
+            $this->appliquerWebhookTransfertRemboursementCommande($commande, $transaction);
+            return;
+        }
+
+        // Ce n'est pas forcément une anomalie : un versement de gains
+        // (VersementController) est aussi un transfert Jèko, avec sa
+        // propre référence "VERS-...", qui ne correspond ni à une
+        // réservation ni à une commande.
+    }
+
+    private function appliquerWebhookTransfertRemboursementReservation(Reservations $reservation, array $transaction): void
+    {
         DB::transaction(function () use ($reservation, $transaction) {
             $reservation = Reservations::whereKey($reservation->id_reservation)->lockForUpdate()->first();
 
@@ -509,6 +521,32 @@ class ApiPaiementsController extends Controller
                 // deuxième fois ni dupliquer l'entrée d'historique.
                 $reservation->update(['statut_remboursement' => 'en_attente']);
                 $reservation->ajouterHistoriqueRemboursement('echec', 'Transfert refusé, confirmé par webhook Jèko');
+            }
+        });
+    }
+
+    /**
+     * Pendant de appliquerWebhookTransfertRemboursementReservation() pour
+     * les commandes boutique (voir RemboursementCommandeController).
+     */
+    private function appliquerWebhookTransfertRemboursementCommande(Commandes $commande, array $transaction): void
+    {
+        DB::transaction(function () use ($commande, $transaction) {
+            $commande = Commandes::whereKey($commande->id_commande)->lockForUpdate()->first();
+
+            if ($transaction['statut'] === 'success') {
+                if ($commande->statut_remboursement === 'traite') {
+                    return;
+                }
+
+                $commande->update(['statut_paiement' => 'rembourse', 'statut_remboursement' => 'traite']);
+                Paiements::where('id_commande', $commande->id_commande)
+                    ->where('status', 'succeeded')
+                    ->update(['status' => 'refunded', 'processed_at' => now()]);
+                $commande->ajouterHistoriqueRemboursement('rembourse', 'Confirmé par webhook Jèko');
+            } elseif ($transaction['statut'] === 'error' && $commande->statut_remboursement === 'en_cours') {
+                $commande->update(['statut_remboursement' => 'en_attente']);
+                $commande->ajouterHistoriqueRemboursement('echec', 'Transfert refusé, confirmé par webhook Jèko');
             }
         });
     }

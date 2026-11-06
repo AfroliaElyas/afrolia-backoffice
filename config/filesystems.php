@@ -91,6 +91,16 @@ return [
             // comme avant ce changement de comportement du SDK.
             'request_checksum_calculation' => 'when_required',
             'response_checksum_validation' => 'when_required',
+            // Le SDK AWS choisit automatiquement la version de signature
+            // selon le couple service/région — une logique construite pour
+            // les vraies régions AWS. "eu-central-003" n'en est pas une :
+            // le SDK n'a aucune garantie de retomber sur SigV4 (la seule que
+            // Backblaze accepte) pour une région qu'il ne reconnaît pas.
+            // Le préciser explicitement retire toute ambiguïté — sans
+            // risque, puisque SigV4 est de toute façon ce qu'il faut ici
+            // (ajouté le 06/11/2026 après un diagnostic ayant écarté le
+            // cache de configuration et une clé erronée comme causes).
+            'signature_version' => 'v4',
             'throw' => true,
             'report' => false,
         ],

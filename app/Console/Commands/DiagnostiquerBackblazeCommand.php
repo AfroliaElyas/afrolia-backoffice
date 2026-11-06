@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -46,6 +47,28 @@ class DiagnostiquerBackblazeCommand extends Command
 
     public function handle(): int
     {
+        // Ajouté le 06/11/2026 après deux régénérations de clé Backblaze
+        // sans effet sur l'erreur (toujours "AccessDenied" exact, jamais
+        // "SignatureDoesNotMatch" ni "InvalidAccessKeyId") : si la config
+        // était mise en cache (`php artisan config:cache`) à un moment où
+        // .env contenait d'anciennes valeurs, le serveur continue de servir
+        // ces anciennes valeurs indéfiniment, même après avoir changé .env
+        // ou régénéré une clé — jusqu'au prochain `config:cache` explicite.
+        // On rend ce cache visible, puis on le vide avant le test pour que
+        // celui-ci porte à coup sûr sur les valeurs actuelles de .env.
+        $etaitEnCache = $this->getLaravel()->configurationIsCached();
+        $this->info('=== 0. État du cache de configuration ===');
+        if ($etaitEnCache) {
+            $this->warn('  ⚠️ La configuration était EN CACHE (bootstrap/cache/config.php existe).');
+            $this->warn('  Si ce cache a été généré avant un changement de clé Backblaze ou de .env,');
+            $this->warn('  le serveur utilisait les ANCIENNES valeurs jusqu\'à présent, quoi que .env contienne.');
+            Artisan::call('config:clear');
+            $this->info('  → Cache vidé pour ce test : les valeurs ci-dessous viennent directement de .env.');
+        } else {
+            $this->line('  OK : aucune configuration en cache, .env est lu directement (rien à vider).');
+        }
+
+        $this->newLine();
         $this->info('=== 1. Présence et forme des variables d\'environnement ===');
 
         $valeurs = [];
@@ -66,10 +89,22 @@ class DiagnostiquerBackblazeCommand extends Command
             $sansEspaces = trim($brute);
             $espacesParasites = $sansEspaces !== $brute;
 
-            // Les deux secrets (clé et application key) ne sont jamais
-            // affichés, même partiellement : seule leur longueur compte ici.
-            $estSecret = in_array($nom, ['BACKBLAZE_KEY_ID', 'BACKBLAZE_APPLICATION_KEY'], true);
-            $affichage = $estSecret ? "{$longueur} caractères" : "\"{$brute}\" ({$longueur} caractères)";
+            // L'application key (le vrai secret) n'est jamais affichée, même
+            // partiellement : seule sa longueur compte. Le keyID, lui, n'a
+            // pas la même sensibilité (Backblaze l'affiche en clair dans son
+            // propre tableau de bord) : un aperçu masqué (6 premiers + 4
+            // derniers caractères) permet à Ruth de confirmer, juste en
+            // comparant visuellement avec la page Backblaze, que c'est bien
+            // LE keyID de la clé qu'elle vient de créer, et pas un ancien,
+            // sans jamais coller la valeur complète nulle part (ajouté le
+            // 06/11/2026 après deux régénérations de clé sans effet observé).
+            if ($nom === 'BACKBLAZE_KEY_ID' && $longueur > 12) {
+                $affichage = substr($brute, 0, 6) . str_repeat('•', max($longueur - 10, 1)) . substr($brute, -4) . " ({$longueur} caractères)";
+            } elseif ($nom === 'BACKBLAZE_APPLICATION_KEY') {
+                $affichage = "{$longueur} caractères";
+            } else {
+                $affichage = "\"{$brute}\" ({$longueur} caractères)";
+            }
 
             $this->line("  {$nom} : {$affichage}" . ($espacesParasites ? '  ⚠️ ESPACE(S) PARASITE(S) EN DÉBUT/FIN DÉTECTÉ(S)' : ''));
 
@@ -175,6 +210,21 @@ class DiagnostiquerBackblazeCommand extends Command
                 }
                 if (method_exists($cause, 'getStatusCode')) {
                     $this->error('  Code HTTP renvoyé par Backblaze : ' . $cause->getStatusCode());
+                }
+
+                // getMessage() tronque le corps de la réponse (résumé Guzzle
+                // limité à ~120 caractères) : le XML d'erreur complet peut
+                // contenir un détail supplémentaire après "Signature
+                // validation failed" (ex. un RequestId à donner au support
+                // Backblaze, ou une précision sur la cause) — jamais visible
+                // jusqu'ici (ajouté le 06/11/2026).
+                if (method_exists($cause, 'getResponse') && $cause->getResponse() !== null) {
+                    $corpsComplet = (string) $cause->getResponse()->getBody();
+                    if ($corpsComplet !== '') {
+                        $this->newLine();
+                        $this->line('  Corps complet de la réponse HTTP (non tronqué) :');
+                        $this->line('  ' . $corpsComplet);
+                    }
                 }
 
                 $cause = $cause->getPrevious();

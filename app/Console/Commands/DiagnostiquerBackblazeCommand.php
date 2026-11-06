@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Aws\S3\S3Client;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
@@ -155,6 +156,7 @@ class DiagnostiquerBackblazeCommand extends Command
         $this->line('  jamais de lecture du contenu d\'un fichier existant.)');
 
         $nomFichier = '__diagnostic_afrolia_' . now()->timestamp . '__';
+        $etape3Reussie = false;
 
         try {
             $disque = Storage::disk('backblaze');
@@ -175,7 +177,7 @@ class DiagnostiquerBackblazeCommand extends Command
                 $this->warn('  (Les anomalies listées plus haut n\'empêchent donc pas la connexion ici — à surveiller quand même.)');
             }
 
-            return self::SUCCESS;
+            $etape3Reussie = true;
         } catch (\Throwable $e) {
             // Nettoyage best-effort : si l'échec a lieu après l'écriture
             // (ex. lors du listage ou de la suppression), on essaie quand
@@ -237,8 +239,108 @@ class DiagnostiquerBackblazeCommand extends Command
             $this->line('  - "NoSuchBucket" → BACKBLAZE_BUCKET ne correspond pas exactement au nom du bucket.');
             $this->line('  - "AccessDenied" → la clé d\'application existe mais n\'a pas la permission sur ce bucket précis.');
             $this->line('  - 403 sans code précis → vérifier les "Capabilities" de la clé d\'application dans Backblaze (doit inclure au moins listFiles, writeFiles et deleteFiles pour que la sauvegarde fonctionne).');
+        }
 
-            return self::FAILURE;
+        // Demandé le 06/11/2026 après plusieurs correctifs de configuration
+        // (cache, signature_version) sans effet observé sur l'étape 3 : ce
+        // test appelle le SDK AWS directement, sans passer par Flysystem ni
+        // la couche "disk" de Laravel, avec exactement les mêmes valeurs.
+        // But : savoir si le blocage vient de la façon dont Laravel/
+        // Flysystem construisent la requête (bug de notre côté, corrigible)
+        // ou s'il est déjà présent avec le SDK AWS nu (donc du côté du
+        // compte/de la clé Backblaze elle-même, pas de notre code).
+        $this->newLine();
+        $this->info('=== 4. Test direct avec le SDK AWS, sans Flysystem ===');
+        $this->line('  (mêmes identifiants, même région, même endpoint — pour isoler si le blocage');
+        $this->line('  vient de la façon dont Laravel construit la requête, ou de Backblaze lui-même.)');
+
+        $etape4Reussie = $this->testerAvecSdkBrut($valeurs);
+
+        $this->newLine();
+        $this->info('=== Comparaison ===');
+        $this->line('  Étape 3 (Laravel/Flysystem) : ' . ($etape3Reussie ? '✅ réussie' : '❌ échec'));
+        $this->line('  Étape 4 (SDK AWS direct)    : ' . ($etape4Reussie ? '✅ réussie' : '❌ échec'));
+        if (!$etape3Reussie && $etape4Reussie) {
+            $this->warn('  → Le SDK nu fonctionne mais pas Laravel/Flysystem : le blocage vient de la façon dont');
+            $this->warn('    la configuration est transmise au SDK par le disque "backblaze" (corrigible dans le code).');
+        } elseif (!$etape3Reussie && !$etape4Reussie) {
+            $this->warn('  → Échec identique avec le SDK nu, sans aucune couche Laravel/Flysystem : le blocage');
+            $this->warn('    ne vient pas de notre code. Cause à chercher côté compte/clé Backblaze elle-même');
+            $this->warn('    (ex. restriction non visible dans "Capabilities", délai de propagation d\'une clé');
+            $this->warn('    tout juste créée, ou restriction appliquée au niveau du compte plutôt que de la clé).');
+        } elseif ($etape3Reussie && $etape4Reussie) {
+            $this->info('  → Les deux réussissent : tout fonctionne normalement.');
+        }
+
+        return ($etape3Reussie && $etape4Reussie) ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * Reproduit exactement le test de l'étape 3 (écrire, lister, supprimer)
+     * mais avec un client Aws\S3\S3Client construit à la main, sans passer
+     * par Storage::disk() ni par l'adaptateur Flysystem — pour vérifier que
+     * la configuration Laravel transmet bien les mêmes valeurs au SDK.
+     *
+     * @param array<string, mixed> $valeurs Les 5 valeurs BACKBLAZE_* déjà lues en section 1.
+     */
+    private function testerAvecSdkBrut(array $valeurs): bool
+    {
+        $cle = $valeurs['BACKBLAZE_KEY_ID'] ?? null;
+        $secret = $valeurs['BACKBLAZE_APPLICATION_KEY'] ?? null;
+        $region = $valeurs['BACKBLAZE_REGION'] ?? null;
+        $bucket = $valeurs['BACKBLAZE_BUCKET'] ?? null;
+        $endpoint = $valeurs['BACKBLAZE_ENDPOINT'] ?? null;
+
+        if (!$cle || !$secret || !$region || !$bucket || !$endpoint) {
+            $this->line('  (ignoré : au moins une valeur manque déjà, signalé en section 1.)');
+
+            return false;
+        }
+
+        $nomFichier = '__diagnostic_afrolia_sdk_brut_' . now()->timestamp . '__';
+
+        try {
+            $client = new S3Client([
+                'version' => 'latest',
+                'region' => $region,
+                'endpoint' => $endpoint,
+                'use_path_style_endpoint' => true,
+                'signature_version' => 'v4',
+                'credentials' => [
+                    'key' => $cle,
+                    'secret' => $secret,
+                ],
+            ]);
+
+            $client->putObject([
+                'Bucket' => $bucket,
+                'Key' => $nomFichier,
+                'Body' => 'diagnostic Afrolia (SDK brut) — fichier temporaire, supprimé immédiatement',
+            ]);
+            $this->info('  ✅ Écriture directe (SDK AWS) : réussie.');
+
+            $client->listObjectsV2(['Bucket' => $bucket, 'MaxKeys' => 1]);
+            $this->info('  ✅ Listage direct (SDK AWS) : réussi.');
+
+            $client->deleteObject(['Bucket' => $bucket, 'Key' => $nomFichier]);
+            $this->info('  ✅ Suppression directe (SDK AWS) : réussie.');
+
+            return true;
+        } catch (\Throwable $e) {
+            try {
+                $client->deleteObject(['Bucket' => $bucket, 'Key' => $nomFichier]);
+            } catch (\Throwable) {
+                // Ignoré, comme pour l'étape 3.
+            }
+
+            $this->error('  ❌ ÉCHEC (SDK brut) : ' . get_class($e));
+            $this->error('  Message : ' . $e->getMessage());
+
+            if (method_exists($e, 'getAwsErrorCode')) {
+                $this->error('  Code d\'erreur AWS/Backblaze : ' . ($e->getAwsErrorCode() ?? '(absent)'));
+            }
+
+            return false;
         }
     }
 

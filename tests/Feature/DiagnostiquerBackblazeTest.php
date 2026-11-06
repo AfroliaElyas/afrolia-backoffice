@@ -129,6 +129,19 @@ class DiagnostiquerBackblazeTest extends TestCase
             ->assertExitCode(1);
     }
 
+    public function test_compare_le_resultat_du_sdk_brut_et_de_laravel(): void
+    {
+        // Ajouté le 06/11/2026 : après plusieurs correctifs de config sans
+        // effet observé, ce test direct au SDK AWS (sans Flysystem) permet
+        // de savoir si le blocage vient de notre code ou de Backblaze.
+        config(self::CONFIG_VALIDE);
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->expectsOutputToContain('=== 4. Test direct avec le SDK AWS, sans Flysystem ===')
+            ->expectsOutputToContain('=== Comparaison ===')
+            ->assertExitCode(1);
+    }
+
     public function test_affiche_la_cause_reelle_derriere_l_exception_flysystem(): void
     {
         // League\Flysystem enveloppe toujours l'erreur du SDK AWS dans sa

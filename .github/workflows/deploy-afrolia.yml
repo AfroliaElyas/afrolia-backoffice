@@ -1,0 +1,42 @@
+name: Déploiement Afrolia (via Forge)
+
+# Déclenché uniquement à la main. Réutilise la même clé SSH restreinte que
+# le diagnostic (FORGE_SSH_PRIVATE_KEY, "forced command" côté serveur) :
+# cette clé ne peut exécuter qu'un nombre fixe d'actions allowlistées dans
+# /home/forge/diagnostic-afrolia.sh (voir deploy/README-diagnostic-ssh.md).
+# "deploy" ne fait qu'appeler l'URL de déclenchement officielle de Forge
+# (configurée directement dans ce script côté serveur, jamais ici) : le
+# vrai déploiement Zero-Downtime (deploy/forge-deploy.sh) tourne dans son
+# contexte Forge normal, pas dans ce workflow.
+#
+# Aucun secret n'apparaît jamais dans les journaux.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORGE_SSH_HOST: "164.92.230.201"
+  FORGE_SSH_USER: "forge"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prépare la clé SSH (fichier temporaire, jamais affiché, supprimé en fin de job)
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.FORGE_SSH_PRIVATE_KEY }}" > ~/.ssh/afrolia_diagnostic
+          chmod 600 ~/.ssh/afrolia_diagnostic
+          ssh-keyscan -H "$FORGE_SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Déclenche le déploiement (la clé n'autorise que les actions listées dans diagnostic-afrolia.sh)
+        run: |
+          ssh -i ~/.ssh/afrolia_diagnostic "$FORGE_SSH_USER@$FORGE_SSH_HOST" "deploy"
+
+      - name: Supprime la clé SSH temporaire
+        if: always()
+        run: rm -f ~/.ssh/afrolia_diagnostic

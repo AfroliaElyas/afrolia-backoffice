@@ -89,7 +89,7 @@ class ApiUtilisateursController extends Controller
             'prenom' => 'required|string',
             'phone' => 'required|string|unique:users_app,phone',
             'email' => 'nullable|email|max:100|unique:users_app,email',
-            'password' => 'required',
+            'password' => 'required|string|min:8',
             'role' => 'required|in:user,hair',
         ];
 
@@ -101,6 +101,7 @@ class ApiUtilisateursController extends Controller
             'email.email' => "L'adresse e-mail n'est pas valide.",
             'email.unique' => "L'adresse e-mail est déjà utilisée.",
             'password.required' => 'Veuillez saisir votre mot de passe.',
+            'password.min' => 'Le mot de passe doit contenir au moins 8 caractères.',
             'role.required' => 'Veuillez selectionner votre type de conpte.',
             'role.in' => 'Type de compte invalide.',
         ];

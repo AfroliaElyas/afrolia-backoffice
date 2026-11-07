@@ -97,7 +97,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('update/{id}', [ApiUtilisateursController::class, 'update']);
     Route::delete('delete/{id}', [ApiUtilisateursController::class, 'supprimerCompte']);
-    Route::get('delete/{id}', [ApiUtilisateursController::class, 'supprimerCompte']);
 
     Route::post('email/verifier/demander', [ApiUtilisateursController::class, 'demanderVerificationEmailCompte']);
     Route::post('codes-secours/generer', [ApiUtilisateursController::class, 'genererCodesSecours']);

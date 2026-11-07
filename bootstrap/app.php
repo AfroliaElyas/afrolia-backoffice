@@ -15,7 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Aucune route nommée "login" (le back-office utilise sa propre
         // page de connexion sur "/") : sans ça, la redirection par défaut
         // du middleware "auth" lèverait une RouteNotFoundException.
-        $middleware->redirectGuestsTo('/');
+        $middleware->redirectGuestsTo('/admin');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

@@ -62,11 +62,10 @@ Bureau" si besoin) :
   `main` sans passer par une pull request que tu approuves
 - Enregistre
 
-Sur un compte GitHub gratuit, ces options sont disponibles aussi bien
-pour un dépôt public que privé — ça ne devrait pas être limité par ton
-abonnement. Si une case est grisée avec un message d'upgrade, c'est le
-signe d'une limite de ton plan ; dis-le-moi et je chercherai une
-solution de contournement.
+Sur un compte GitHub gratuit, ces options ne sont appliquées que sur
+un dépôt public (ce dépôt afrolia-backoffice). Pour un dépôt privé
+(comme l'application mobile Afrolia), GitHub exige un abonnement
+GitHub Pro (documentation GitHub « About protected branches »).
 
 ### 4. Une fois les deux premières pull requests fusionnées et testées
 Seulement quand tu es à l'aise avec le fonctionnement (après avoir vu

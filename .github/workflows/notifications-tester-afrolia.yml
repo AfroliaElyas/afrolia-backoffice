@@ -1,0 +1,49 @@
+name: Tester une notification push (Afrolia)
+
+# Déclenché uniquement à la main, avec l'identifiant (téléphone ou email)
+# du compte à notifier en paramètre. Réutilise la même clé SSH restreinte
+# que le diagnostic (FORGE_SSH_PRIVATE_KEY, "forced command" côté
+# serveur) : cette clé ne peut exécuter qu'un nombre fixe d'actions
+# allowlistées dans /home/forge/diagnostic-afrolia.sh (voir
+# deploy/README-diagnostic-ssh.md). Le script côté serveur revalide
+# lui-même l'identifiant par une expression régulière stricte avant de
+# l'utiliser — ce qui est tapé ici n'est jamais exécuté tel quel.
+#
+# Aucun secret n'apparaît jamais dans les journaux.
+
+on:
+  workflow_dispatch:
+    inputs:
+      identifiant:
+        description: "Téléphone ou email du compte à notifier"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  FORGE_SSH_HOST: "164.92.230.201"
+  FORGE_SSH_USER: "forge"
+
+jobs:
+  notifications-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prépare la clé SSH (fichier temporaire, jamais affiché, supprimé en fin de job)
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.FORGE_SSH_PRIVATE_KEY }}" > ~/.ssh/afrolia_diagnostic
+          chmod 600 ~/.ssh/afrolia_diagnostic
+          ssh-keyscan -H "$FORGE_SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Lance le test de notification (la clé n'autorise que les actions listées dans diagnostic-afrolia.sh)
+        env:
+          IDENTIFIANT: ${{ inputs.identifiant }}
+        run: |
+          ssh -i ~/.ssh/afrolia_diagnostic "$FORGE_SSH_USER@$FORGE_SSH_HOST" "notifications-test $IDENTIFIANT"
+
+      - name: Supprime la clé SSH temporaire
+        if: always()
+        run: rm -f ~/.ssh/afrolia_diagnostic

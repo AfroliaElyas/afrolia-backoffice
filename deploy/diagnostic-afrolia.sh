@@ -21,7 +21,18 @@
 # (aucun argent déplacé, voir app/Console/Commands/JekoTesterCommand.php).
 #
 # Actions disponibles :
-#   diagnostic — comportement inchangé depuis toujours (lecture seule)
+#   diagnostic — comportement inchangé depuis toujours (lecture seule), plus
+#                depuis le 08/11/2026 une vérification du mécanisme de cache
+#                de configuration (voir plus bas) : sur ce serveur, chaque
+#                diagnostic Backblaze/Jèko a systématiquement trouvé la
+#                configuration "EN CACHE", y compris juste après un
+#                déploiement terminé avec succès contenant une valeur
+#                corrigée (JEKO_API_KEY_ID, observé ce jour). Cette nouvelle
+#                section détermine si bootstrap/cache est un lien symbolique
+#                partagé entre déploiements (auquel cas un cache généré une
+#                fois persiste tant que rien ne le régénère explicitement),
+#                sans jamais modifier quoi que ce soit — lecture seule,
+#                aucun secret affiché.
 #   jeko-test  — php artisan jeko:tester (lecture seule, aucun paiement)
 
 set -e
@@ -60,6 +71,25 @@ case "$action" in
     echo "=== Persistance du dossier storage (doit pointer hors de ce dossier de version) ==="
     echo -n "storage -> "
     readlink -f "$SITE_DIR/storage"
+
+    echo
+    echo "=== Mécanisme du cache de configuration (bootstrap/cache) ==="
+    if [ -L "$SITE_DIR/bootstrap/cache" ]; then
+        echo "bootstrap/cache est un LIEN SYMBOLIQUE -> $(readlink -f "$SITE_DIR/bootstrap/cache")"
+        echo "  → ce dossier est donc PARTAGÉ entre déploiements : un cache généré une fois"
+        echo "    y survit tant que rien ne le régénère explicitement après chaque déploiement."
+    else
+        echo "bootstrap/cache est un dossier normal de cette version (pas de lien symbolique)."
+    fi
+    if [ -L "$SITE_DIR/bootstrap/cache/config.php" ]; then
+        echo "bootstrap/cache/config.php est lui-même un LIEN SYMBOLIQUE -> $(readlink -f "$SITE_DIR/bootstrap/cache/config.php")"
+    elif [ -f "$SITE_DIR/bootstrap/cache/config.php" ]; then
+        echo "bootstrap/cache/config.php existe, dernière modification : $(date -r "$SITE_DIR/bootstrap/cache/config.php" -Iseconds)"
+        echo "  (à comparer à la date du commit déployé ci-dessus : si cette modification est"
+        echo "   antérieure au déploiement, celui-ci n'a pas régénéré ce fichier de cache.)"
+    else
+        echo "bootstrap/cache/config.php n'existe pas à cet instant (pas de cache actif)."
+    fi
 
     echo
     echo "=== État du site (HTTP, depuis le serveur lui-même) ==="

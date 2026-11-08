@@ -3,10 +3,13 @@
 namespace App\Console\Commands;
 
 use Aws\S3\S3Client;
+use Dotenv\Dotenv;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Process\PhpExecutableFinder;
+use Symfony\Component\Process\Process;
 
 /**
  * Diagnostique une erreur « Signature validation failed » (ou toute autre
@@ -28,7 +31,7 @@ use Illuminate\Support\Facades\Storage;
  */
 class DiagnostiquerBackblazeCommand extends Command
 {
-    protected $signature = 'backblaze:diagnostiquer';
+    protected $signature = 'backblaze:diagnostiquer {--dans-un-nouveau-processus : Usage interne (évite une boucle de redémarrage) : indique que ce processus a déjà été relancé proprement, sans cache de configuration}';
 
     protected $description = "Diagnostique la connexion Backblaze B2 sans afficher les secrets (longueur, espaces parasites, cohérence région/endpoint, puis test de connexion réel)";
 
@@ -49,25 +52,64 @@ class DiagnostiquerBackblazeCommand extends Command
 
     public function handle(): int
     {
-        // Ajouté le 06/11/2026 après deux régénérations de clé Backblaze
-        // sans effet sur l'erreur (toujours "AccessDenied" exact, jamais
-        // "SignatureDoesNotMatch" ni "InvalidAccessKeyId") : si la config
-        // était mise en cache (`php artisan config:cache`) à un moment où
-        // .env contenait d'anciennes valeurs, le serveur continue de servir
-        // ces anciennes valeurs indéfiniment, même après avoir changé .env
-        // ou régénéré une clé — jusqu'au prochain `config:cache` explicite.
-        // On rend ce cache visible, puis on le vide avant le test pour que
-        // celui-ci porte à coup sûr sur les valeurs actuelles de .env.
+        // Ajouté le 08/11/2026, en remplacement d'une précédente version
+        // basée sur getenv() : cette approche supposait que Laravel relit
+        // toujours .env au démarrage, cache ou non. Faux — vérifié dans le
+        // code du framework (LoadEnvironmentVariables::bootstrap()) :
+        // quand la configuration est EN CACHE, le chargement de .env est
+        // sauté EXPRÈS (`if ($app->configurationIsCached()) { return; }`),
+        // donc getenv() ne reflète alors rien de fiable non plus — la
+        // version précédente de ce diagnostic ne corrigeait donc rien dans
+        // le cas précis où elle devait servir.
+        //
+        // La seule source fiable, indépendante du cache : lire et analyser
+        // le fichier .env réel directement depuis le disque, avec le même
+        // analyseur que Laravel utilise lui-même (Dotenv\Dotenv::parse(),
+        // sans aucun effet de bord : il ne touche ni getenv() ni $_ENV).
+        $this->info('=== 0. Configuration chargée vs fichier .env réel sur le disque ===');
+        $comparaison = $this->comparerConfigEtFichierEnv();
+        $decalageTrouve = false;
+        foreach ($comparaison as $nom => $etat) {
+            $libelle = match ($etat) {
+                'identique' => '✅ identique',
+                'different' => '⚠️ DIFFÉRENT',
+                'absent' => 'absent du fichier .env',
+                default => $etat,
+            };
+            $this->line("  {$nom} : {$libelle}");
+            if ($etat === 'different') {
+                $decalageTrouve = true;
+            }
+        }
+
         $etaitEnCache = $this->getLaravel()->configurationIsCached();
-        $this->info('=== 0. État du cache de configuration ===');
+        $this->newLine();
         if ($etaitEnCache) {
-            $this->warn('  ⚠️ La configuration était EN CACHE (bootstrap/cache/config.php existe).');
-            $this->warn('  Si ce cache a été généré avant un changement de clé Backblaze ou de .env,');
-            $this->warn('  le serveur utilisait les ANCIENNES valeurs jusqu\'à présent, quoi que .env contienne.');
-            Artisan::call('config:clear');
-            $this->info('  → Cache vidé pour ce test : les valeurs ci-dessous viennent directement de .env.');
+            $this->warn('  ⚠️ La configuration était EN CACHE (bootstrap/cache/config.php existe) : .env n\'a pas');
+            $this->warn('  été relu par ce processus à son démarrage (comportement normal de Laravel quand la');
+            $this->warn('  configuration est en cache). La comparaison ci-dessus reste fiable (elle lit le fichier');
+            $this->warn('  directement), mais les sections suivantes de CE processus utilisent encore la config en');
+            $this->warn('  cache tant qu\'il n\'a pas été relancé proprement.');
         } else {
-            $this->line('  OK : aucune configuration en cache, .env est lu directement (rien à vider).');
+            $this->line('  OK : aucune configuration en cache.');
+        }
+
+        // Ni `config:clear` ni une substitution de valeur en cours de route
+        // ne peuvent rafraîchir la configuration déjà chargée en mémoire
+        // pour CE processus (voir ci-dessus) : la seule façon fiable de
+        // repartir sur une configuration réellement à jour est de relancer
+        // la commande dans un nouveau processus, après avoir vidé le cache,
+        // pour que SON démarrage à lui charge .env normalement. Jamais de
+        // substitution automatique d'une valeur dont la source n'a pas été
+        // identifiée (demandé le 08/11/2026).
+        if (!$this->option('dans-un-nouveau-processus') && ($etaitEnCache || $decalageTrouve)) {
+            $this->newLine();
+            $this->warn('  → Redémarrage dans un nouveau processus pour charger .env proprement...');
+            if ($etaitEnCache) {
+                Artisan::call('config:clear');
+            }
+
+            return $this->relancerDansUnNouveauProcessus();
         }
 
         $this->newLine();
@@ -78,31 +120,6 @@ class DiagnostiquerBackblazeCommand extends Command
 
         foreach (self::CLES_CONFIG as $nom => $cleConfig) {
             $brute = config($cleConfig);
-
-            // `config:clear` (section 0) supprime le fichier de cache, mais
-            // ne force pas CE processus — déjà démarré, configuration déjà
-            // chargée en mémoire depuis ce cache — à relire .env : il ne
-            // profite qu'au PROCHAIN lancement. La variable d'environnement
-            // brute, elle, est toujours relue par Laravel à chaque
-            // démarrage, cache ou non (bootstrapper distinct de celui qui
-            // charge la config) : si elle diffère de la config mise en
-            // cache, c'est la preuve que ce test portait jusqu'ici sur un
-            // instantané périmé plutôt que sur .env réellement actuel.
-            // `getenv()` renvoie `false` dans les tests (qui simulent via
-            // `config()`, jamais via de vraies variables d'environnement) :
-            // cette vérification ne s'y déclenche donc jamais (trouvé le
-            // 08/11/2026).
-            $brutEnv = getenv($nom);
-            if ($brutEnv !== false) {
-                $brutEnv = trim($brutEnv);
-                if ($brutEnv !== '' && $brutEnv !== $brute) {
-                    $this->warn("  ⚠️ {$nom} : la configuration mise en cache diffère de la variable d'environnement réelle de ce processus.");
-                    $this->warn('     → La variable d\'environnement (toujours à jour, cache ou non) est utilisée pour la suite de ce diagnostic.');
-                    $brute = $brutEnv;
-                    $problemeDetecte = true;
-                }
-            }
-
             $valeurs[$nom] = $brute;
 
             if ($brute === null || $brute === '') {
@@ -514,5 +531,83 @@ class DiagnostiquerBackblazeCommand extends Command
         }
 
         return $anomalies;
+    }
+
+    /**
+     * Compare chaque valeur Backblaze telle que Laravel l'a chargée
+     * (config()) à sa valeur telle qu'elle est ÉCRITE DANS LE FICHIER .env
+     * RÉEL, actuellement sur le disque — lue et analysée directement avec
+     * le même analyseur que Laravel utilise lui-même (Dotenv\Dotenv::
+     * parse()), jamais via getenv()/$_ENV, qui ne sont pas rafraîchis non
+     * plus quand la configuration est en cache (Laravel saute alors
+     * exprès le chargement de .env — vérifié dans le code du framework).
+     * `Dotenv::parse()` n'a aucun effet de bord : il ne touche ni
+     * getenv() ni $_ENV, seulement le contenu passé en argument.
+     *
+     * N'affiche jamais les valeurs elles-mêmes : seulement, par variable,
+     * "identique", "different" (par rapport à la config chargée) ou
+     * "absent" (absente ou vide dans le fichier .env lui-même).
+     *
+     * @return array<string, string>
+     */
+    private function comparerConfigEtFichierEnv(): array
+    {
+        $resultats = [];
+        $cheminEnv = $this->getLaravel()->environmentFilePath();
+
+        if (! is_readable($cheminEnv)) {
+            foreach (self::CLES_CONFIG as $nom => $cleConfig) {
+                $resultats[$nom] = 'fichier .env introuvable ou illisible';
+            }
+
+            return $resultats;
+        }
+
+        $valeursFichier = Dotenv::parse((string) file_get_contents($cheminEnv));
+
+        foreach (self::CLES_CONFIG as $nom => $cleConfig) {
+            $valeurConfig = config($cleConfig);
+            $valeurFichier = array_key_exists($nom, $valeursFichier)
+                ? trim((string) $valeursFichier[$nom])
+                : '';
+
+            if ($valeurFichier === '') {
+                $resultats[$nom] = 'absent';
+            } elseif ($valeurFichier === $valeurConfig) {
+                $resultats[$nom] = 'identique';
+            } else {
+                $resultats[$nom] = 'different';
+            }
+        }
+
+        return $resultats;
+    }
+
+    /**
+     * Relance cette même commande dans un nouveau processus PHP, après
+     * avoir vidé le cache de configuration : c'est la seule façon fiable
+     * de repartir sur une configuration réellement à jour, puisque ni
+     * `config:clear` ni une substitution de valeur en cours de route ne
+     * peuvent rafraîchir la configuration déjà chargée en mémoire pour LE
+     * PROCESSUS ACTUEL (voir handle()). Le nouveau processus, lui, démarre
+     * sans cache et charge donc .env normalement, comme n'importe quel
+     * démarrage normal de Laravel.
+     *
+     * L'option --dans-un-nouveau-processus empêche toute boucle : ce
+     * nouveau processus ne se relancera plus, quel que soit le résultat.
+     */
+    private function relancerDansUnNouveauProcessus(): int
+    {
+        $php = (new PhpExecutableFinder())->find(false) ?: 'php';
+
+        $processus = new Process([
+            $php, base_path('artisan'), 'backblaze:diagnostiquer', '--dans-un-nouveau-processus',
+        ]);
+        $processus->setTimeout(60);
+        $processus->run(function (string $type, string $buffer): void {
+            $this->output->write($buffer);
+        });
+
+        return $processus->getExitCode() ?? self::FAILURE;
     }
 }

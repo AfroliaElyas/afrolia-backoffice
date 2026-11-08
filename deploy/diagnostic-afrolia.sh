@@ -1,14 +1,28 @@
 #!/usr/bin/env bash
 #
-# Script de diagnostic en lecture seule pour Afrolia, destiné à être installé
-# sur le serveur Forge à /home/forge/diagnostic-afrolia.sh et déclenché
-# uniquement via une clé SSH dédiée, restreinte par une "forced command"
-# dans ~/.ssh/authorized_keys (voir deploy/README-diagnostic-ssh.md).
+# Aiguilleur Afrolia — installé sur le serveur Forge à
+# /home/forge/diagnostic-afrolia.sh (même emplacement qu'avant : aucune
+# modification de ~/.ssh/authorized_keys n'est nécessaire pour cette mise
+# à jour, voir deploy/README-diagnostic-ssh.md), déclenché uniquement via
+# une clé SSH dédiée, restreinte par une "forced command".
 #
-# Important : ce script ignore volontairement tout argument ou variable
-# $SSH_ORIGINAL_COMMAND — avec une "forced command", le serveur l'exécute
-# toujours tel quel, quoi que le client SSH ait demandé. Il ne fait que lire
-# : aucune écriture, aucune suppression, aucun sudo.
+# Avant le 08/11/2026, ce fichier ne faisait QUE le diagnostic ci-dessous
+# et ignorait volontairement $SSH_ORIGINAL_COMMAND. Depuis, une "forced
+# command" fournit malgré tout $SSH_ORIGINAL_COMMAND (la commande
+# réellement demandée par le client SSH) : ce fichier s'en sert désormais
+# pour choisir entre un nombre FIXE d'actions, chacune allowlistée
+# explicitement — jamais une commande arbitraire, jamais un secret
+# affiché. Toute commande non reconnue est rejetée.
+#
+# Portée volontairement limitée aux diagnostics en lecture seule (demandé
+# le 08/11/2026) : ni déploiement, ni création de compte, ni envoi de
+# notification — seulement de quoi vérifier Backblaze et Jèko sans
+# manipulation de Ruth. jeko-test ne fait que lire le solde du magasin
+# (aucun argent déplacé, voir app/Console/Commands/JekoTesterCommand.php).
+#
+# Actions disponibles :
+#   diagnostic — comportement inchangé depuis toujours (lecture seule)
+#   jeko-test  — php artisan jeko:tester (lecture seule, aucun paiement)
 
 set -e
 
@@ -18,37 +32,51 @@ echo "=== Recherche du dossier du site ==="
 SITE_ROOT=$(find /home/forge -mindepth 1 -maxdepth 1 -type d -iname 'afrolia-app.com' | head -n1)
 
 if [ -z "$SITE_ROOT" ]; then
-    echo "ÉCHEC : dossier du site introuvable (recherche insensible à la casse)."
-    echo "Contenu de /home/forge :"
-    ls -la /home/forge
+    echo "ÉCHEC : dossier du site introuvable (recherche insensible à la casse)." >&2
+    echo "Contenu de /home/forge :" >&2
+    ls -la /home/forge >&2
     exit 1
 elif [ -d "$SITE_ROOT/current" ]; then
     SITE_DIR="$SITE_ROOT/current"
 elif [ -f "$SITE_ROOT/artisan" ]; then
     SITE_DIR="$SITE_ROOT"
 else
-    echo "ÉCHEC : dossier trouvé ($SITE_ROOT) mais ni /current ni artisan à l'intérieur."
-    echo "Contenu de $SITE_ROOT :"
-    ls -la "$SITE_ROOT"
+    echo "ÉCHEC : dossier trouvé ($SITE_ROOT) mais ni /current ni artisan à l'intérieur." >&2
+    echo "Contenu de $SITE_ROOT :" >&2
+    ls -la "$SITE_ROOT" >&2
     exit 1
 fi
 echo "Dossier trouvé : $SITE_DIR"
-cd "$SITE_DIR"
 
-echo
-echo "=== Commit déployé ==="
-git log -1 --format='%H (%ad) — %s' --date=iso
+action="${SSH_ORIGINAL_COMMAND:-}"
 
-echo
-echo "=== Persistance du dossier storage (doit pointer hors de ce dossier de version) ==="
-echo -n "storage -> "
-readlink -f storage
+case "$action" in
+  diagnostic*)
+    echo
+    echo "=== Commit déployé ==="
+    git -C "$SITE_DIR" log -1 --format='%H (%ad) — %s' --date=iso
 
-echo
-echo "=== État du site (HTTP, depuis le serveur lui-même) ==="
-HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://afrolia-app.com" 2>/dev/null || echo "000")
-echo "Code HTTP reçu pour https://afrolia-app.com : $HTTP_CODE"
+    echo
+    echo "=== Persistance du dossier storage (doit pointer hors de ce dossier de version) ==="
+    echo -n "storage -> "
+    readlink -f "$SITE_DIR/storage"
 
-echo
-echo "=== Diagnostic Backblaze (ne révèle jamais les secrets) ==="
-php artisan backblaze:diagnostiquer
+    echo
+    echo "=== État du site (HTTP, depuis le serveur lui-même) ==="
+    HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://afrolia-app.com" 2>/dev/null || echo "000")
+    echo "Code HTTP reçu pour https://afrolia-app.com : $HTTP_CODE"
+
+    echo
+    echo "=== Diagnostic Backblaze (ne révèle jamais les secrets) ==="
+    (cd "$SITE_DIR" && php artisan backblaze:diagnostiquer)
+    ;;
+
+  jeko-test*)
+    (cd "$SITE_DIR" && php artisan jeko:tester)
+    ;;
+
+  *)
+    echo "ERREUR : action inconnue ou non autorisée." >&2
+    exit 1
+    ;;
+esac

@@ -313,4 +313,33 @@ class DiagnostiquerBackblazeTest extends TestCase
             ->doesntExpectOutputToContain('application-key-ne-doit-jamais-apparaitre')
             ->assertExitCode(1);
     }
+
+    public function test_ignore_la_verification_tls_pendant_les_tests_automatiques(): void
+    {
+        // Ajouté le 08/11/2026 : la vérification TLS a besoin d'une vraie
+        // connexion réseau, jamais souhaitable dans la suite de tests
+        // automatiques (lenteur, instabilité). Elle doit rester muette ici
+        // et s'exécuter seulement en conditions réelles.
+        config(self::CONFIG_VALIDE);
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->expectsOutputToContain('=== 6. Authenticité du certificat TLS présenté par Backblaze (depuis ce serveur) ===')
+            ->expectsOutputToContain('ignoré pendant les tests automatiques');
+    }
+
+    public function test_signale_un_hote_injoignable_lors_de_l_inspection_tls(): void
+    {
+        // Teste directement la méthode (hors du garde-fou "tests
+        // automatiques" ci-dessus) contre un port local fermé : échec de
+        // connexion immédiat et prévisible, sans dépendre d'un vrai
+        // service ni risquer d'attendre le délai d'expiration (10s) d'une
+        // adresse injoignable mais routée.
+        $commande = new \App\Console\Commands\DiagnostiquerBackblazeCommand();
+        $methode = new \ReflectionMethod($commande, 'inspecterCertificatTls');
+
+        $resultat = $methode->invoke($commande, '127.0.0.1');
+
+        $this->assertFalse($resultat['ok']);
+        $this->assertNotEmpty($resultat['details']);
+    }
 }

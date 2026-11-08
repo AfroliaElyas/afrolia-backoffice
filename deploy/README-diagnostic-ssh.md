@@ -109,6 +109,19 @@ case "$action" in
 
     echo
     echo "=== Mécanisme du cache de configuration (bootstrap/cache) ==="
+    # La date du commit (ci-dessus) est celle où le code a été écrit/poussé,
+    # pas celle où Forge l'a réellement déployé sur CE serveur. Forge bascule
+    # le lien symbolique "current" vers la nouvelle version à la toute fin
+    # de chaque déploiement : la date de modification du lien LUI-MÊME (pas
+    # de sa cible — "stat" sans -L renvoie les métadonnées du lien) est donc
+    # la meilleure approximation disponible ici de l'heure réelle du dernier
+    # déploiement (remarque de Ruth du 08/11/2026 : la date du commit seule
+    # ne suffit pas à le prouver).
+    if [ -L "$SITE_ROOT/current" ]; then
+        echo "Heure réelle du dernier déploiement (bascule du lien 'current') : $(stat -c '%y' "$SITE_ROOT/current")"
+    else
+        echo "'$SITE_ROOT/current' n'est pas un lien symbolique : heure réelle du déploiement non disponible par ce moyen."
+    fi
     if [ -L "$SITE_DIR/bootstrap/cache" ]; then
         echo "bootstrap/cache est un LIEN SYMBOLIQUE -> $(readlink -f "$SITE_DIR/bootstrap/cache")"
         echo "  → ce dossier est donc PARTAGÉ entre déploiements : un cache généré une fois"
@@ -120,8 +133,9 @@ case "$action" in
         echo "bootstrap/cache/config.php est lui-même un LIEN SYMBOLIQUE -> $(readlink -f "$SITE_DIR/bootstrap/cache/config.php")"
     elif [ -f "$SITE_DIR/bootstrap/cache/config.php" ]; then
         echo "bootstrap/cache/config.php existe, dernière modification : $(date -r "$SITE_DIR/bootstrap/cache/config.php" -Iseconds)"
-        echo "  (à comparer à la date du commit déployé ci-dessus : si cette modification est"
-        echo "   antérieure au déploiement, celui-ci n'a pas régénéré ce fichier de cache.)"
+        echo "  (à comparer à l'heure réelle du déploiement ci-dessus, PAS à la date du commit :"
+        echo "   si cette modification est antérieure à la bascule de 'current', le déploiement"
+        echo "   n'a pas régénéré ce fichier de cache.)"
     else
         echo "bootstrap/cache/config.php n'existe pas à cet instant (pas de cache actif)."
     fi

@@ -117,6 +117,19 @@ class JekoTesterCommand extends Command
             }
 
             $this->line("  {$nom} : {$affichage}{$alerte}");
+
+            // Empreinte SHA-256 de la valeur ACTUELLEMENT stockée, affichée
+            // pour JEKO_API_KEY et JEKO_API_KEY_ID (même principe que pour
+            // Backblaze, ajouté le 08/11/2026) : une empreinte ne permet pas
+            // de retrouver le secret d'origine, mais permet de vérifier, en
+            // dehors de cette commande (page locale calculant la même
+            // empreinte dans le navigateur), que la valeur stockée ici
+            // correspond, octet pour octet, à une copie d'origine conservée
+            // par ailleurs — sans jamais faire transiter ni afficher le
+            // secret lui-même.
+            if ($nom === 'JEKO_API_KEY' || $nom === 'JEKO_API_KEY_ID') {
+                $this->line('    empreinte SHA-256 : '.hash('sha256', $brute));
+            }
         }
 
         $this->newLine();

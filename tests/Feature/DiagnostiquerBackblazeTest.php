@@ -207,41 +207,92 @@ class DiagnostiquerBackblazeTest extends TestCase
             ->doesntExpectOutputToContain('secret-de-test');
     }
 
-    public function test_detecte_et_corrige_un_ecart_entre_la_config_en_cache_et_l_environnement_reel(): void
+    /**
+     * Pointe temporairement l'application vers un fichier .env de test
+     * (dans un dossier à part, jamais le vrai .env du projet), le temps
+     * d'un test, puis nettoie derrière lui.
+     */
+    private function avecFichierEnvDeTest(string $contenu, \Closure $test): void
     {
-        // Ajouté le 08/11/2026 : `config:clear` ne rafraîchit pas la
-        // configuration déjà chargée en mémoire pour l'exécution EN COURS,
-        // seulement pour la prochaine. Simule ici ce décalage précis : une
-        // valeur injectée via config() (comme le ferait un cache périmé) et
-        // une VRAIE variable d'environnement différente. Le diagnostic doit
-        // relever l'écart et utiliser la variable d'environnement — toujours
-        // à jour, cache ou non — pour la suite du test.
-        config(array_merge(self::CONFIG_VALIDE, [
-            'filesystems.disks.backblaze.key' => 'valeur-en-cache-perimee',
-        ]));
-        putenv('BACKBLAZE_KEY_ID=0034d6f8df46b3b0000000001');
+        $dossier = sys_get_temp_dir().'/afrolia-env-test-'.uniqid();
+        mkdir($dossier);
+        $fichier = '.env.test';
+        file_put_contents($dossier.'/'.$fichier, $contenu);
+
+        $this->app->useEnvironmentPath($dossier);
+        $this->app->loadEnvironmentFrom($fichier);
 
         try {
-            $this->artisan('backblaze:diagnostiquer')
-                ->expectsOutputToContain("BACKBLAZE_KEY_ID : la configuration mise en cache diffère de la variable d'environnement réelle")
-                ->expectsOutputToContain('empreinte SHA-256 : ' . hash('sha256', '0034d6f8df46b3b0000000001'))
-                ->doesntExpectOutputToContain(hash('sha256', 'valeur-en-cache-perimee'))
-                ->doesntExpectOutputToContain('valeur-en-cache-perimee')
-                ->doesntExpectOutputToContain('0034d6f8df46b3b0000000001');
+            $test();
         } finally {
-            putenv('BACKBLAZE_KEY_ID'); // Nettoyage : ne doit pas affecter les autres tests.
+            @unlink($dossier.'/'.$fichier);
+            @rmdir($dossier);
         }
     }
 
-    public function test_ne_signale_aucun_ecart_quand_aucune_vraie_variable_d_environnement_n_est_definie(): void
+    public function test_rapporte_une_valeur_absente_du_fichier_env_reel(): void
     {
-        // Dans les tests, aucune vraie variable BACKBLAZE_* n'existe
-        // (seule la config est simulée) : la nouvelle vérification doit
-        // rester muette, comme c'était déjà le cas avant son ajout.
-        config(self::CONFIG_VALIDE);
+        // Ajouté le 08/11/2026, en remplacement d'une précédente version
+        // basée sur getenv() : fausse, car Laravel saute EXPRÈS le
+        // chargement de .env quand la configuration est en cache (vérifié
+        // dans le code du framework), rendant getenv() tout aussi peu
+        // fiable dans ce cas précis. Seule une lecture directe du fichier
+        // .env réel, avec le même analyseur que Laravel (Dotenv::parse()),
+        // est fiable indépendamment du cache.
+        $this->avecFichierEnvDeTest("APP_NAME=Afrolia\n", function () {
+            config(self::CONFIG_VALIDE);
 
-        $this->artisan('backblaze:diagnostiquer')
-            ->doesntExpectOutputToContain('diffère de la variable d\'environnement réelle');
+            $this->artisan('backblaze:diagnostiquer')
+                ->expectsOutputToContain('BACKBLAZE_KEY_ID : absent du fichier .env')
+                ->expectsOutputToContain('BACKBLAZE_APPLICATION_KEY : absent du fichier .env');
+        });
+    }
+
+    public function test_rapporte_une_valeur_identique_entre_config_et_fichier_env_reel(): void
+    {
+        $this->avecFichierEnvDeTest("BACKBLAZE_KEY_ID=cle-de-test\n", function () {
+            config(self::CONFIG_VALIDE); // 'cle-de-test', cohérent avec le fichier ci-dessus.
+
+            $this->artisan('backblaze:diagnostiquer')
+                ->expectsOutputToContain('BACKBLAZE_KEY_ID : ✅ identique');
+        });
+    }
+
+    public function test_detecte_un_ecart_entre_la_config_chargee_et_le_fichier_env_reel(): void
+    {
+        // Simule le scénario qui a motivé ce correctif : la configuration
+        // chargée (ex. depuis un cache périmé) diffère de ce qui est
+        // réellement écrit dans .env aujourd'hui. --dans-un-nouveau-
+        // processus bypasse volontairement le redémarrage automatique
+        // (qui lancerait un vrai sous-processus, hors de portée d'un test
+        // unitaire rapide) pour isoler la détection elle-même ; le
+        // redémarrage réel est vérifié en conditions réelles (PR #131,
+        // relancée en production le 08/11/2026).
+        $this->avecFichierEnvDeTest("BACKBLAZE_KEY_ID=valeur-reellement-dans-env\n", function () {
+            config(array_merge(self::CONFIG_VALIDE, [
+                'filesystems.disks.backblaze.key' => 'valeur-chargee-en-config',
+            ]));
+
+            $this->artisan('backblaze:diagnostiquer', ['--dans-un-nouveau-processus' => true])
+                ->expectsOutputToContain('BACKBLAZE_KEY_ID : ⚠️ DIFFÉRENT')
+                ->doesntExpectOutputToContain('valeur-reellement-dans-env')
+                ->doesntExpectOutputToContain('valeur-chargee-en-config');
+        });
+    }
+
+    public function test_ne_redemarre_pas_en_boucle_quand_deja_dans_un_nouveau_processus(): void
+    {
+        // L'option --dans-un-nouveau-processus doit empêcher tout
+        // redémarrage, même face à un écart — sans quoi une configuration
+        // réellement incohérente provoquerait une boucle infinie.
+        $this->avecFichierEnvDeTest("BACKBLAZE_KEY_ID=valeur-reellement-dans-env\n", function () {
+            config(array_merge(self::CONFIG_VALIDE, [
+                'filesystems.disks.backblaze.key' => 'valeur-chargee-en-config',
+            ]));
+
+            $this->artisan('backblaze:diagnostiquer', ['--dans-un-nouveau-processus' => true])
+                ->doesntExpectOutputToContain('Redémarrage dans un nouveau processus');
+        });
     }
 
     public function test_teste_l_api_native_b2_et_rapporte_l_echec_sans_afficher_les_secrets(): void

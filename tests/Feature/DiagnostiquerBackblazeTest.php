@@ -258,40 +258,35 @@ class DiagnostiquerBackblazeTest extends TestCase
         });
     }
 
-    public function test_detecte_un_ecart_entre_la_config_chargee_et_le_fichier_env_reel(): void
+    public function test_detecte_un_ecart_et_utilise_la_valeur_du_fichier_pour_la_suite_du_diagnostic(): void
     {
         // Simule le scénario qui a motivé ce correctif : la configuration
         // chargée (ex. depuis un cache périmé) diffère de ce qui est
-        // réellement écrit dans .env aujourd'hui. --dans-un-nouveau-
-        // processus bypasse volontairement le redémarrage automatique
-        // (qui lancerait un vrai sous-processus, hors de portée d'un test
-        // unitaire rapide) pour isoler la détection elle-même ; le
-        // redémarrage réel est vérifié en conditions réelles (PR #131,
-        // relancée en production le 08/11/2026).
+        // réellement écrit dans .env aujourd'hui.
+        //
+        // Une version intermédiaire relançait la commande dans un nouveau
+        // processus pour repartir sur une configuration fraîche — écartée
+        // avant déploiement : un nouveau processus démarré juste après
+        // peut lui aussi retomber sur un cache déjà périmé ou tout juste
+        // régénéré, sans qu'aucune garantie n'existe entre les deux
+        // instants. La version actuelle évite complètement le problème en
+        // ne redémarrant jamais : elle utilise directement, dans LE MÊME
+        // processus, la valeur lue dans le fichier .env réel — dont la
+        // source est identifiée sans ambiguïté — à la place de la
+        // configuration chargée. Vérifié ici via l'empreinte SHA-256
+        // affichée en section 1 : elle doit correspondre à la valeur du
+        // FICHIER, jamais à celle (périmée) de la configuration chargée.
         $this->avecFichierEnvDeTest("BACKBLAZE_KEY_ID=valeur-reellement-dans-env\n", function () {
             config(array_merge(self::CONFIG_VALIDE, [
                 'filesystems.disks.backblaze.key' => 'valeur-chargee-en-config',
             ]));
 
-            $this->artisan('backblaze:diagnostiquer', ['--dans-un-nouveau-processus' => true])
+            $this->artisan('backblaze:diagnostiquer')
                 ->expectsOutputToContain('BACKBLAZE_KEY_ID : ⚠️ DIFFÉRENT')
+                ->expectsOutputToContain('empreinte SHA-256 : '.hash('sha256', 'valeur-reellement-dans-env'))
+                ->doesntExpectOutputToContain(hash('sha256', 'valeur-chargee-en-config'))
                 ->doesntExpectOutputToContain('valeur-reellement-dans-env')
                 ->doesntExpectOutputToContain('valeur-chargee-en-config');
-        });
-    }
-
-    public function test_ne_redemarre_pas_en_boucle_quand_deja_dans_un_nouveau_processus(): void
-    {
-        // L'option --dans-un-nouveau-processus doit empêcher tout
-        // redémarrage, même face à un écart — sans quoi une configuration
-        // réellement incohérente provoquerait une boucle infinie.
-        $this->avecFichierEnvDeTest("BACKBLAZE_KEY_ID=valeur-reellement-dans-env\n", function () {
-            config(array_merge(self::CONFIG_VALIDE, [
-                'filesystems.disks.backblaze.key' => 'valeur-chargee-en-config',
-            ]));
-
-            $this->artisan('backblaze:diagnostiquer', ['--dans-un-nouveau-processus' => true])
-                ->doesntExpectOutputToContain('Redémarrage dans un nouveau processus');
         });
     }
 

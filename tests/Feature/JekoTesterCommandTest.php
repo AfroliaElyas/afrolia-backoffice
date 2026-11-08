@@ -162,6 +162,24 @@ class JekoTesterCommandTest extends TestCase
             ->doesntExpectOutputToContain('cle_id_test'); // la partie avant le caractère invisible non plus.
     }
 
+    public function test_affiche_l_empreinte_sha256_de_la_cle_et_de_l_identifiant(): void
+    {
+        // Ajouté le 08/11/2026 : Ruth a conservé la clé JEKO_API_KEY
+        // d'origine dans sa note sécurisée. Cette empreinte lui permet de
+        // vérifier localement (page HTML, aucune transmission) que la
+        // valeur stockée sur le serveur correspond octet pour octet à sa
+        // copie, sans jamais la coller ici — même principe que pour
+        // Backblaze.
+        $this->configurerJeko();
+        Http::fake(['api.jeko.africa/partner_api/stores/*/balance' => Http::response(['balance' => 0], 200)]);
+
+        $this->artisan('jeko:tester')
+            ->expectsOutputToContain('empreinte SHA-256 : '.hash('sha256', 'cle_test'))
+            ->expectsOutputToContain('empreinte SHA-256 : '.hash('sha256', 'cle_id_test'))
+            ->doesntExpectOutputToContain('cle_test')
+            ->doesntExpectOutputToContain('cle_id_test');
+    }
+
     public function test_affiche_les_en_tetes_de_reponse_sans_jamais_afficher_les_secrets(): void
     {
         $this->configurerJeko();

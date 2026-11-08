@@ -78,6 +78,31 @@ class DiagnostiquerBackblazeCommand extends Command
 
         foreach (self::CLES_CONFIG as $nom => $cleConfig) {
             $brute = config($cleConfig);
+
+            // `config:clear` (section 0) supprime le fichier de cache, mais
+            // ne force pas CE processus — déjà démarré, configuration déjà
+            // chargée en mémoire depuis ce cache — à relire .env : il ne
+            // profite qu'au PROCHAIN lancement. La variable d'environnement
+            // brute, elle, est toujours relue par Laravel à chaque
+            // démarrage, cache ou non (bootstrapper distinct de celui qui
+            // charge la config) : si elle diffère de la config mise en
+            // cache, c'est la preuve que ce test portait jusqu'ici sur un
+            // instantané périmé plutôt que sur .env réellement actuel.
+            // `getenv()` renvoie `false` dans les tests (qui simulent via
+            // `config()`, jamais via de vraies variables d'environnement) :
+            // cette vérification ne s'y déclenche donc jamais (trouvé le
+            // 08/11/2026).
+            $brutEnv = getenv($nom);
+            if ($brutEnv !== false) {
+                $brutEnv = trim($brutEnv);
+                if ($brutEnv !== '' && $brutEnv !== $brute) {
+                    $this->warn("  ⚠️ {$nom} : la configuration mise en cache diffère de la variable d'environnement réelle de ce processus.");
+                    $this->warn('     → La variable d\'environnement (toujours à jour, cache ou non) est utilisée pour la suite de ce diagnostic.');
+                    $brute = $brutEnv;
+                    $problemeDetecte = true;
+                }
+            }
+
             $valeurs[$nom] = $brute;
 
             if ($brute === null || $brute === '') {

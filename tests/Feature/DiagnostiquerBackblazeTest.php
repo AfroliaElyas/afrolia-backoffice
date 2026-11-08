@@ -207,6 +207,43 @@ class DiagnostiquerBackblazeTest extends TestCase
             ->doesntExpectOutputToContain('secret-de-test');
     }
 
+    public function test_detecte_et_corrige_un_ecart_entre_la_config_en_cache_et_l_environnement_reel(): void
+    {
+        // Ajouté le 08/11/2026 : `config:clear` ne rafraîchit pas la
+        // configuration déjà chargée en mémoire pour l'exécution EN COURS,
+        // seulement pour la prochaine. Simule ici ce décalage précis : une
+        // valeur injectée via config() (comme le ferait un cache périmé) et
+        // une VRAIE variable d'environnement différente. Le diagnostic doit
+        // relever l'écart et utiliser la variable d'environnement — toujours
+        // à jour, cache ou non — pour la suite du test.
+        config(array_merge(self::CONFIG_VALIDE, [
+            'filesystems.disks.backblaze.key' => 'valeur-en-cache-perimee',
+        ]));
+        putenv('BACKBLAZE_KEY_ID=0034d6f8df46b3b0000000001');
+
+        try {
+            $this->artisan('backblaze:diagnostiquer')
+                ->expectsOutputToContain("BACKBLAZE_KEY_ID : la configuration mise en cache diffère de la variable d'environnement réelle")
+                ->expectsOutputToContain('empreinte SHA-256 : ' . hash('sha256', '0034d6f8df46b3b0000000001'))
+                ->doesntExpectOutputToContain(hash('sha256', 'valeur-en-cache-perimee'))
+                ->doesntExpectOutputToContain('valeur-en-cache-perimee')
+                ->doesntExpectOutputToContain('0034d6f8df46b3b0000000001');
+        } finally {
+            putenv('BACKBLAZE_KEY_ID'); // Nettoyage : ne doit pas affecter les autres tests.
+        }
+    }
+
+    public function test_ne_signale_aucun_ecart_quand_aucune_vraie_variable_d_environnement_n_est_definie(): void
+    {
+        // Dans les tests, aucune vraie variable BACKBLAZE_* n'existe
+        // (seule la config est simulée) : la nouvelle vérification doit
+        // rester muette, comme c'était déjà le cas avant son ajout.
+        config(self::CONFIG_VALIDE);
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->doesntExpectOutputToContain('diffère de la variable d\'environnement réelle');
+    }
+
     public function test_teste_l_api_native_b2_et_rapporte_l_echec_sans_afficher_les_secrets(): void
     {
         \Illuminate\Support\Facades\Http::fake([

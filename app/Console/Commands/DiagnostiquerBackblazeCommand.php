@@ -341,6 +341,37 @@ class DiagnostiquerBackblazeCommand extends Command
 
         $etape5Reussie = $this->testerApiNativeB2($valeurs);
 
+        // Demandé le 08/11/2026, après épuisement des pistes côté
+        // identifiants (transcription écartée, cache écarté, bug de code
+        // écarté, version d'API écartée, verrou temporaire écarté) : la
+        // seule couche jamais examinée jusqu'ici est le réseau lui-même,
+        // entre ce serveur et Backblaze. Un certificat TLS n'est jamais
+        // secret (n'importe quel navigateur le voit) ; sa seule
+        // vérification possible depuis ici est de confirmer qu'il est
+        // bien authentique, c'est-à-dire émis pour le bon domaine par une
+        // autorité reconnue — ce qui écarte une interception réseau
+        // (proxy, pare-feu) entre ce serveur et Backblaze.
+        $this->newLine();
+        $this->info('=== 6. Authenticité du certificat TLS présenté par Backblaze (depuis ce serveur) ===');
+        if ($this->getLaravel()->runningUnitTests()) {
+            // Jamais de vraie connexion réseau pendant les tests
+            // automatiques : ni nécessaire (le certificat de production ne
+            // dépend d'aucune configuration simulée ici), ni souhaitable
+            // (dépendance à une vraie connectivité, source de lenteur et
+            // d'instabilité en CI).
+            $this->line('  (ignoré pendant les tests automatiques.)');
+        } else {
+            $hoteS3 = parse_url((string) ($valeurs['BACKBLAZE_ENDPOINT'] ?? ''), PHP_URL_HOST);
+            foreach (array_filter(['api.backblazeb2.com', $hoteS3]) as $hote) {
+                $resultat = $this->inspecterCertificatTls($hote);
+                if ($resultat['ok']) {
+                    $this->info("  ✅ {$hote} : {$resultat['details']}");
+                } else {
+                    $this->error("  ❌ {$hote} : {$resultat['details']}");
+                }
+            }
+        }
+
         $this->newLine();
         $this->info('=== Comparaison ===');
         $this->line('  Étape 3 (Laravel/Flysystem, API S3) : ' . ($etape3Reussie ? '✅ réussie' : '❌ échec'));
@@ -425,7 +456,76 @@ class DiagnostiquerBackblazeCommand extends Command
             $this->error('  Corps de la réponse (non JSON) : ' . $reponse->body());
         }
 
+        // Demandé le 08/11/2026 : jusqu'ici seuls le code et le message
+        // étaient affichés. Les en-têtes complets de la réponse (aucun
+        // secret dedans — ce sont des métadonnées HTTP publiques) peuvent
+        // révéler un détail absent du corps JSON (ex. un en-tête ajouté
+        // par un intermédiaire réseau entre le serveur et Backblaze,
+        // plutôt que par Backblaze lui-même).
+        $this->newLine();
+        $this->line('  En-têtes complets de la réponse :');
+        foreach ($reponse->headers() as $nomEntete => $valeurs) {
+            $this->line('    ' . $nomEntete . ': ' . implode(', ', $valeurs));
+        }
+
         return false;
+    }
+
+    /**
+     * Inspecte le certificat TLS réellement présenté par un hôte, depuis ce
+     * serveur — pour détecter une éventuelle interception réseau entre le
+     * serveur et Backblaze (proxy, pare-feu, etc.), une couche jamais
+     * examinée jusqu'ici, en dessous des identifiants eux-mêmes. Un
+     * certificat TLS n'est jamais une donnée secrète (c'est ce que
+     * n'importe quel navigateur voit déjà en se connectant au site).
+     *
+     * @return array{ok: bool, details: string}
+     */
+    private function inspecterCertificatTls(string $hote): array
+    {
+        $contexte = stream_context_create([
+            'ssl' => [
+                'capture_peer_cert' => true,
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+                'peer_name' => $hote,
+            ],
+        ]);
+
+        $client = @stream_socket_client(
+            "ssl://{$hote}:443",
+            $errno,
+            $errstr,
+            10,
+            STREAM_CLIENT_CONNECT,
+            $contexte
+        );
+
+        if ($client === false) {
+            return ['ok' => false, 'details' => "connexion/validation du certificat échouée : {$errstr} (code {$errno})"];
+        }
+
+        $parametres = stream_context_get_params($client);
+        fclose($client);
+
+        $certificat = $parametres['options']['ssl']['peer_certificate'] ?? null;
+        if ($certificat === null) {
+            return ['ok' => false, 'details' => 'connexion réussie mais aucun certificat récupéré (inattendu).'];
+        }
+
+        $infos = openssl_x509_parse($certificat);
+        if ($infos === false) {
+            return ['ok' => false, 'details' => 'certificat reçu mais illisible.'];
+        }
+
+        $emetteur = $infos['issuer']['O'] ?? ($infos['issuer']['CN'] ?? '?');
+        $sujet = $infos['subject']['CN'] ?? '?';
+        $expireLe = isset($infos['validTo_time_t']) ? gmdate('Y-m-d', $infos['validTo_time_t']) : '?';
+
+        return [
+            'ok' => true,
+            'details' => "émetteur : {$emetteur} — domaine du certificat : {$sujet} — valide jusqu'au {$expireLe} (UTC) — validation de la chaîne par ce serveur : réussie",
+        ];
     }
 
     /**

@@ -158,4 +158,57 @@ class DiagnostiquerBackblazeTest extends TestCase
             ->expectsOutputToContain('Cause réelle')
             ->assertExitCode(1);
     }
+
+    public function test_teste_l_api_native_b2_et_rapporte_le_succes(): void
+    {
+        // Ajouté le 08/11/2026 : après confirmation que l'applicationKey
+        // enregistrée dans Forge correspond exactement à la copie d'origine,
+        // les étapes 3 et 4 (toutes deux via la compatibilité S3) ne peuvent
+        // plus distinguer "identifiants invalides" de "passerelle S3
+        // Backblaze défaillante pour ce compte". Ce test appelle l'API
+        // native B2 (b2_authorize_account), indépendante de toute
+        // compatibilité S3, avec les mêmes identifiants.
+        \Illuminate\Support\Facades\Http::fake([
+            'api.backblazeb2.com/*' => \Illuminate\Support\Facades\Http::response([
+                'accountId' => 'compte-de-test',
+                'allowed' => [
+                    'capabilities' => ['listFiles', 'writeFiles', 'deleteFiles'],
+                    'bucketName' => 'afrolia-test',
+                ],
+            ], 200),
+        ]);
+        config(self::CONFIG_VALIDE);
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->expectsOutputToContain('=== 5. Test avec l\'API native Backblaze B2 (sans aucune compatibilité S3) ===')
+            ->expectsOutputToContain('Authentification native B2')
+            ->expectsOutputToContain('compte-de-test')
+            ->expectsOutputToContain('listFiles, writeFiles, deleteFiles')
+            ->expectsOutputToContain('spécifique à la')
+            ->assertExitCode(1); // Les étapes 3/4 (S3, port fermé) échouent toujours.
+    }
+
+    public function test_teste_l_api_native_b2_et_rapporte_l_echec_sans_afficher_les_secrets(): void
+    {
+        \Illuminate\Support\Facades\Http::fake([
+            'api.backblazeb2.com/*' => \Illuminate\Support\Facades\Http::response([
+                'status' => 401,
+                'code' => 'unauthorized',
+                'message' => 'The applicationKeyId and applicationKey did not match.',
+            ], 401),
+        ]);
+        config(array_merge(self::CONFIG_VALIDE, [
+            'filesystems.disks.backblaze.key' => 'cle-secrete-ne-doit-jamais-apparaitre',
+            'filesystems.disks.backblaze.secret' => 'application-key-ne-doit-jamais-apparaitre',
+        ]));
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->expectsOutputToContain('ÉCHEC (API native B2)')
+            ->expectsOutputToContain('unauthorized')
+            ->expectsOutputToContain('did not match')
+            ->expectsOutputToContain('TROIS mécanismes')
+            ->doesntExpectOutputToContain('cle-secrete-ne-doit-jamais-apparaitre')
+            ->doesntExpectOutputToContain('application-key-ne-doit-jamais-apparaitre')
+            ->assertExitCode(1);
+    }
 }

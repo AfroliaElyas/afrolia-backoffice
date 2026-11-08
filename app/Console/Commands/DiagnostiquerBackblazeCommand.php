@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use Aws\S3\S3Client;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -256,23 +257,112 @@ class DiagnostiquerBackblazeCommand extends Command
 
         $etape4Reussie = $this->testerAvecSdkBrut($valeurs);
 
+        // Demandé le 08/11/2026 : après confirmation que l'applicationKey
+        // enregistrée dans Forge correspond caractère pour caractère à la
+        // copie d'origine (comparaison faite par Ruth elle-même), les
+        // étapes 3 et 4 ci-dessus ne peuvent plus distinguer "mauvais
+        // identifiants" de "API S3 de Backblaze indisponible/mal provisionnée
+        // pour ce compte" — les deux passent par la même couche de
+        // compatibilité S3 (signature SigV4, endpoint s3.<region>...). Ce
+        // test appelle à la place l'API NATIVE de Backblaze B2
+        // (b2_authorize_account, api.backblazeb2.com) avec la même paire
+        // keyID/applicationKey : c'est le mécanisme d'authentification
+        // principal de Backblaze, indépendant de toute compatibilité S3. S'il
+        // réussit alors que 3 et 4 échouent, cela prouve que les identifiants
+        // sont valides et que le problème est spécifique à la passerelle S3 de
+        // Backblaze pour ce compte — pas aux identifiants eux-mêmes.
+        $this->newLine();
+        $this->info('=== 5. Test avec l\'API native Backblaze B2 (sans aucune compatibilité S3) ===');
+        $this->line('  (mêmes identifiants, mécanisme d\'authentification Backblaze natif —');
+        $this->line('  b2_authorize_account — pour savoir si le blocage est spécifique à la passerelle S3.)');
+
+        $etape5Reussie = $this->testerApiNativeB2($valeurs);
+
         $this->newLine();
         $this->info('=== Comparaison ===');
-        $this->line('  Étape 3 (Laravel/Flysystem) : ' . ($etape3Reussie ? '✅ réussie' : '❌ échec'));
-        $this->line('  Étape 4 (SDK AWS direct)    : ' . ($etape4Reussie ? '✅ réussie' : '❌ échec'));
+        $this->line('  Étape 3 (Laravel/Flysystem, API S3) : ' . ($etape3Reussie ? '✅ réussie' : '❌ échec'));
+        $this->line('  Étape 4 (SDK AWS direct, API S3)    : ' . ($etape4Reussie ? '✅ réussie' : '❌ échec'));
+        $this->line('  Étape 5 (API native B2, sans S3)    : ' . ($etape5Reussie ? '✅ réussie' : '❌ échec'));
+
         if (!$etape3Reussie && $etape4Reussie) {
-            $this->warn('  → Le SDK nu fonctionne mais pas Laravel/Flysystem : le blocage vient de la façon dont');
+            $this->warn('  → VÉRIFIÉ : le SDK nu fonctionne mais pas Laravel/Flysystem : le blocage vient de la façon dont');
             $this->warn('    la configuration est transmise au SDK par le disque "backblaze" (corrigible dans le code).');
-        } elseif (!$etape3Reussie && !$etape4Reussie) {
-            $this->warn('  → Échec identique avec le SDK nu, sans aucune couche Laravel/Flysystem : le blocage');
-            $this->warn('    ne vient pas de notre code. Cause à chercher côté compte/clé Backblaze elle-même');
-            $this->warn('    (ex. restriction non visible dans "Capabilities", délai de propagation d\'une clé');
-            $this->warn('    tout juste créée, ou restriction appliquée au niveau du compte plutôt que de la clé).');
+        } elseif (!$etape3Reussie && !$etape4Reussie && $etape5Reussie) {
+            $this->warn('  → VÉRIFIÉ : les identifiants sont valides (l\'API native B2 les accepte), mais les DEUX');
+            $this->warn('    tests S3 échouent avec les mêmes identifiants. Le blocage est donc spécifique à la');
+            $this->warn('    passerelle de compatibilité S3 de Backblaze pour ce compte — pas aux identifiants,');
+            $this->warn('    pas à notre code. Hypothèse restante (non vérifiée ici) : API S3 non ou mal');
+            $this->warn('    provisionnée pour ce compte, ou incident côté Backblaze sur cette passerelle.');
+        } elseif (!$etape3Reussie && !$etape4Reussie && !$etape5Reussie) {
+            $this->warn('  → VÉRIFIÉ : échec identique sur les TROIS mécanismes (Flysystem, SDK S3 nu, ET API native');
+            $this->warn('    Backblaze sans aucune compatibilité S3). Le blocage ne vient ni de notre code ni de la');
+            $this->warn('    passerelle S3 : il est au niveau le plus fondamental, les identifiants eux-mêmes ou le');
+            $this->warn('    compte Backblaze. Voir le message et le code exacts de l\'étape 5 ci-dessus.');
         } elseif ($etape3Reussie && $etape4Reussie) {
-            $this->info('  → Les deux réussissent : tout fonctionne normalement.');
+            $this->info('  → Tout fonctionne normalement.');
         }
 
         return ($etape3Reussie && $etape4Reussie) ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * Teste la paire keyID/applicationKey directement contre l'API native de
+     * Backblaze B2 (b2_authorize_account), sans passer par la couche de
+     * compatibilité S3 ni par le SDK AWS. N'affiche jamais les secrets —
+     * seulement le code HTTP et le message d'erreur renvoyés par Backblaze.
+     *
+     * @param array<string, mixed> $valeurs Les 5 valeurs BACKBLAZE_* déjà lues en section 1.
+     */
+    private function testerApiNativeB2(array $valeurs): bool
+    {
+        $cle = $valeurs['BACKBLAZE_KEY_ID'] ?? null;
+        $secret = $valeurs['BACKBLAZE_APPLICATION_KEY'] ?? null;
+
+        if (!$cle || !$secret) {
+            $this->line('  (ignoré : keyID ou applicationKey déjà signalé absent en section 1.)');
+
+            return false;
+        }
+
+        try {
+            $reponse = Http::withBasicAuth($cle, $secret)
+                ->timeout(15)
+                ->get('https://api.backblazeb2.com/b2api/v2/b2_authorize_account');
+        } catch (\Throwable $e) {
+            $this->error('  ❌ ÉCHEC (API native B2, erreur réseau avant même la réponse de Backblaze) : ' . get_class($e));
+            $this->error('  Message : ' . $e->getMessage());
+
+            return false;
+        }
+
+        if ($reponse->successful()) {
+            $corps = $reponse->json();
+            $this->info('  ✅ Authentification native B2 (b2_authorize_account) : réussie.');
+            $this->line('  accountId renvoyé par Backblaze : ' . ($corps['accountId'] ?? '(absent)'));
+
+            $capacites = $corps['allowed']['capabilities'] ?? null;
+            if (is_array($capacites)) {
+                $this->line('  Capacités confirmées par Backblaze pour cette clé : ' . implode(', ', $capacites));
+            }
+
+            $bucketRestreint = $corps['allowed']['bucketName'] ?? null;
+            if ($bucketRestreint !== null) {
+                $this->line('  Bucket auquel cette clé est restreinte (selon Backblaze lui-même) : ' . $bucketRestreint);
+            }
+
+            return true;
+        }
+
+        $this->error('  ❌ ÉCHEC (API native B2) : HTTP ' . $reponse->status());
+        $corps = $reponse->json();
+        if (is_array($corps)) {
+            $this->error('  code renvoyé par Backblaze : ' . ($corps['code'] ?? '(absent)'));
+            $this->error('  message renvoyé par Backblaze : ' . ($corps['message'] ?? '(absent)'));
+        } else {
+            $this->error('  Corps de la réponse (non JSON) : ' . $reponse->body());
+        }
+
+        return false;
     }
 
     /**

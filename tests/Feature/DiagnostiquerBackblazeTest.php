@@ -188,6 +188,25 @@ class DiagnostiquerBackblazeTest extends TestCase
             ->assertExitCode(1); // Les étapes 3/4 (S3, port fermé) échouent toujours.
     }
 
+    public function test_affiche_l_empreinte_sha256_du_keyid_et_de_l_application_key(): void
+    {
+        // Ajouté le 08/11/2026 : permet une comparaison fiable (une page
+        // locale calculant la même empreinte dans un navigateur, par
+        // exemple) entre la valeur stockée et une copie d'origine, sans
+        // jamais faire transiter ni afficher le secret lui-même, et sans le
+        // risque d'erreur d'une comparaison visuelle (0/O, 1/l/I).
+        config(self::CONFIG_VALIDE);
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->expectsOutputToContain('empreinte SHA-256 : ' . hash('sha256', 'cle-de-test'))
+            ->expectsOutputToContain('empreinte SHA-256 : ' . hash('sha256', 'secret-de-test'))
+            // "secret-de-test" (l'application key) n'est jamais affiché en
+            // clair, quelle que soit sa longueur (couvert séparément par
+            // test_ne_affiche_jamais_les_secrets_en_clair pour le keyID,
+            // dont le masquage dépend lui de la longueur).
+            ->doesntExpectOutputToContain('secret-de-test');
+    }
+
     public function test_teste_l_api_native_b2_et_rapporte_l_echec_sans_afficher_les_secrets(): void
     {
         \Illuminate\Support\Facades\Http::fake([

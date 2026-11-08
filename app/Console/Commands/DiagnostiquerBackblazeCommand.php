@@ -110,6 +110,19 @@ class DiagnostiquerBackblazeCommand extends Command
 
             $this->line("  {$nom} : {$affichage}" . ($espacesParasites ? '  ⚠️ ESPACE(S) PARASITE(S) EN DÉBUT/FIN DÉTECTÉ(S)' : ''));
 
+            // Empreinte SHA-256 de la valeur ACTUELLEMENT stockée, affichée
+            // pour les deux identifiants (demandé le 08/11/2026) : une
+            // empreinte ne permet pas de retrouver le secret d'origine, mais
+            // permet de vérifier, en dehors de cette commande (ex. page
+            // locale calculant la même empreinte dans le navigateur), que la
+            // valeur stockée ici correspond, OCTET POUR OCTET, à une copie
+            // d'origine — sans jamais faire transiter ni afficher le secret
+            // lui-même, et sans qu'aucune comparaison visuelle (ambiguë sur
+            // des caractères comme 0/O ou 1/l/I) ne puisse se tromper.
+            if ($nom === 'BACKBLAZE_KEY_ID' || $nom === 'BACKBLAZE_APPLICATION_KEY') {
+                $this->line("    empreinte SHA-256 : " . hash('sha256', $brute));
+            }
+
             if ($espacesParasites) {
                 $problemeDetecte = true;
             }

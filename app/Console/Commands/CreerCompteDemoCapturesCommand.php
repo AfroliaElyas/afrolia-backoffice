@@ -2,8 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Models\ClientFavorite;
 use App\Models\Commandes;
 use App\Models\CommandeLignes;
+use App\Models\Gains;
 use App\Models\Produits;
 use App\Models\Reservations;
 use App\Models\Reviews;
@@ -80,6 +82,13 @@ class CreerCompteDemoCapturesCommand extends Command
             ],
         );
 
+        // Sans ça, l'écran "favoris" du client reste vide sur la capture —
+        // précisément ce que ce compte peuplé est censé éviter.
+        ClientFavorite::firstOrCreate([
+            'client_id' => $client->id_user_app,
+            'stylist_id' => $coiffeuse->id_user_app,
+        ]);
+
         $services = [
             ['nom' => 'Tresses box braids', 'prix' => 15000, 'minute' => 180, 'description' => 'Box braids moyennes, avec mèches de qualité comprises.', 'longueur' => 'Épaules', 'meches_comprises' => true],
             ['nom' => 'Soin profond hydratant', 'prix' => 8000, 'minute' => 60, 'description' => 'Soin en profondeur pour cheveux secs ou abîmés, à base de produits naturels.', 'longueur' => null, 'meches_comprises' => false],
@@ -115,6 +124,24 @@ class CreerCompteDemoCapturesCommand extends Command
                 'methode_paiement' => 'mobile_money',
                 'confirme_le' => now()->subDays(5),
                 'termine_le' => now()->subDays(5)->addHours(3),
+            ]);
+        }
+
+        // Sans ce gain, l'écran "revenus" de la coiffeuse affiche 0 FCFA
+        // partout malgré une réservation payée : ApiGainsCoiffeuseController
+        // exclut explicitement le statut "en_attente" (celui que mettrait un
+        // vrai paiement) de tous les totaux affichés. "disponible" est le
+        // statut d'un gain réellement acquis et non encore versé — c'est
+        // aussi ce que lit le solde de l'écran "aperçu"
+        // (ApiDashboardCoiffeuseController::where('statut', 'disponible')).
+        if (!Gains::where('id_reservation', $reservation->id_reservation)->exists()) {
+            Gains::create([
+                'id_coiffeur' => $coiffeuse->id_user_app,
+                'id_reservation' => $reservation->id_reservation,
+                'montant_brut' => $reservation->montant_total,
+                'montant_commission' => $reservation->montant_commission,
+                'montant_net' => $reservation->prix_service - $reservation->montant_commission,
+                'statut' => 'disponible',
             ]);
         }
 
@@ -172,6 +199,20 @@ class CreerCompteDemoCapturesCommand extends Command
             ]);
         }
 
+        // Même raison que pour le gain de la réservation ci-dessus : sans
+        // lui, la commande livrée n'apparaît dans aucun total de l'écran
+        // "revenus".
+        if (!Gains::where('id_commande', $commande->id_commande)->exists()) {
+            Gains::create([
+                'id_coiffeur' => $coiffeuse->id_user_app,
+                'id_commande' => $commande->id_commande,
+                'montant_brut' => $commande->montant_total,
+                'montant_commission' => $commande->montant_commission,
+                'montant_net' => $commande->montant_produits - $commande->montant_commission,
+                'statut' => 'disponible',
+            ]);
+        }
+
         $this->info('✅ Compte de démonstration prêt pour les captures d\'écran.');
         $this->line('');
         $this->line("Coiffeuse : {$coiffeuse->phone} / mot de passe : " . self::MOT_DE_PASSE . " (id {$coiffeuse->id_user_app})");
@@ -181,6 +222,8 @@ class CreerCompteDemoCapturesCommand extends Command
         $this->line('Réservation terminée : ' . $reservation->numero_reservation);
         $this->line('Commande livrée : ' . $commande->numero_commande);
         $this->line('Avis client : ' . ($avisExiste ? 'déjà présent' : 'créé'));
+        $this->line('Favori client : coiffeuse ajoutée');
+        $this->line('Gains disponibles : ' . Gains::where('id_coiffeur', $coiffeuse->id_user_app)->where('statut', 'disponible')->count());
 
         return self::SUCCESS;
     }

@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Console\Commands\CreerCompteDemoCapturesCommand;
+use App\Models\ClientFavorite;
 use App\Models\Commandes;
+use App\Models\Gains;
 use App\Models\Produits;
 use App\Models\Reservations;
 use App\Models\Reviews;
@@ -56,6 +58,38 @@ class CreerCompteDemoCapturesCommandTest extends TestCase
         $this->assertSame(1, $commande->lignes()->count());
     }
 
+    public function test_peuple_un_favori_client_et_des_gains_disponibles(): void
+    {
+        // Sans ces deux éléments, les écrans "favoris" (client) et "revenus"
+        // (coiffeuse) des captures d'écran store restent vides malgré un
+        // compte par ailleurs peuplé (ajouté le 10/11/2026).
+        $this->artisan('demo:creer-compte-captures')->assertSuccessful();
+
+        $coiffeuse = UsersApp::where('phone', CreerCompteDemoCapturesCommand::TELEPHONE_COIFFEUSE)->first();
+        $client = UsersApp::where('phone', CreerCompteDemoCapturesCommand::TELEPHONE_CLIENT)->first();
+
+        $this->assertTrue(
+            ClientFavorite::where('client_id', $client->id_user_app)
+                ->where('stylist_id', $coiffeuse->id_user_app)
+                ->exists()
+        );
+
+        // "en_attente" est explicitement exclu de tous les totaux affichés
+        // par ApiGainsCoiffeuseController et du solde de
+        // ApiDashboardCoiffeuseController : seul "disponible" (ou "paye")
+        // apparaît réellement à l'écran.
+        $reservation = Reservations::where('numero_reservation', 'like', 'DEMO-CAPTURES-%')->first();
+        $gainReservation = Gains::where('id_reservation', $reservation->id_reservation)->first();
+        $this->assertNotNull($gainReservation);
+        $this->assertSame('disponible', $gainReservation->statut);
+        $this->assertSame((float) $reservation->prix_service - $reservation->montant_commission, (float) $gainReservation->montant_net);
+
+        $commande = Commandes::where('numero_commande', 'like', 'DEMO-CAPTURES-%')->first();
+        $gainCommande = Gains::where('id_commande', $commande->id_commande)->first();
+        $this->assertNotNull($gainCommande);
+        $this->assertSame('disponible', $gainCommande->statut);
+    }
+
     public function test_est_idempotente_quand_relancee_plusieurs_fois(): void
     {
         $this->artisan('demo:creer-compte-captures')->assertSuccessful();
@@ -69,5 +103,7 @@ class CreerCompteDemoCapturesCommandTest extends TestCase
         $this->assertSame(1, Reservations::count());
         $this->assertSame(1, Commandes::count());
         $this->assertSame(1, Reviews::count());
+        $this->assertSame(1, ClientFavorite::count());
+        $this->assertSame(2, Gains::count());
     }
 }

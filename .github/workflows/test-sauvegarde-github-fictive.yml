@@ -1,0 +1,31 @@
+name: Test (fictif) — sauvegarde chiffrée vers GitHub Actions
+
+# Workflow TEMPORAIRE, à usage unique : vérifie que des sauvegardes
+# chiffrées peuvent être envoyées sur GitHub comme artifact Actions, puis
+# récupérées et déchiffrées — avec des données entièrement fictives, pour
+# valider le mécanisme avant toute vraie donnée. Ne tourne jamais tout seul
+# (pas de "push"/"schedule"), uniquement sur déclenchement manuel. Branche
+# et workflow à supprimer une fois le test terminé.
+on:
+  workflow_dispatch:
+
+jobs:
+  upload-artifact-fictif:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier que les fichiers sont bien illisibles sans la clé
+        run: |
+          file test-fictif-temporaire/dump_fictif.sql.gz.enc
+          file test-fictif-temporaire/photos_fictives.tar.gz.enc
+          echo "Taille totale :"
+          du -ch test-fictif-temporaire/*.enc | tail -1
+
+      - name: Publier les fichiers chiffrés (fictifs) comme artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sauvegarde-fictive-chiffree
+          path: test-fictif-temporaire/*.enc
+          retention-days: 1
+          if-no-files-found: error

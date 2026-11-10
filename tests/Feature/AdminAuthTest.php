@@ -12,19 +12,19 @@ class AdminAuthTest extends TestCase
 
     public function test_un_visiteur_non_connecte_est_redirige_vers_la_connexion(): void
     {
-        $this->get('/litiges')->assertRedirect('/');
-        $this->get('/users')->assertRedirect('/');
+        $this->get('/litiges')->assertRedirect('/admin');
+        $this->get('/users')->assertRedirect('/admin');
     }
 
     public function test_un_visiteur_non_connecte_ne_peut_pas_resoudre_un_litige(): void
     {
         $this->post('/litiges/1/resoudre', ['resolution' => 'Remboursement effectué'])
-            ->assertRedirect('/');
+            ->assertRedirect('/admin');
     }
 
     public function test_un_visiteur_non_connecte_ne_peut_pas_suspendre_un_compte(): void
     {
-        $this->post('/users/1/suspend')->assertRedirect('/');
+        $this->post('/users/1/suspend')->assertRedirect('/admin');
     }
 
     public function test_un_admin_connecte_accede_au_back_office(): void

@@ -342,4 +342,120 @@ class DiagnostiquerBackblazeTest extends TestCase
         $this->assertFalse($resultat['ok']);
         $this->assertNotEmpty($resultat['details']);
     }
+
+    /**
+     * Nettoie le journal de test (jamais présent avant ces tests, dans un
+     * dépôt fraîchement cloné) sans jamais toucher à un vrai journal qui
+     * existerait déjà localement.
+     */
+    private function avecJournalDeTest(string $contenu, \Closure $test): void
+    {
+        $chemin = storage_path('logs/scheduler-sauvegarde-externe.log');
+        $existaitDeja = is_file($chemin);
+        $sauvegarde = $existaitDeja ? file_get_contents($chemin) : null;
+
+        file_put_contents($chemin, $contenu);
+
+        try {
+            $test();
+        } finally {
+            if ($existaitDeja) {
+                file_put_contents($chemin, $sauvegarde);
+            } else {
+                @unlink($chemin);
+            }
+        }
+    }
+
+    public function test_rapporte_lorsque_aucun_journal_de_sauvegarde_nest_trouve(): void
+    {
+        config(self::CONFIG_VALIDE);
+        $chemin = storage_path('logs/scheduler-sauvegarde-externe.log');
+        $existaitDeja = is_file($chemin);
+        if ($existaitDeja) {
+            $this->markTestSkipped('Un vrai journal existe déjà à cet emplacement local : test sauté pour ne pas le perturber.');
+        }
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->expectsOutputToContain('=== 7. État de la dernière sauvegarde externe (base + photos) ===')
+            ->expectsOutputToContain('Aucun journal trouvé')
+            ->expectsOutputToContain('Impossible de confirmer la date de la dernière sauvegarde réussie');
+    }
+
+    public function test_rapporte_la_derniere_sauvegarde_reussie_depuis_le_journal(): void
+    {
+        config(self::CONFIG_VALIDE);
+
+        $this->avecJournalDeTest(
+            "Sauvegarde externe envoyée : afrolia-db-20261105_030001.sql.gz (1234 octets).\n"
+            ."Sauvegarde externe envoyée : afrolia-db-20261108_030002.sql.gz (1250 octets).\n"
+            ."Sauvegarde photos envoyée : afrolia-photos-20261108_030015.tar.gz (999 octets).\n",
+            function () {
+                $this->artisan('backblaze:diagnostiquer')
+                    ->expectsOutputToContain('Base de données : ✅ dernier envoi réussi confirmé le 08/11/2026 03:00:02')
+                    ->expectsOutputToContain('Photos          : ✅ dernier envoi réussi confirmé le 08/11/2026 03:00:15');
+            }
+        );
+    }
+
+    public function test_ne_confond_pas_les_archives_heritage_avec_la_derniere_sauvegarde_photos(): void
+    {
+        // Même piège que pour la purge (voir SauvegardeExterneCommand) :
+        // une archive "afrolia-photos-heritage-*" ne doit jamais être
+        // retenue comme preuve d'une sauvegarde photos réussie.
+        config(self::CONFIG_VALIDE);
+
+        $this->avecJournalDeTest(
+            "Sauvegarde photos envoyée : afrolia-photos-heritage-20261109_030020.tar.gz (500 octets).\n",
+            function () {
+                $this->artisan('backblaze:diagnostiquer')
+                    ->expectsOutputToContain('Photos          : ⚠️ aucun envoi réussi trouvé');
+            }
+        );
+    }
+
+    public function test_rapporte_la_derniere_erreur_du_journal(): void
+    {
+        config(self::CONFIG_VALIDE);
+
+        $this->avecJournalDeTest(
+            "ÉCHEC : mysqldump a échoué — identifiants refusés.\n"
+            ."AVERTISSEMENT : purge des anciennes sauvegardes impossible — délai dépassé.\n",
+            function () {
+                $this->artisan('backblaze:diagnostiquer')
+                    ->expectsOutputToContain("délai dépassé");
+            }
+        );
+    }
+
+    public function test_liste_les_sauvegardes_locales_recentes(): void
+    {
+        config(self::CONFIG_VALIDE);
+
+        $dossier = sys_get_temp_dir().'/test-backups-afrolia-'.uniqid();
+        mkdir($dossier);
+        file_put_contents($dossier.'/afrolia-db-20261108.sql.gz', str_repeat('x', 2048));
+        touch($dossier.'/afrolia-db-20261108.sql.gz', strtotime('2026-11-08 03:00:00'));
+        file_put_contents($dossier.'/afrolia-db-20261109.sql.gz', str_repeat('x', 2048));
+        touch($dossier.'/afrolia-db-20261109.sql.gz', strtotime('2026-11-09 03:00:00'));
+        config(['services.sauvegarde.dossier_local' => $dossier]);
+
+        try {
+            $this->artisan('backblaze:diagnostiquer')
+                ->expectsOutputToContain('2 fichier(s), la plus récente en premier')
+                ->expectsOutputToContain('afrolia-db-20261109.sql.gz');
+        } finally {
+            array_map('unlink', glob($dossier.'/*'));
+            rmdir($dossier);
+        }
+    }
+
+    public function test_rapporte_lorsque_aucune_sauvegarde_locale_nest_trouvee(): void
+    {
+        config(self::CONFIG_VALIDE);
+        config(['services.sauvegarde.dossier_local' => sys_get_temp_dir().'/dossier-inexistant-'.uniqid()]);
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->expectsOutputToContain('Aucune sauvegarde locale trouvée');
+    }
 }

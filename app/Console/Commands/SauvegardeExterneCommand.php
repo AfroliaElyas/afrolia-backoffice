@@ -2,7 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Mail\AlerteSauvegardeExterneEchouee;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\Process\Process;
 
@@ -34,11 +36,43 @@ class SauvegardeExterneCommand extends Command
         $resultatBase = $this->sauvegarderBase();
         $resultatPhotos = $this->sauvegarderPhotos();
 
+        if (! $resultatBase || ! $resultatPhotos) {
+            $this->alerterEnCasEchec($resultatBase, $resultatPhotos);
+        }
+
         // Les deux sauvegardes sont indépendantes : l'échec de l'une ne doit
         // jamais empêcher l'autre de s'exécuter — perdre la sauvegarde des
         // photos parce que la base a échoué (ou inversement) serait pire que
         // de n'en perdre qu'une seule.
         return ($resultatBase && $resultatPhotos) ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * Sans ça, un échec de cette tâche quotidienne ne casse rien de visible
+     * sur le site et peut passer inaperçu indéfiniment (voir
+     * routes/console.php) — c'est exactement ce qui s'est produit pendant
+     * tout l'épisode Backblaze du 08-10/11/2026. N'envoie rien si
+     * ADMIN_ALERT_EMAIL n'est pas configuré (comportement actuel inchangé),
+     * et ne fait jamais échouer la commande elle-même si l'envoi échoue à
+     * son tour (ex. Brevo injoignable) : la sauvegarde du jour est déjà
+     * faite ou ratée indépendamment de cette alerte.
+     */
+    private function alerterEnCasEchec(bool $resultatBase, bool $resultatPhotos): void
+    {
+        $destinataire = config('services.alertes.email');
+        if (empty($destinataire)) {
+            return;
+        }
+
+        try {
+            Mail::to($destinataire)->send(new AlerteSauvegardeExterneEchouee(
+                resultatBase: $resultatBase,
+                resultatPhotos: $resultatPhotos,
+                dateExecution: now()->format('d/m/Y H:i'),
+            ));
+        } catch (\Throwable $e) {
+            $this->warn("AVERTISSEMENT : l'alerte par e-mail n'a pas pu être envoyée — {$e->getMessage()}");
+        }
     }
 
     private function sauvegarderBase(): bool

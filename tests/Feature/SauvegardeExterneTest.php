@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Console\Commands\SauvegardeExterneCommand;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -125,6 +126,44 @@ class SauvegardeExterneTest extends TestCase
 
         array_map('unlink', glob($dossier.'/*'));
         rmdir($dossier);
+    }
+
+    private function appellerAlerterEnCasEchec(bool $resultatBase, bool $resultatPhotos): void
+    {
+        $commande = new SauvegardeExterneCommand();
+        $commande->setLaravel($this->app);
+        $commande->setOutput(new \Illuminate\Console\OutputStyle(
+            new \Symfony\Component\Console\Input\ArrayInput([]),
+            new \Symfony\Component\Console\Output\NullOutput()
+        ));
+        $methode = new \ReflectionMethod($commande, 'alerterEnCasEchec');
+        $methode->setAccessible(true);
+        $methode->invoke($commande, $resultatBase, $resultatPhotos);
+    }
+
+    public function test_n_envoie_aucune_alerte_si_admin_alert_email_n_est_pas_configure(): void
+    {
+        config(['services.alertes.email' => null]);
+        Mail::fake();
+
+        $this->appellerAlerterEnCasEchec(false, true);
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_envoie_une_alerte_par_email_en_cas_d_echec_de_la_base(): void
+    {
+        config(['services.alertes.email' => 'admin-test@afrolia-app.com']);
+        Mail::fake();
+
+        $this->appellerAlerterEnCasEchec(false, true);
+
+        Mail::assertSent(\App\Mail\AlerteSauvegardeExterneEchouee::class, function ($mail) {
+            $mail->assertTo('admin-test@afrolia-app.com');
+            $mail->assertHasSubject('⚠️ Afrolia : échec de la sauvegarde externe');
+
+            return $mail->resultatBase === false && $mail->resultatPhotos === true;
+        });
     }
 
     public function test_ne_laisse_aucun_fichier_temporaire_apres_l_archive_des_photos(): void

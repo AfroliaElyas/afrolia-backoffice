@@ -29,6 +29,23 @@ return [
         'key' => env('BREVO_API_KEY'),
     ],
 
+    // Dossier des sauvegardes locales prises à chaque déploiement (voir
+    // deploy/forge-deploy.sh, BACKUP_DIR). Configurable pour les tests
+    // automatiques ; en production, HOME vaut toujours /home/forge.
+    'sauvegarde' => [
+        'dossier_local' => env('SAUVEGARDE_LOCALE_DOSSIER', (getenv('HOME') ?: '/home/forge').'/backups/afrolia-db'),
+    ],
+
+    // Adresse prévenue par e-mail quand sauvegarde:externe échoue (base ou
+    // photos) : sans ça, un échec de cette tâche quotidienne ne casse rien
+    // de visible sur le site et peut passer inaperçu indéfiniment (ajouté
+    // le 10/11/2026, suite au constat que la sauvegarde externe dépend de
+    // la même connexion Backblaze restée bloquée tout ce temps). Optionnel
+    // : si vide, aucune alerte n'est envoyée (comportement actuel inchangé).
+    'alertes' => [
+        'email' => env('ADMIN_ALERT_EMAIL'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

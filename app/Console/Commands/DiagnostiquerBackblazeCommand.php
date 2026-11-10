@@ -396,6 +396,10 @@ class DiagnostiquerBackblazeCommand extends Command
             $this->info('  → Tout fonctionne normalement.');
         }
 
+        $this->newLine();
+        $this->info('=== 7. État de la dernière sauvegarde externe (base + photos) ===');
+        $this->afficherEtatSauvegardeExterne();
+
         return ($etape3Reussie && $etape4Reussie) ? self::SUCCESS : self::FAILURE;
     }
 
@@ -526,6 +530,81 @@ class DiagnostiquerBackblazeCommand extends Command
             'ok' => true,
             'details' => "émetteur : {$emetteur} — domaine du certificat : {$sujet} — valide jusqu'au {$expireLe} (UTC) — validation de la chaîne par ce serveur : réussie",
         ];
+    }
+
+    /**
+     * Lit le journal de sauvegarde:externe (routes/console.php :
+     * appendOutputTo, jamais vidé automatiquement) pour trouver la date du
+     * dernier envoi réussi vers Backblaze, pour la base et pour les photos
+     * séparément, plus la plus récente erreur consignée. Liste aussi les
+     * sauvegardes locales prises à chaque déploiement (deploy/forge-
+     * deploy.sh, $HOME/backups/afrolia-db) : la seule copie qui survit
+     * indépendamment de Backblaze. Lecture seule, ne modifie ni ne
+     * supprime rien. Si une information n'est pas trouvée, le dit
+     * explicitement plutôt que de rester silencieux (demandé le
+     * 10/11/2026, suite au constat que sauvegarde:externe dépend de la
+     * même connexion Backblaze restée bloquée tout l'épisode précédent).
+     */
+    private function afficherEtatSauvegardeExterne(): void
+    {
+        $cheminJournal = storage_path('logs/scheduler-sauvegarde-externe.log');
+
+        if (! is_file($cheminJournal)) {
+            $this->warn('  ⚠️ Aucun journal trouvé à storage/logs/scheduler-sauvegarde-externe.log.');
+            $this->warn('     Impossible de confirmer la date de la dernière sauvegarde réussie par ce moyen.');
+        } else {
+            // Le journal grossit indéfiniment (jamais purgé) : ne lit que les
+            // 500 derniers Ko, largement suffisant pour plusieurs semaines
+            // d'exécutions quotidiennes, sans charger un fichier devenu
+            // énorme en mémoire.
+            $taille = filesize($cheminJournal) ?: 0;
+            $contenu = file_get_contents($cheminJournal, false, null, max(0, $taille - 512_000));
+            $derniereModification = gmdate('Y-m-d H:i:s', filemtime($cheminJournal)).' UTC';
+
+            $this->line("  Journal : storage/logs/scheduler-sauvegarde-externe.log (dernière écriture : {$derniereModification}).");
+
+            $derniereDateReussie = function (string $motif) use ($contenu): ?string {
+                if (preg_match_all($motif, (string) $contenu, $correspondances)) {
+                    $derniere = end($correspondances[1]);
+                    $date = \DateTime::createFromFormat('Ymd_His', $derniere);
+
+                    return $date ? $date->format('d/m/Y H:i:s') : $derniere;
+                }
+
+                return null;
+            };
+
+            $dateBase = $derniereDateReussie('/Sauvegarde externe envoyée : afrolia-db-(\d{8}_\d{6})\.sql\.gz/');
+            $datePhotos = $derniereDateReussie('/Sauvegarde photos envoyée : afrolia-photos-(\d{8}_\d{6})\.tar\.gz/');
+
+            $this->line('  Base de données : '.($dateBase !== null
+                ? "✅ dernier envoi réussi confirmé le {$dateBase}"
+                : '⚠️ aucun envoi réussi trouvé dans la portion lue du journal — non confirmable par ce moyen.'));
+            $this->line('  Photos          : '.($datePhotos !== null
+                ? "✅ dernier envoi réussi confirmé le {$datePhotos}"
+                : '⚠️ aucun envoi réussi trouvé dans la portion lue du journal — non confirmable par ce moyen.'));
+
+            if (preg_match_all('/^.*(ÉCHEC|AVERTISSEMENT).*$/m', (string) $contenu, $erreurs) && ! empty($erreurs[0])) {
+                $derniereErreur = trim((string) end($erreurs[0]));
+                $this->warn('  Dernière ligne d\'erreur/avertissement dans le journal : '.mb_strimwidth($derniereErreur, 0, 300, '…'));
+            }
+        }
+
+        $this->newLine();
+        $dossierSauvegardesLocales = (string) config('services.sauvegarde.dossier_local');
+        $fichiersLocaux = is_dir($dossierSauvegardesLocales) ? (glob($dossierSauvegardesLocales.'/*') ?: []) : [];
+
+        if (empty($fichiersLocaux)) {
+            $this->warn("  ⚠️ Aucune sauvegarde locale trouvée dans {$dossierSauvegardesLocales} (prises à chaque déploiement).");
+        } else {
+            usort($fichiersLocaux, fn ($a, $b) => filemtime($b) <=> filemtime($a));
+            $this->line('  Sauvegardes locales dans '.$dossierSauvegardesLocales.' ('.count($fichiersLocaux).' fichier(s), la plus récente en premier) :');
+            foreach (array_slice($fichiersLocaux, 0, 5) as $fichier) {
+                $this->line('    - '.basename($fichier).' — '.gmdate('d/m/Y H:i:s', filemtime($fichier)).' UTC — '.number_format((filesize($fichier) ?: 0) / 1024, 0).' Ko');
+            }
+            $this->line('  (Prises uniquement à chaque déploiement, pas quotidiennement, et restent sur ce même serveur :');
+            $this->line('   ne remplacent pas une copie hors serveur en cas de perte totale de la machine.)');
+        }
     }
 
     /**

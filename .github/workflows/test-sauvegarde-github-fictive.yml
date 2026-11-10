@@ -8,6 +8,9 @@ name: Test (fictif) — sauvegarde chiffrée vers GitHub Actions
 # et workflow à supprimer une fois le test terminé.
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'test-fictif-temporaire/**'
 
 jobs:
   upload-artifact-fictif:

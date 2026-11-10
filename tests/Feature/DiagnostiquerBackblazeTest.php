@@ -458,4 +458,22 @@ class DiagnostiquerBackblazeTest extends TestCase
         $this->artisan('backblaze:diagnostiquer')
             ->expectsOutputToContain('Aucune sauvegarde locale trouvée');
     }
+
+    public function test_signale_que_l_alerte_par_email_n_est_pas_configuree(): void
+    {
+        config(self::CONFIG_VALIDE);
+        config(['services.alertes.email' => null]);
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->expectsOutputToContain('NON configurée — aucune alerte');
+    }
+
+    public function test_signale_que_l_alerte_par_email_est_configuree(): void
+    {
+        config(self::CONFIG_VALIDE);
+        config(['services.alertes.email' => 'admin-test@afrolia-app.com']);
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->expectsOutputToContain('✅ configurée, active');
+    }
 }

@@ -400,6 +400,11 @@ class DiagnostiquerBackblazeCommand extends Command
         $this->info('=== 7. État de la dernière sauvegarde externe (base + photos) ===');
         $this->afficherEtatSauvegardeExterne();
 
+        $this->newLine();
+        $alerteConfiguree = ! empty(config('services.alertes.email'));
+        $this->line('  Alerte par e-mail en cas d\'échec (ADMIN_ALERT_EMAIL) : '
+            .($alerteConfiguree ? '✅ configurée, active.' : '⚠️ NON configurée — aucune alerte ne sera envoyée en cas d\'échec.'));
+
         return ($etape3Reussie && $etape4Reussie) ? self::SUCCESS : self::FAILURE;
     }
 

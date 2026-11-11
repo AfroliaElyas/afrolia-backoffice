@@ -50,13 +50,6 @@ jobs:
       - run: cp .env.example .env
       - run: php artisan key:generate
 
-      - name: Attendre que MySQL soit prêt
-        run: |
-          for i in $(seq 1 30); do
-            mysqladmin ping -h127.0.0.1 -proot && break
-            sleep 2
-          done
-
       - name: Créer une table et des données FICTIVES (aucune donnée réelle)
         run: |
           mysql -h127.0.0.1 -uroot -proot afrolia_test_fictif <<'SQL'
@@ -92,7 +85,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          TAG=$(gh release list --repo "${{ github.repository }}" --limit 5 | grep '^sauvegarde-' | sort -r | head -1 | cut -f3)
+          TAG=$(gh api "repos/${{ github.repository }}/releases" --jq '[.[] | select(.tag_name | startswith("sauvegarde-"))][0].tag_name')
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "::error::Aucune release 'sauvegarde-*' trouvée après l'exécution de la commande."
+            exit 1
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Release trouvée : $TAG"
           gh release view "$TAG" --repo "${{ github.repository }}" --json assets
@@ -146,13 +143,14 @@ jobs:
           diff -r storage/app/public/salon /tmp/telecharge/photos_restaurees
           echo "OK : photos restaurées, contenu identique à l'original."
 
-      - name: Nettoyage — supprimer la release de test (rien ne doit rester)
+      - name: Nettoyage — supprimer TOUTES les releases de test (rien ne doit rester)
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ steps.release.outputs.tag }}"
-          if [ -n "$TAG" ]; then
+          # Supprime chaque release "sauvegarde-*" trouvée (pas seulement celle de
+          # ce run) : balaie aussi toute release laissée par un essai précédent.
+          for TAG in $(gh api "repos/${{ github.repository }}/releases" --jq '.[] | select(.tag_name | startswith("sauvegarde-")) | .tag_name'); do
             gh release delete "$TAG" --repo "${{ github.repository }}" --yes --cleanup-tag || true
             echo "Release $TAG supprimée."
-          fi
+          done

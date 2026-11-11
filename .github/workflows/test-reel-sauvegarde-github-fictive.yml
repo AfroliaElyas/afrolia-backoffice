@@ -93,11 +93,13 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Release trouvée : $TAG"
           gh release view "$TAG" --repo "${{ github.repository }}" --json assets
+          NOM_ASSET=$(gh api "repos/${{ github.repository }}/releases" --jq "[.[] | select(.tag_name == \"$TAG\")][0].assets[0].name")
+          echo "nom_asset=$NOM_ASSET" >> "$GITHUB_OUTPUT"
 
       - name: Vérifier qu'un téléchargement NON authentifié est bien refusé (dépôt privé)
         run: |
           TAG="${{ steps.release.outputs.tag }}"
-          URL="https://github.com/${{ github.repository }}/releases/download/$TAG/dump_fictif.sql.gz.enc"
+          URL="https://github.com/${{ github.repository }}/releases/download/$TAG/${{ steps.release.outputs.nom_asset }}"
           CODE=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || true)
           echo "Code HTTP sans authentification : $CODE"
           if [ "$CODE" = "200" ]; then
@@ -118,7 +120,7 @@ jobs:
         env:
           SAUVEGARDE_GITHUB_CLE: "cle-de-test-reel-fictive-${{ github.run_id }}"
         run: |
-          FICHIER_SQL=$(ls /tmp/telecharge/*.sql.gz.enc)
+          FICHIER_SQL=$(ls /tmp/telecharge/*.gz.enc | grep -v photos)
           openssl enc -d -aes-256-cbc -pbkdf2 -in "$FICHIER_SQL" -out /tmp/telecharge/dump.sql.gz -pass env:SAUVEGARDE_GITHUB_CLE
           gunzip /tmp/telecharge/dump.sql.gz
           mysql -h127.0.0.1 -uroot -proot -e "CREATE DATABASE afrolia_test_fictif_restauree;"

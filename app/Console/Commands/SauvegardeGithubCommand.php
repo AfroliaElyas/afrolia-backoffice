@@ -26,7 +26,13 @@ class SauvegardeGithubCommand extends Command
 
     protected $description = "Sauvegarde la base de données et les photos, chiffrées, vers les Releases d'un dépôt GitHub privé (indépendant de Backblaze)";
 
-    private const NOMBRE_SAUVEGARDES_CONSERVEES = 14;
+    // Contrairement à Backblaze (où la facturation dépend du volume
+    // stocké), les pièces jointes de Release GitHub n'ont pas de coût lié
+    // à leur nombre ou à leur durée de conservation : rien n'empêche de
+    // garder plus de marge de sécurité que les 14 jours de Backblaze.
+    // 90 jours de sauvegardes quotidiennes représentent encore quelques
+    // centaines de Mo au grand maximum, loin des limites GitHub.
+    private const NOMBRE_SAUVEGARDES_CONSERVEES = 90;
 
     public function handle(): int
     {

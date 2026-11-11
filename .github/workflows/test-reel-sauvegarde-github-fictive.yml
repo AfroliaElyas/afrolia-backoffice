@@ -1,0 +1,158 @@
+name: Test (fictif) — vraie Release GitHub, chiffrement et restauration complète
+
+# Workflow TEMPORAIRE, usage unique : exécute la vraie commande sauvegarde:github
+# (fusionnée en PR #145) contre une vraie base MySQL et de vrais appels à
+# l'API Releases de CE dépôt, avec des données entièrement fictives,
+# puis télécharge, déchiffre et restaure tout — pour valider le mécanisme
+# réel avant toute activation. La release créée est supprimée à la fin du
+# même job : rien ne reste après ce run. Ne tourne jamais seul (pas de
+# push/schedule), uniquement sur cette PR de test. Branche et workflow à
+# supprimer une fois le test terminé.
+on:
+  pull_request:
+    paths:
+      - 'test-fictif-sauvegarde-github/**'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: afrolia_test_fictif
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mysqli, pdo_mysql, mbstring, bcmath, ctype, fileinfo
+          coverage: none
+
+      - name: Cache dépendances Composer
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+
+      - run: composer install --prefer-dist --no-progress --no-interaction
+      - run: cp .env.example .env
+      - run: php artisan key:generate
+
+      - name: Attendre que MySQL soit prêt
+        run: |
+          for i in $(seq 1 30); do
+            mysqladmin ping -h127.0.0.1 -proot && break
+            sleep 2
+          done
+
+      - name: Créer une table et des données FICTIVES (aucune donnée réelle)
+        run: |
+          mysql -h127.0.0.1 -uroot -proot afrolia_test_fictif <<'SQL'
+          CREATE TABLE utilisateurs_test (id INT, nom VARCHAR(50));
+          INSERT INTO utilisateurs_test VALUES (1, 'Client Fictif Un');
+          INSERT INTO utilisateurs_test VALUES (2, 'Coiffeuse Fictive Deux');
+          CREATE TABLE reservations_test (id INT, client_id INT, statut VARCHAR(20));
+          INSERT INTO reservations_test VALUES (1, 1, 'terminee');
+          SQL
+
+      - name: Créer des photos FICTIVES
+        run: |
+          mkdir -p storage/app/public/salon
+          echo "FAUSSE PHOTO 1 - CONTENU FICTIF POUR TEST" > storage/app/public/salon/photo1_fictive.txt
+          echo "FAUSSE PHOTO 2 - CONTENU FICTIF POUR TEST" > storage/app/public/salon/photo2_fictive.txt
+
+      - name: Exécuter la vraie commande sauvegarde:github (vers ce dépôt, en test)
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: afrolia_test_fictif
+          DB_USERNAME: root
+          DB_PASSWORD: root
+          SAUVEGARDE_GITHUB_CLE: "cle-de-test-reel-fictive-${{ github.run_id }}"
+          SAUVEGARDE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SAUVEGARDE_GITHUB_DEPOT: ${{ github.repository }}
+        run: php artisan sauvegarde:github -v
+
+      - name: Vérifier que la release a bien été créée avec 2 fichiers chiffrés
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG=$(gh release list --repo "${{ github.repository }}" --limit 5 | grep '^sauvegarde-' | sort -r | head -1 | cut -f3)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Release trouvée : $TAG"
+          gh release view "$TAG" --repo "${{ github.repository }}" --json assets
+
+      - name: Vérifier qu'un téléchargement NON authentifié est bien refusé (dépôt privé)
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          URL="https://github.com/${{ github.repository }}/releases/download/$TAG/dump_fictif.sql.gz.enc"
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || true)
+          echo "Code HTTP sans authentification : $CODE"
+          if [ "$CODE" = "200" ]; then
+            echo "::error::Le fichier est accessible SANS authentification — ce n'est pas le comportement attendu pour un dépôt privé."
+            exit 1
+          fi
+          echo "OK : pas d'accès public (code $CODE, pas 200)."
+
+      - name: Télécharger les fichiers chiffrés depuis la release (authentifié)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/telecharge
+          gh release download "${{ steps.release.outputs.tag }}" --repo "${{ github.repository }}" --dir /tmp/telecharge
+          ls -la /tmp/telecharge
+
+      - name: Déchiffrer et restaurer la base dans une base SÉPARÉE
+        env:
+          SAUVEGARDE_GITHUB_CLE: "cle-de-test-reel-fictive-${{ github.run_id }}"
+        run: |
+          FICHIER_SQL=$(ls /tmp/telecharge/*.sql.gz.enc)
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$FICHIER_SQL" -out /tmp/telecharge/dump.sql.gz -pass env:SAUVEGARDE_GITHUB_CLE
+          gunzip /tmp/telecharge/dump.sql.gz
+          mysql -h127.0.0.1 -uroot -proot -e "CREATE DATABASE afrolia_test_fictif_restauree;"
+          mysql -h127.0.0.1 -uroot -proot afrolia_test_fictif_restauree < /tmp/telecharge/dump.sql
+          echo "=== Contenu restauré ==="
+          mysql -h127.0.0.1 -uroot -proot afrolia_test_fictif_restauree -e "SELECT * FROM utilisateurs_test; SELECT * FROM reservations_test;"
+          COMPTE=$(mysql -h127.0.0.1 -uroot -proot -N -e "SELECT COUNT(*) FROM afrolia_test_fictif_restauree.utilisateurs_test;")
+          if [ "$COMPTE" != "2" ]; then
+            echo "::error::Restauration de la base incorrecte (attendu 2 lignes, trouvé $COMPTE)"
+            exit 1
+          fi
+          echo "OK : base restaurée et vérifiée (2 lignes, contenu identique)."
+
+      - name: Déchiffrer et restaurer les photos, comparer au contenu d'origine
+        env:
+          SAUVEGARDE_GITHUB_CLE: "cle-de-test-reel-fictive-${{ github.run_id }}"
+        run: |
+          FICHIER_PHOTOS=$(ls /tmp/telecharge/*.tar.gz.enc)
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$FICHIER_PHOTOS" -out /tmp/telecharge/photos.tar.gz -pass env:SAUVEGARDE_GITHUB_CLE
+          mkdir -p /tmp/telecharge/photos_restaurees
+          tar -xzf /tmp/telecharge/photos.tar.gz -C /tmp/telecharge/photos_restaurees
+          diff -r storage/app/public/salon /tmp/telecharge/photos_restaurees
+          echo "OK : photos restaurées, contenu identique à l'original."
+
+      - name: Nettoyage — supprimer la release de test (rien ne doit rester)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          if [ -n "$TAG" ]; then
+            gh release delete "$TAG" --repo "${{ github.repository }}" --yes --cleanup-tag || true
+            echo "Release $TAG supprimée."
+          fi

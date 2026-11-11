@@ -46,6 +46,24 @@ return [
         'email' => env('ADMIN_ALERT_EMAIL'),
     ],
 
+    // Sauvegarde externe chiffrée vers les Releases d'un dépôt GitHub
+    // privé (sauvegarde:github), totalement indépendante de Backblaze
+    // (voir SauvegardeExterneCommand) : ni l'une ni l'autre ne dépend du
+    // bon fonctionnement de la seconde. Non activée jusqu'à ce que ces
+    // trois variables soient renseignées ET que la commande soit ajoutée
+    // à la planification (routes/console.php) — décision prise séparément,
+    // après validation explicite.
+    'sauvegarde_github' => [
+        // Clé de chiffrement (AES-256) : à garder uniquement ici et dans
+        // le gestionnaire de mots de passe de Ruth — jamais sur GitHub.
+        'cle' => env('SAUVEGARDE_GITHUB_CLE'),
+        // Jeton d'accès personnel "fine-grained", limité aux Releases du
+        // seul dépôt ci-dessous.
+        'token' => env('SAUVEGARDE_GITHUB_TOKEN'),
+        // Format "proprietaire/depot", ex. AfroliaElyas/afrolia-backoffice.
+        'depot' => env('SAUVEGARDE_GITHUB_DEPOT'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

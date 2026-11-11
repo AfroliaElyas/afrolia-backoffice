@@ -111,7 +111,7 @@ class SauvegardeGithubCommandTest extends TestCase
     {
         $releasesFictives = array_map(
             fn (int $i) => ['id' => $i, 'tag_name' => 'sauvegarde-'.sprintf('%03d', $i)],
-            range(1, 16)
+            range(1, 93)
         );
 
         Http::fake([
@@ -121,8 +121,24 @@ class SauvegardeGithubCommandTest extends TestCase
 
         $this->appelerMethodePrivee($this->nouvelleCommande(), 'purgerAnciennesReleases', ['Test/depot', 'jeton-de-test-fictif']);
 
-        // 16 releases, 14 conservées → 2 suppressions attendues (les plus anciennes).
-        Http::assertSentCount(3); // 1 listing + 2 suppressions
+        // 93 releases, 90 conservées → 3 suppressions attendues (les plus anciennes).
+        Http::assertSentCount(4); // 1 listing + 3 suppressions
+    }
+
+    public function test_ne_supprime_rien_si_sous_le_seuil_de_conservation(): void
+    {
+        $releasesFictives = array_map(
+            fn (int $i) => ['id' => $i, 'tag_name' => 'sauvegarde-'.sprintf('%03d', $i)],
+            range(1, 5)
+        );
+
+        Http::fake([
+            'api.github.com/repos/*/releases?*' => Http::response($releasesFictives, 200),
+        ]);
+
+        $this->appelerMethodePrivee($this->nouvelleCommande(), 'purgerAnciennesReleases', ['Test/depot', 'jeton-de-test-fictif']);
+
+        Http::assertSentCount(1); // seulement le listing, aucune suppression
     }
 
     public function test_echoue_proprement_si_la_configuration_est_incomplete(): void

@@ -409,6 +409,10 @@ class DiagnostiquerBackblazeCommand extends Command
         $this->info('=== 8. Réglages de la sauvegarde GitHub (SAUVEGARDE_GITHUB_*) ===');
         $this->afficherEtatReglagesSauvegardeGithub();
 
+        $this->newLine();
+        $this->info('=== 9. Dernière erreur dans le journal applicatif (storage/logs/laravel.log) ===');
+        $this->afficherDerniereErreurJournalApplicatif();
+
         return ($etape3Reussie && $etape4Reussie) ? self::SUCCESS : self::FAILURE;
     }
 
@@ -651,6 +655,46 @@ class DiagnostiquerBackblazeCommand extends Command
             }
             $this->line('  (Prises uniquement à chaque déploiement, pas quotidiennement, et restent sur ce même serveur :');
             $this->line('   ne remplacent pas une copie hors serveur en cas de perte totale de la machine.)');
+        }
+    }
+
+    /**
+     * Cherche la dernière entrée ERROR/CRITICAL/EMERGENCY/ALERT dans le
+     * journal applicatif Laravel (storage/logs/laravel.log), sans jamais en
+     * afficher le contenu intégral ni aucun secret — seulement la ligne de
+     * tête de l'entrée (message d'exception, pas la trace complète).
+     * Demandé le 12/11/2026 : une commande Forge Commands ayant échoué sans
+     * aucune sortie visible, ce journal est le seul moyen en lecture seule
+     * de savoir si une erreur PHP a été consignée malgré tout (fatale non
+     * affichée avant la fin de la capture Forge, par ex.).
+     */
+    private function afficherDerniereErreurJournalApplicatif(): void
+    {
+        $cheminJournal = storage_path('logs/laravel.log');
+
+        if (! is_file($cheminJournal)) {
+            $this->warn('  ⚠️ Aucun journal trouvé à storage/logs/laravel.log.');
+
+            return;
+        }
+
+        // Même principe que pour le journal de sauvegarde externe ci-dessus :
+        // ne lit que les 500 derniers Ko pour ne jamais charger un journal
+        // devenu énorme en mémoire.
+        $taille = filesize($cheminJournal) ?: 0;
+        $contenu = (string) file_get_contents($cheminJournal, false, null, max(0, $taille - 512_000));
+        $derniereModification = gmdate('Y-m-d H:i:s', filemtime($cheminJournal)).' UTC';
+
+        $this->line("  Journal : storage/logs/laravel.log (dernière écriture : {$derniereModification}).");
+
+        // Une entrée Laravel commence par "[AAAA-MM-JJ HH:MM:SS] environnement.NIVEAU: message"
+        // en début de ligne ; les lignes suivantes (trace d'appel) n'ont pas ce préfixe.
+        if (preg_match_all('/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] \S+\.(ERROR|CRITICAL|EMERGENCY|ALERT): (.+)$/m', $contenu, $correspondances, PREG_SET_ORDER) && ! empty($correspondances)) {
+            $derniere = end($correspondances);
+            $this->warn("  ⚠️ Dernière erreur consignée le {$derniere[1]} UTC (niveau {$derniere[2]}) :");
+            $this->warn('     '.mb_strimwidth($derniere[3], 0, 500, '…'));
+        } else {
+            $this->line('  ✅ Aucune entrée ERROR/CRITICAL/EMERGENCY/ALERT trouvée dans la portion lue du journal.');
         }
     }
 

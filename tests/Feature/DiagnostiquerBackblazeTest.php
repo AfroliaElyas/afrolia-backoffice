@@ -533,4 +533,60 @@ class DiagnostiquerBackblazeTest extends TestCase
             }
         );
     }
+
+    /**
+     * Même principe que avecJournalDeTest ci-dessus (ne touche jamais à un
+     * vrai journal applicatif qui existerait déjà localement), appliqué à
+     * storage/logs/laravel.log pour les tests de la section 9.
+     */
+    private function avecJournalApplicatifDeTest(string $contenu, \Closure $test): void
+    {
+        $chemin = storage_path('logs/laravel.log');
+        $existaitDeja = is_file($chemin);
+        $sauvegarde = $existaitDeja ? file_get_contents($chemin) : null;
+
+        file_put_contents($chemin, $contenu);
+
+        try {
+            $test();
+        } finally {
+            if ($existaitDeja) {
+                file_put_contents($chemin, $sauvegarde);
+            } else {
+                @unlink($chemin);
+            }
+        }
+    }
+
+    public function test_rapporte_aucune_erreur_quand_le_journal_applicatif_nen_contient_pas(): void
+    {
+        config(self::CONFIG_VALIDE);
+
+        $this->avecJournalApplicatifDeTest(
+            "[2026-11-12 00:20:01] production.INFO: Sauvegarde GitHub démarrée.\n",
+            function () {
+                $this->artisan('backblaze:diagnostiquer')
+                    ->expectsOutputToContain('=== 9. Dernière erreur dans le journal applicatif (storage/logs/laravel.log) ===')
+                    ->expectsOutputToContain('Aucune entrée ERROR/CRITICAL/EMERGENCY/ALERT trouvée');
+            }
+        );
+    }
+
+    public function test_rapporte_la_derniere_erreur_du_journal_applicatif_sans_la_trace_complete(): void
+    {
+        config(self::CONFIG_VALIDE);
+
+        $this->avecJournalApplicatifDeTest(
+            "[2026-11-12 00:20:01] production.INFO: Sauvegarde GitHub démarrée.\n"
+            ."[2026-11-12 00:20:05] production.ERROR: Exception fictive de test : délai dépassé.\n"
+            ."#0 /chemin/fictif/de/test.php(42): uneFonctionFictive()\n"
+            ."#1 {main}\n",
+            function () {
+                $this->artisan('backblaze:diagnostiquer')
+                    ->expectsOutputToContain('Dernière erreur consignée le 2026-11-12 00:20:05 UTC (niveau ERROR)')
+                    ->expectsOutputToContain('Exception fictive de test : délai dépassé.')
+                    ->doesntExpectOutputToContain('uneFonctionFictive');
+            }
+        );
+    }
 }

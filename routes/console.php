@@ -41,6 +41,19 @@ Schedule::command('sauvegarde:externe')
 // indépendante de Backblaze — voir SauvegardeGithubCommand. Décalée à
 // 00h20 (au lieu de minuit) pour ne pas faire tourner deux mysqldump en
 // même temps que sauvegarde:externe ci-dessus.
-Schedule::command('sauvegarde:github')
+//
+// --verifier ajouté le 12/11/2026 : une exécution manuelle de
+// `sauvegarde:github --verifier` depuis l'onglet "Commands" de Forge a
+// échoué sans aucune sortie et sans aucune trace dans storage/logs/
+// laravel.log (donc pas un plantage PHP) — Forge Commands n'offre pas de
+// vrai terminal et coupe tout après 5 minutes, ce que l'aller-retour
+// complet de --verifier (téléchargement + déchiffrement + restauration +
+// comparaison, en plus de la sauvegarde) peut dépasser avec de vraies
+// données de production. La tâche planifiée ci-dessous tourne via le cron
+// Forge (schedule:run), pas via Commands : aucune limite de 5 minutes ni
+// de terminal, donc --verifier peut y tourner sans ce risque. Ne jamais
+// relancer --verifier depuis Commands ; le résultat réel de cette
+// vérification s'observe dans storage/logs/scheduler-sauvegarde-github.log.
+Schedule::command('sauvegarde:github --verifier')
     ->dailyAt('00:20')
     ->appendOutputTo(storage_path('logs/scheduler-sauvegarde-github.log'));

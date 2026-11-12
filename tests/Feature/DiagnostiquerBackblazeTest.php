@@ -589,4 +589,76 @@ class DiagnostiquerBackblazeTest extends TestCase
             }
         );
     }
+
+    /**
+     * Même principe que avecJournalDeTest ci-dessus, appliqué à
+     * storage/logs/scheduler-sauvegarde-github.log pour les tests de la
+     * section 10.
+     */
+    private function avecJournalGithubDeTest(string $contenu, \Closure $test): void
+    {
+        $chemin = storage_path('logs/scheduler-sauvegarde-github.log');
+        $existaitDeja = is_file($chemin);
+        $sauvegarde = $existaitDeja ? file_get_contents($chemin) : null;
+
+        file_put_contents($chemin, $contenu);
+
+        try {
+            $test();
+        } finally {
+            if ($existaitDeja) {
+                file_put_contents($chemin, $sauvegarde);
+            } else {
+                @unlink($chemin);
+            }
+        }
+    }
+
+    public function test_rapporte_lorsque_aucun_journal_de_sauvegarde_github_nest_trouve(): void
+    {
+        config(self::CONFIG_VALIDE);
+        $chemin = storage_path('logs/scheduler-sauvegarde-github.log');
+        if (is_file($chemin)) {
+            $this->markTestSkipped('Un vrai journal existe déjà à cet emplacement local : test sauté pour ne pas le perturber.');
+        }
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->expectsOutputToContain('=== 10. État de la dernière sauvegarde GitHub (+ vérification de restauration) ===')
+            ->expectsOutputToContain('Aucun journal trouvé à storage/logs/scheduler-sauvegarde-github.log');
+    }
+
+    public function test_rapporte_un_envoi_et_une_verification_reussis_depuis_le_journal_github(): void
+    {
+        config(self::CONFIG_VALIDE);
+
+        $this->avecJournalGithubDeTest(
+            "Sauvegarde GitHub envoyée : release 'sauvegarde-20261112_002003' sur AfroliaElyas/afrolia-backoffice.\n"
+            ."Base restaurée dans un environnement isolé : 12 table(s), 340 ligne(s) au total.\n"
+            ."✅ Toutes les tables de production sont présentes dans la sauvegarde restaurée.\n"
+            ."Photos restaurées dans un environnement isolé : 5 fichier(s), 12345 octet(s) au total.\n"
+            ."✅ Nombre de fichiers et taille totale identiques à la production.\n",
+            function () {
+                $this->artisan('backblaze:diagnostiquer')
+                    ->expectsOutputToContain('Dernier envoi réussi : ✅ confirmé (release « sauvegarde-20261112_002003 »).')
+                    ->expectsOutputToContain('Vérification de restauration (--verifier), base   : ✅ dernière vérification trouvée : réussie.')
+                    ->expectsOutputToContain('Vérification de restauration (--verifier), photos : ✅ dernière vérification trouvée : réussie.');
+            }
+        );
+    }
+
+    public function test_signale_une_verification_github_absente_ou_en_echec(): void
+    {
+        config(self::CONFIG_VALIDE);
+
+        $this->avecJournalGithubDeTest(
+            "ÉCHEC : mysqldump a échoué — erreur fictive de test.\n",
+            function () {
+                $this->artisan('backblaze:diagnostiquer')
+                    ->expectsOutputToContain('Dernier envoi réussi : ⚠️ aucun envoi réussi trouvé')
+                    ->expectsOutputToContain('Vérification de restauration (--verifier), base   : ⚠️ aucune vérification réussie trouvée')
+                    ->expectsOutputToContain('Vérification de restauration (--verifier), photos : ⚠️ aucune vérification réussie trouvée')
+                    ->expectsOutputToContain('ÉCHEC : mysqldump a échoué — erreur fictive de test.');
+            }
+        );
+    }
 }

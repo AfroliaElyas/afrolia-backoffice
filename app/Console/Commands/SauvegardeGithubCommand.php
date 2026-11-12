@@ -22,7 +22,7 @@ use Symfony\Component\Process\Process;
  */
 class SauvegardeGithubCommand extends Command
 {
-    protected $signature = 'sauvegarde:github';
+    protected $signature = 'sauvegarde:github {--verifier : Vérifie la restauration juste après l\'envoi, dans un environnement isolé (base temporaire supprimée ensuite), sans jamais toucher à la production}';
 
     protected $description = "Sauvegarde la base de données et les photos, chiffrées, vers les Releases d'un dépôt GitHub privé (indépendant de Backblaze)";
 
@@ -84,7 +84,265 @@ class SauvegardeGithubCommand extends Command
 
         $this->purgerAnciennesReleases($depot, $token);
 
+        if ($this->option('verifier')) {
+            $this->verifierRestauration($depot, $token, $cle, $nomTag);
+        }
+
         return self::SUCCESS;
+    }
+
+    /**
+     * Télécharge réellement depuis GitHub ce qui vient d'être envoyé,
+     * déchiffre, et restaure dans un environnement isolé (base MySQL
+     * temporaire + dossier temporaire) — jamais dans la base ou le
+     * dossier de production. Tout est supprimé à la fin, succès ou échec
+     * (bloc finally). N'affiche jamais le contenu réel (ni lignes de
+     * table, ni noms de fichiers), seulement des compteurs.
+     */
+    private function verifierRestauration(string $depot, string $token, string $cle, string $tag): void
+    {
+        $this->info("=== Vérification de la restauration (environnement isolé, release '{$tag}') ===");
+
+        $entetes = [
+            'Authorization' => 'Bearer '.$token,
+            'Accept' => 'application/vnd.github+json',
+        ];
+
+        try {
+            $reponse = Http::withHeaders($entetes)->get("https://api.github.com/repos/{$depot}/releases/tags/{$tag}");
+        } catch (\Throwable $e) {
+            $this->warn('AVERTISSEMENT : vérification impossible — récupération de la release échouée : '.$e->getMessage());
+
+            return;
+        }
+
+        if (! $reponse->successful()) {
+            $this->warn('AVERTISSEMENT : vérification impossible — HTTP '.$reponse->status().' lors de la récupération de la release.');
+
+            return;
+        }
+
+        $assets = $reponse->json('assets') ?: [];
+        $dossierTemp = sys_get_temp_dir().'/verif-restauration-'.now()->format('YmdHis').'-'.bin2hex(random_bytes(4));
+        @mkdir($dossierTemp, 0700, true);
+        $nomBaseTemp = 'verif_restauration_'.now()->format('YmdHis');
+
+        try {
+            foreach ($assets as $asset) {
+                $cheminChiffre = $dossierTemp.'/'.$asset['name'];
+
+                try {
+                    $reponseAsset = Http::withHeaders($entetes + ['Accept' => 'application/octet-stream'])
+                        ->get($asset['url']);
+                } catch (\Throwable $e) {
+                    $this->warn("AVERTISSEMENT : téléchargement de vérification impossible pour un fichier — ".$e->getMessage());
+
+                    continue;
+                }
+
+                if (! $reponseAsset->successful()) {
+                    $this->warn('AVERTISSEMENT : téléchargement de vérification refusé — HTTP '.$reponseAsset->status());
+
+                    continue;
+                }
+
+                file_put_contents($cheminChiffre, $reponseAsset->body());
+
+                $cheminClair = preg_replace('/\.enc$/', '', $cheminChiffre);
+                if (! $this->dechiffrer($cheminChiffre, $cheminClair, $cle)) {
+                    $this->warn('AVERTISSEMENT : déchiffrement de vérification impossible pour un fichier.');
+
+                    continue;
+                }
+
+                if (str_contains((string) $asset['name'], 'photos')) {
+                    $this->verifierPhotosRestaurees($cheminClair);
+                } else {
+                    $this->verifierBaseRestauree($cheminClair, $nomBaseTemp);
+                }
+            }
+        } finally {
+            $this->supprimerRecursif($dossierTemp);
+            $this->supprimerBaseTemp($nomBaseTemp);
+        }
+    }
+
+    private function dechiffrer(string $cheminSource, string $cheminDestination, string $cle): bool
+    {
+        $processus = new Process([
+            'openssl', 'enc', '-d', '-aes-256-cbc', '-pbkdf2',
+            '-in', $cheminSource,
+            '-out', $cheminDestination,
+            '-pass', 'env:SAUVEGARDE_GITHUB_CLE_OPENSSL',
+        ], null, ['SAUVEGARDE_GITHUB_CLE_OPENSSL' => $cle]);
+        $processus->setTimeout(300);
+        $processus->run();
+
+        return $processus->isSuccessful();
+    }
+
+    private function verifierBaseRestauree(string $cheminGz, string $nomBaseTemp): void
+    {
+        $cheminSql = preg_replace('/\.gz$/', '', $cheminGz);
+        $gunzip = Process::fromShellCommandline(sprintf('gunzip -f %s', escapeshellarg($cheminGz)));
+        $gunzip->run();
+
+        if (! $gunzip->isSuccessful() || ! is_file($cheminSql)) {
+            $this->warn('AVERTISSEMENT : décompression du dump restauré impossible.');
+
+            return;
+        }
+
+        $config = config('database.connections.mysql');
+        $env = ['MYSQL_PWD' => $config['password']];
+
+        $creer = Process::fromShellCommandline(sprintf(
+            'mysql -h %s -P %s -u %s -e %s',
+            escapeshellarg((string) $config['host']),
+            escapeshellarg((string) $config['port']),
+            escapeshellarg($config['username']),
+            escapeshellarg("CREATE DATABASE IF NOT EXISTS `{$nomBaseTemp}`;")
+        ), null, $env);
+        $creer->run();
+
+        if (! $creer->isSuccessful()) {
+            $this->warn('AVERTISSEMENT : création de la base de vérification impossible — '.trim($creer->getErrorOutput()));
+
+            return;
+        }
+
+        $importer = Process::fromShellCommandline(sprintf(
+            'mysql -h %s -P %s -u %s %s < %s',
+            escapeshellarg((string) $config['host']),
+            escapeshellarg((string) $config['port']),
+            escapeshellarg($config['username']),
+            escapeshellarg($nomBaseTemp),
+            escapeshellarg($cheminSql)
+        ), null, $env);
+        $importer->setTimeout(600);
+        $importer->run();
+
+        if (! $importer->isSuccessful()) {
+            $this->error("ÉCHEC : la restauration de la base dans l'environnement isolé a échoué — ".trim($importer->getErrorOutput()));
+
+            return;
+        }
+
+        $tablesRestaurees = $this->listerTables($nomBaseTemp, $config);
+        $tablesProduction = $this->listerTables((string) $config['database'], $config);
+        $manquantes = array_diff($tablesProduction, $tablesRestaurees);
+
+        $totalLignes = 0;
+        foreach ($tablesRestaurees as $table) {
+            $totalLignes += $this->compterLignes($nomBaseTemp, $table, $config);
+        }
+
+        $this->info('Base restaurée dans un environnement isolé : '.count($tablesRestaurees)." table(s), {$totalLignes} ligne(s) au total.");
+
+        if (empty($manquantes)) {
+            $this->info('✅ Toutes les tables de production sont présentes dans la sauvegarde restaurée.');
+        } else {
+            $this->error('❌ ÉCHEC DE VÉRIFICATION : '.count($manquantes)." table(s) de production absente(s) de la sauvegarde restaurée.");
+        }
+    }
+
+    private function verifierPhotosRestaurees(string $cheminTarGz): void
+    {
+        $dossierExtrait = $cheminTarGz.'-extrait';
+        @mkdir($dossierExtrait, 0700, true);
+
+        $tar = Process::fromShellCommandline(sprintf(
+            'tar -xzf %s -C %s',
+            escapeshellarg($cheminTarGz),
+            escapeshellarg($dossierExtrait)
+        ));
+        $tar->run();
+
+        if (! $tar->isSuccessful()) {
+            $this->error("ÉCHEC : extraction des photos restaurées impossible — ".trim($tar->getErrorOutput()));
+
+            return;
+        }
+
+        $dossierProduction = storage_path('app/public/salon');
+        $fichiersRestaures = glob($dossierExtrait.'/*') ?: [];
+        $fichiersProduction = is_dir($dossierProduction) ? (glob($dossierProduction.'/*') ?: []) : [];
+
+        $tailleRestauree = array_sum(array_map('filesize', $fichiersRestaures));
+        $tailleProduction = array_sum(array_map('filesize', $fichiersProduction));
+
+        $this->info('Photos restaurées dans un environnement isolé : '.count($fichiersRestaures)." fichier(s), {$tailleRestauree} octet(s) au total.");
+
+        if (count($fichiersRestaures) === count($fichiersProduction) && $tailleRestauree === $tailleProduction) {
+            $this->info('✅ Nombre de fichiers et taille totale identiques à la production.');
+        } else {
+            $this->warn('⚠️ Différence détectée (production : '.count($fichiersProduction).' fichier(s)/'.$tailleProduction." octets ; restauré : ".count($fichiersRestaures).'/'.$tailleRestauree." octets) — peut être normal si des photos ont changé entre la sauvegarde et maintenant.");
+        }
+    }
+
+    private function listerTables(string $base, array $config): array
+    {
+        $process = Process::fromShellCommandline(sprintf(
+            'mysql -h %s -P %s -u %s -N -e %s %s',
+            escapeshellarg((string) $config['host']),
+            escapeshellarg((string) $config['port']),
+            escapeshellarg($config['username']),
+            escapeshellarg('SHOW TABLES;'),
+            escapeshellarg($base)
+        ), null, ['MYSQL_PWD' => $config['password']]);
+        $process->run();
+
+        if (! $process->isSuccessful()) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', explode("\n", trim($process->getOutput())))));
+    }
+
+    private function compterLignes(string $base, string $table, array $config): int
+    {
+        $process = Process::fromShellCommandline(sprintf(
+            'mysql -h %s -P %s -u %s -N -e %s %s',
+            escapeshellarg((string) $config['host']),
+            escapeshellarg((string) $config['port']),
+            escapeshellarg($config['username']),
+            escapeshellarg("SELECT COUNT(*) FROM `{$table}`;"),
+            escapeshellarg($base)
+        ), null, ['MYSQL_PWD' => $config['password']]);
+        $process->run();
+
+        return $process->isSuccessful() ? (int) trim($process->getOutput()) : 0;
+    }
+
+    private function supprimerBaseTemp(string $nomBaseTemp): void
+    {
+        $config = config('database.connections.mysql');
+        $process = Process::fromShellCommandline(sprintf(
+            'mysql -h %s -P %s -u %s -e %s',
+            escapeshellarg((string) $config['host']),
+            escapeshellarg((string) $config['port']),
+            escapeshellarg($config['username']),
+            escapeshellarg("DROP DATABASE IF EXISTS `{$nomBaseTemp}`;")
+        ), null, ['MYSQL_PWD' => $config['password']]);
+        $process->run();
+    }
+
+    private function supprimerRecursif(string $dossier): void
+    {
+        if (! is_dir($dossier)) {
+            return;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dossier, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
+        }
+
+        @rmdir($dossier);
     }
 
     private function sauvegarderEtChiffrerBase(string $cle): ?string

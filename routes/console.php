@@ -36,3 +36,11 @@ Schedule::command('remboursements:debloquer-en-cours')
 Schedule::command('sauvegarde:externe')
     ->daily()
     ->appendOutputTo(storage_path('logs/scheduler-sauvegarde-externe.log'));
+
+// Sauvegarde externe chiffrée vers GitHub (sauvegarde:github), totalement
+// indépendante de Backblaze — voir SauvegardeGithubCommand. Décalée à
+// 00h20 (au lieu de minuit) pour ne pas faire tourner deux mysqldump en
+// même temps que sauvegarde:externe ci-dessus.
+Schedule::command('sauvegarde:github')
+    ->dailyAt('00:20')
+    ->appendOutputTo(storage_path('logs/scheduler-sauvegarde-github.log'));

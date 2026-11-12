@@ -141,6 +141,48 @@ class SauvegardeGithubCommandTest extends TestCase
         Http::assertSentCount(1); // seulement le listing, aucune suppression
     }
 
+    public function test_verification_telecharge_dechiffre_et_ne_laisse_rien_apres_coup(): void
+    {
+        $dossier = sys_get_temp_dir().'/test-verif-'.uniqid();
+        mkdir($dossier);
+        file_put_contents($dossier.'/contenu.txt', 'CONTENU FICTIF DE TEST');
+        exec(sprintf('gzip -c %s > %s', escapeshellarg($dossier.'/contenu.txt'), escapeshellarg($dossier.'/contenu.gz')));
+        exec(sprintf(
+            'openssl enc -aes-256-cbc -pbkdf2 -salt -in %s -out %s -pass pass:%s',
+            escapeshellarg($dossier.'/contenu.gz'),
+            escapeshellarg($dossier.'/contenu.gz.enc'),
+            escapeshellarg('cle-de-test-fictive')
+        ));
+        $contenuChiffre = file_get_contents($dossier.'/contenu.gz.enc');
+
+        Http::fake([
+            'api.github.com/repos/*/releases/tags/*' => Http::response([
+                'assets' => [
+                    ['name' => 'sauvegarde-github-ABC.gz.enc', 'url' => 'https://api.github.com/repos/Test/depot/releases/assets/1'],
+                ],
+            ], 200),
+            'api.github.com/repos/*/releases/assets/*' => Http::response($contenuChiffre, 200),
+        ]);
+
+        // database.connections.mysql n'existe pas forcément en CI (sqlite) :
+        // la restauration réelle (mysqldump/mysql CLI) a été vérifiée
+        // manuellement en bac à sable, comme le reste de cette commande. Ce
+        // test vérifie seulement que le téléchargement/déchiffrement se
+        // déroule sans erreur fatale et que rien ne reste après coup, même
+        // quand la restauration MySQL elle-même échoue dans cet environnement.
+        $this->appelerMethodePrivee(
+            $this->nouvelleCommande(),
+            'verifierRestauration',
+            ['Test/depot', 'jeton-de-test-fictif', 'cle-de-test-fictive', 'sauvegarde-test']
+        );
+
+        $restes = glob(sys_get_temp_dir().'/verif-restauration-*');
+        $this->assertEmpty($restes, 'Aucun dossier temporaire ne doit rester après la vérification.');
+
+        array_map('unlink', glob($dossier.'/*'));
+        rmdir($dossier);
+    }
+
     public function test_echoue_proprement_si_la_configuration_est_incomplete(): void
     {
         config([

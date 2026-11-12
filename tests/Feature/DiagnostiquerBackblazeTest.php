@@ -476,4 +476,61 @@ class DiagnostiquerBackblazeTest extends TestCase
         $this->artisan('backblaze:diagnostiquer')
             ->expectsOutputToContain('✅ configurée, active');
     }
+
+    public function test_signale_les_trois_reglages_sauvegarde_github_absents(): void
+    {
+        config(self::CONFIG_VALIDE);
+        config([
+            'services.sauvegarde_github.cle' => null,
+            'services.sauvegarde_github.token' => null,
+            'services.sauvegarde_github.depot' => null,
+        ]);
+
+        $this->avecFichierEnvDeTest("APP_NAME=Afrolia\n", function () {
+            $this->artisan('backblaze:diagnostiquer')
+                ->expectsOutputToContain('SAUVEGARDE_GITHUB_CLE : ❌ absent du fichier .env ET de la configuration chargée.')
+                ->expectsOutputToContain('SAUVEGARDE_GITHUB_TOKEN : ❌ absent du fichier .env ET de la configuration chargée.')
+                ->expectsOutputToContain('SAUVEGARDE_GITHUB_DEPOT : ❌ absent du fichier .env ET de la configuration chargée.');
+        });
+    }
+
+    public function test_signale_un_reglage_present_dans_env_mais_absent_de_la_configuration_chargee(): void
+    {
+        // Reproduit exactement le scénario qui a fait échouer
+        // sauvegarde:github --verifier le 12/11/2026 chez Ruth : les trois
+        // lignes bien présentes dans .env après déploiement, mais la
+        // configuration encore en cache ne les avait pas prises en compte.
+        config(self::CONFIG_VALIDE);
+        config([
+            'services.sauvegarde_github.cle' => null,
+            'services.sauvegarde_github.token' => 'jeton-deja-charge',
+            'services.sauvegarde_github.depot' => 'AfroliaElyas/afrolia-backoffice',
+        ]);
+
+        $this->avecFichierEnvDeTest("SAUVEGARDE_GITHUB_CLE=cle-reellement-dans-env\n", function () {
+            $this->artisan('backblaze:diagnostiquer')
+                ->expectsOutputToContain('SAUVEGARDE_GITHUB_CLE : ⚠️ présent dans le fichier .env, mais ABSENT de la configuration chargée')
+                ->doesntExpectOutputToContain('cle-reellement-dans-env');
+        });
+    }
+
+    public function test_signale_que_les_trois_reglages_sauvegarde_github_sont_corrects(): void
+    {
+        config(self::CONFIG_VALIDE);
+        config([
+            'services.sauvegarde_github.cle' => 'cle-de-test',
+            'services.sauvegarde_github.token' => 'jeton-de-test',
+            'services.sauvegarde_github.depot' => 'AfroliaElyas/afrolia-backoffice',
+        ]);
+
+        $this->avecFichierEnvDeTest(
+            "SAUVEGARDE_GITHUB_CLE=cle-de-test\nSAUVEGARDE_GITHUB_TOKEN=jeton-de-test\nSAUVEGARDE_GITHUB_DEPOT=AfroliaElyas/afrolia-backoffice\n",
+            function () {
+                $this->artisan('backblaze:diagnostiquer')
+                    ->expectsOutputToContain('SAUVEGARDE_GITHUB_CLE : ✅ présent dans le fichier .env et chargé par la configuration.')
+                    ->expectsOutputToContain('SAUVEGARDE_GITHUB_TOKEN : ✅ présent dans le fichier .env et chargé par la configuration.')
+                    ->expectsOutputToContain('SAUVEGARDE_GITHUB_DEPOT : ✅ présent dans le fichier .env et chargé par la configuration.');
+            }
+        );
+    }
 }

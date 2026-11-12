@@ -413,6 +413,10 @@ class DiagnostiquerBackblazeCommand extends Command
         $this->info('=== 9. Dernière erreur dans le journal applicatif (storage/logs/laravel.log) ===');
         $this->afficherDerniereErreurJournalApplicatif();
 
+        $this->newLine();
+        $this->info('=== 10. État de la dernière sauvegarde GitHub (+ vérification de restauration) ===');
+        $this->afficherEtatSauvegardeGithub();
+
         return ($etape3Reussie && $etape4Reussie) ? self::SUCCESS : self::FAILURE;
     }
 
@@ -695,6 +699,58 @@ class DiagnostiquerBackblazeCommand extends Command
             $this->warn('     '.mb_strimwidth($derniere[3], 0, 500, '…'));
         } else {
             $this->line('  ✅ Aucune entrée ERROR/CRITICAL/EMERGENCY/ALERT trouvée dans la portion lue du journal.');
+        }
+    }
+
+    /**
+     * Lit le journal de sauvegarde:github (routes/console.php :
+     * appendOutputTo, jamais vidé automatiquement) pour trouver la date du
+     * dernier envoi réussi vers GitHub, et — quand --verifier a tourné —
+     * la confirmation (ou non) que la restauration isolée a réussi pour la
+     * base et pour les photos séparément. Ajoutée le 12/11/2026, en même
+     * temps que l'ajout de --verifier à la tâche planifiée (voir
+     * routes/console.php) : --verifier ne doit plus jamais être lancé
+     * depuis l'onglet Commands de Forge (limite de 5 minutes, pas de vrai
+     * terminal), donc ce journal — rempli par le cron, sans cette limite —
+     * est désormais le seul moyen de connaître le résultat réel de la
+     * vérification. Lecture seule, ne modifie ni ne supprime rien.
+     */
+    private function afficherEtatSauvegardeGithub(): void
+    {
+        $cheminJournal = storage_path('logs/scheduler-sauvegarde-github.log');
+
+        if (! is_file($cheminJournal)) {
+            $this->warn('  ⚠️ Aucun journal trouvé à storage/logs/scheduler-sauvegarde-github.log.');
+            $this->warn('     Impossible de confirmer la date de la dernière sauvegarde réussie par ce moyen.');
+
+            return;
+        }
+
+        $taille = filesize($cheminJournal) ?: 0;
+        $contenu = (string) file_get_contents($cheminJournal, false, null, max(0, $taille - 512_000));
+        $derniereModification = gmdate('Y-m-d H:i:s', filemtime($cheminJournal)).' UTC';
+
+        $this->line("  Journal : storage/logs/scheduler-sauvegarde-github.log (dernière écriture : {$derniereModification}).");
+
+        if (preg_match_all('/Sauvegarde GitHub envoyée : release \'(sauvegarde-\d{8}_\d{6})\'/', $contenu, $correspondances)) {
+            $dernierTag = end($correspondances[1]);
+            $this->line("  Dernier envoi réussi : ✅ confirmé (release « {$dernierTag} »).");
+        } else {
+            $this->warn('  Dernier envoi réussi : ⚠️ aucun envoi réussi trouvé dans la portion lue du journal — non confirmable par ce moyen.');
+        }
+
+        $this->line('  Vérification de restauration (--verifier), base   : '
+            .(str_contains($contenu, '✅ Toutes les tables de production sont présentes')
+                ? '✅ dernière vérification trouvée : réussie.'
+                : '⚠️ aucune vérification réussie trouvée dans la portion lue du journal.'));
+        $this->line('  Vérification de restauration (--verifier), photos : '
+            .(str_contains($contenu, '✅ Nombre de fichiers et taille totale identiques')
+                ? '✅ dernière vérification trouvée : réussie.'
+                : '⚠️ aucune vérification réussie trouvée dans la portion lue du journal.'));
+
+        if (preg_match_all('/^.*(ÉCHEC|AVERTISSEMENT).*$/m', $contenu, $erreurs) && ! empty($erreurs[0])) {
+            $derniereErreur = trim((string) end($erreurs[0]));
+            $this->warn('  Dernière ligne d\'erreur/avertissement dans le journal : '.mb_strimwidth($derniereErreur, 0, 300, '…'));
         }
     }
 

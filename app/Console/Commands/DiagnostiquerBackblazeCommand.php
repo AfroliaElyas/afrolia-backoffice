@@ -405,7 +405,49 @@ class DiagnostiquerBackblazeCommand extends Command
         $this->line('  Alerte par e-mail en cas d\'échec (ADMIN_ALERT_EMAIL) : '
             .($alerteConfiguree ? '✅ configurée, active.' : '⚠️ NON configurée — aucune alerte ne sera envoyée en cas d\'échec.'));
 
+        $this->newLine();
+        $this->info('=== 8. Réglages de la sauvegarde GitHub (SAUVEGARDE_GITHUB_*) ===');
+        $this->afficherEtatReglagesSauvegardeGithub();
+
         return ($etape3Reussie && $etape4Reussie) ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * Même logique que la section 0 ci-dessus (Backblaze), appliquée aux
+     * trois réglages de sauvegarde:github — ajoutée le 12/11/2026 après que
+     * `sauvegarde:github --verifier` a échoué en annonçant les trois comme
+     * "non renseignés" alors que Ruth les avait bien enregistrés et
+     * déployés : jamais affichée, seule leur présence (fichier .env réel ET
+     * configuration chargée par ce processus) est comparée.
+     */
+    private function afficherEtatReglagesSauvegardeGithub(): void
+    {
+        $clesConfig = [
+            'SAUVEGARDE_GITHUB_CLE' => 'services.sauvegarde_github.cle',
+            'SAUVEGARDE_GITHUB_TOKEN' => 'services.sauvegarde_github.token',
+            'SAUVEGARDE_GITHUB_DEPOT' => 'services.sauvegarde_github.depot',
+        ];
+
+        $valeursFichierEnv = $this->lireValeursFichierEnv($clesConfig);
+
+        foreach ($clesConfig as $nom => $cleConfig) {
+            $dansFichier = array_key_exists($nom, $valeursFichierEnv);
+            $valeurConfig = config($cleConfig);
+            $dansConfig = ! empty($valeurConfig);
+
+            if (! $dansFichier && ! $dansConfig) {
+                $etat = '❌ absent du fichier .env ET de la configuration chargée.';
+            } elseif ($dansFichier && ! $dansConfig) {
+                $etat = '⚠️ présent dans le fichier .env, mais ABSENT de la configuration chargée par ce processus'
+                    .($this->getLaravel()->configurationIsCached() ? ' (configuration en cache, pas encore régénérée depuis l\'ajout de ce réglage — un déploiement la régénère normalement).' : '.');
+            } elseif (! $dansFichier && $dansConfig) {
+                $etat = '⚠️ chargé par la configuration, mais absent du fichier .env actuel (incohérence à vérifier).';
+            } else {
+                $etat = '✅ présent dans le fichier .env et chargé par la configuration.';
+            }
+
+            $this->line("  {$nom} : {$etat}");
+        }
     }
 
     /**
@@ -734,9 +776,10 @@ class DiagnostiquerBackblazeCommand extends Command
      * effet de bord : ne touche ni getenv() ni $_ENV ni la configuration
      * déjà chargée — seulement le contenu du fichier passé en argument.
      *
+     * @param  array<string, string>  $clesConfig  Nom de variable .env => clé config() correspondante ; par défaut celles de Backblaze (self::CLES_CONFIG).
      * @return array<string, string> Nom de variable => valeur telle qu'écrite dans le fichier (déjà "trim"), absente du tableau si vide ou non définie.
      */
-    private function lireValeursFichierEnv(): array
+    private function lireValeursFichierEnv(array $clesConfig = self::CLES_CONFIG): array
     {
         $cheminEnv = $this->getLaravel()->environmentFilePath();
 
@@ -747,7 +790,7 @@ class DiagnostiquerBackblazeCommand extends Command
         $valeursFichier = Dotenv::parse((string) file_get_contents($cheminEnv));
         $resultats = [];
 
-        foreach (self::CLES_CONFIG as $nom => $cleConfig) {
+        foreach ($clesConfig as $nom => $cleConfig) {
             if (array_key_exists($nom, $valeursFichier)) {
                 $valeur = trim((string) $valeursFichier[$nom]);
                 if ($valeur !== '') {

@@ -1,4 +1,4 @@
-# Diagnostic + Jèko SSH restreint pour Afrolia
+# Diagnostic + Jèko + sauvegarde GitHub, SSH restreint pour Afrolia
 
 Une seule clé SSH dédiée, limitée par une "forced command" dans
 `authorized_keys` : quelle que soit la commande demandée, le serveur
@@ -16,22 +16,36 @@ ni envoi de notification, aucun paiement réel possible.
 |---|---|
 | `diagnostic` | Lecture seule (commit, storage, mécanisme du cache de configuration, HTTP, Backblaze) |
 | `jeko-test` | `php artisan jeko:tester` — lit le solde du magasin Jèko, ne déplace aucun argent |
+| `recuperer-sauvegarde-github` | Lecture seule : lit `storage/app/sauvegardes-github-pretes/` (manifeste + fichiers déjà chiffrés par le cron `sauvegarde:github` existant) et les imprime encodés en base64, pour le workflow GitHub Actions `sauvegarde-github.yml`. N'exécute, n'écrit et ne supprime jamais rien. |
 
 Toute autre commande est rejetée avec un message d'erreur, sans rien exécuter.
 
-## Mise à jour (une seule manipulation, depuis l'onglet Commands de Forge)
+## Mise à jour du 13/11/2026 (ajout de `recuperer-sauvegarde-github`)
+
+Pourquoi : `sauvegarde:github` échouait systématiquement à envoyer les
+sauvegardes à GitHub ("Bad credentials", HTTP 401) à cause du jeton
+personnel `SAUVEGARDE_GITHUB_TOKEN`, ce qui obligeait chaque fois à en
+recréer un, le coller dans Forge, puis redéployer entièrement juste pour
+vérifier. `sauvegarde:github` ne parle plus du tout à GitHub : elle
+chiffre et prépare seulement les fichiers localement. C'est désormais le
+nouveau workflow GitHub Actions `sauvegarde-github.yml` qui vient les
+chercher (avec cette même clé SSH déjà existante, en lecture seule) et
+les publie — avec le jeton **automatique** `GITHUB_TOKEN` fourni par
+GitHub Actions à chaque exécution, jamais un jeton personnel à créer ou
+coller.
 
 Ceci **remplace le contenu** du script déjà installé, au même
-emplacement : `~/.ssh/authorized_keys` n'a besoin d'aucune
+emplacement : `~/.ssh/authorized_keys` n'a besoin d'**aucune**
 modification (la ligne `command="bash /home/forge/diagnostic-afrolia.sh"`
-qui s'y trouve déjà reste valable telle quelle). La commande ci-dessous
-sauvegarde d'abord l'ancien script sous un nom horodaté avant de le
-remplacer — rien n'est perdu.
+qui s'y trouve déjà reste valable telle quelle) — **aucune nouvelle clé
+SSH, aucun nouveau secret GitHub.** La commande ci-dessous sauvegarde
+d'abord l'ancien script sous un nom horodaté avant de le remplacer — rien
+n'est perdu.
 
-Colle ceci tel quel, en une fois :
+Depuis l'onglet **Commands** de Forge, colle ceci tel quel, en une fois :
 
 ```bash
-cp /home/forge/diagnostic-afrolia.sh /home/forge/diagnostic-afrolia.sh.avant-jeko-$(date +%Y%m%d%H%M%S) 2>/dev/null
+cp /home/forge/diagnostic-afrolia.sh /home/forge/diagnostic-afrolia.sh.avant-sauvegarde-github-$(date +%Y%m%d%H%M%S) 2>/dev/null
 cat > /home/forge/diagnostic-afrolia.sh << 'SCRIPT_EOF'
 #!/usr/bin/env bash
 #
@@ -51,9 +65,13 @@ cat > /home/forge/diagnostic-afrolia.sh << 'SCRIPT_EOF'
 #
 # Portée volontairement limitée aux diagnostics en lecture seule (demandé
 # le 08/11/2026) : ni déploiement, ni création de compte, ni envoi de
-# notification — seulement de quoi vérifier Backblaze et Jèko sans
-# manipulation de Ruth. jeko-test ne fait que lire le solde du magasin
-# (aucun argent déplacé, voir app/Console/Commands/JekoTesterCommand.php).
+# notification. jeko-test ne fait que lire le solde du magasin (aucun
+# argent déplacé). recuperer-sauvegarde-github (ajoutée le 13/11/2026) ne
+# fait que LIRE des fichiers déjà produits par le cron Laravel existant
+# (storage/app/sauvegardes-github-pretes/) et les retransmettre encodés en
+# base64 : aucune écriture, aucune commande artisan déclenchée par cette
+# action précise — toujours strictement en lecture, exactement comme
+# "diagnostic" et "jeko-test", conformément à la restriction du 08/11/2026.
 #
 # Actions disponibles :
 #   diagnostic — comportement inchangé depuis toujours (lecture seule), plus
@@ -69,6 +87,14 @@ cat > /home/forge/diagnostic-afrolia.sh << 'SCRIPT_EOF'
 #                sans jamais modifier quoi que ce soit — lecture seule,
 #                aucun secret affiché.
 #   jeko-test  — php artisan jeko:tester (lecture seule, aucun paiement)
+#   recuperer-sauvegarde-github — lit storage/app/sauvegardes-github-pretes/
+#                (manifest.json + fichiers chiffrés déjà produits par le
+#                cron sauvegarde:github existant) et les imprime encodés en
+#                base64, pour que le workflow GitHub Actions
+#                sauvegarde-github.yml les récupère et les publie dans les
+#                Releases du dépôt — avec le jeton automatique GITHUB_TOKEN,
+#                jamais un jeton personnel. Ne modifie, n'exécute et ne
+#                supprime jamais rien.
 
 set -e
 
@@ -109,14 +135,6 @@ case "$action" in
 
     echo
     echo "=== Mécanisme du cache de configuration (bootstrap/cache) ==="
-    # La date du commit (ci-dessus) est celle où le code a été écrit/poussé,
-    # pas celle où Forge l'a réellement déployé sur CE serveur. Forge bascule
-    # le lien symbolique "current" vers la nouvelle version à la toute fin
-    # de chaque déploiement : la date de modification du lien LUI-MÊME (pas
-    # de sa cible — "stat" sans -L renvoie les métadonnées du lien) est donc
-    # la meilleure approximation disponible ici de l'heure réelle du dernier
-    # déploiement (remarque de Ruth du 08/11/2026 : la date du commit seule
-    # ne suffit pas à le prouver).
     if [ -L "$SITE_ROOT/current" ]; then
         echo "Heure réelle du dernier déploiement (bascule du lien 'current') : $(stat -c '%y' "$SITE_ROOT/current")"
     else
@@ -154,6 +172,27 @@ case "$action" in
     (cd "$SITE_DIR" && php artisan jeko:tester)
     ;;
 
+  recuperer-sauvegarde-github*)
+    DOSSIER_PRET="$SITE_DIR/storage/app/sauvegardes-github-pretes"
+    MANIFESTE="$DOSSIER_PRET/manifest.json"
+
+    if [ ! -f "$MANIFESTE" ]; then
+        echo "ERREUR : aucun manifeste trouvé dans $DOSSIER_PRET (sauvegarde:github n'a peut-être jamais tourné avec succès)." >&2
+        exit 1
+    fi
+
+    echo "MANIFEST $(tr -d '\n' < "$MANIFESTE")"
+
+    for nom in $(php -r '$m = json_decode(file_get_contents($argv[1]), true); foreach ($m["fichiers"] as $f) { echo $f["nom"] . "\n"; }' "$MANIFESTE"); do
+        chemin="$DOSSIER_PRET/$nom"
+        if [ ! -f "$chemin" ]; then
+            echo "ERREUR : fichier listé dans le manifeste introuvable : $nom" >&2
+            exit 1
+        fi
+        echo "FICHIER $nom $(base64 -w0 "$chemin")"
+    done
+    ;;
+
   *)
     echo "ERREUR : action inconnue ou non autorisée." >&2
     exit 1
@@ -168,20 +207,22 @@ echo "Installation terminée."
 La dernière ligne (`ls -la ...`) affiche le fichier de sauvegarde créé —
 note son nom exact si tu penses pouvoir vouloir revenir en arrière un jour.
 
-## Revenir en arrière
+### Revenir en arrière (cette mise à jour précise)
 
 Depuis l'onglet Commands de Forge (remplace `HORODATAGE` par celui
 affiché à l'installation) :
 
 ```bash
-cp /home/forge/diagnostic-afrolia.sh.avant-jeko-HORODATAGE /home/forge/diagnostic-afrolia.sh
+cp /home/forge/diagnostic-afrolia.sh.avant-sauvegarde-github-HORODATAGE /home/forge/diagnostic-afrolia.sh
 chmod 700 /home/forge/diagnostic-afrolia.sh
 echo "Restauration terminée."
 ```
 
-Le contenu exact d'avant cette mise à jour reste aussi dans l'historique
-Git de ce dépôt (ce fichier `deploy/diagnostic-afrolia.sh`, avant ce
-commit), en plus de la sauvegarde sur le serveur.
+## Mise à jour du 08/11/2026 (ajout de `jeko-test`, historique)
+
+Cette mise à jour a déjà été appliquée — conservée ici pour mémoire.
+`~/.ssh/authorized_keys` n'avait déjà, à cette occasion, besoin d'aucune
+modification non plus.
 
 ## Pourquoi c'est sûr
 
@@ -198,7 +239,14 @@ commit), en plus de la sauvegarde sur le serveur.
   fixes — tout ce qui suit un point-virgule ou toute autre tentative
   d'injection est ignoré, jamais exécuté.
 - Aucune commande n'affiche jamais de secret (clé SSH, identifiants
-  Backblaze/Jèko) : `backblaze:diagnostiquer` et `jeko:tester` sont
-  conçues pour ne jamais les révéler en clair.
+  Backblaze/Jèko, clé de chiffrement des sauvegardes) : `backblaze:diagnostiquer`,
+  `jeko:tester` et `recuperer-sauvegarde-github` sont conçues pour ne
+  jamais les révéler en clair. Le contenu chiffré des sauvegardes
+  (illisible sans SAUVEGARDE_GITHUB_CLE, jamais transmise ni stockée sur
+  GitHub) n'est pas un secret au même sens.
 - `jeko-test` ne fait que lire le solde du magasin (aucun paiement,
   aucun transfert) : voir `app/Console/Commands/JekoTesterCommand.php`.
+- `recuperer-sauvegarde-github` ne fait que lire des fichiers déjà
+  produits par un cron existant et les imprimer : aucune écriture,
+  aucune suppression, aucune commande artisan déclenchée par cette action
+  précise.

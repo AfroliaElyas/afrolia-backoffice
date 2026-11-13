@@ -3,16 +3,21 @@
 namespace Tests\Feature;
 
 use App\Console\Commands\SauvegardeGithubCommand;
-use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
  * La partie base de données (mysqldump réel) a été testée manuellement en
  * bac à sable isolé (vrai MariaDB jetable), comme pour SauvegardeExterneTest
- * : ni mysqldump ni un vrai dépôt GitHub n'existent dans l'environnement de
- * test CI (sqlite en mémoire, aucun accès réseau externe). Les méthodes
- * testables directement ici (chiffrement, photos, appels HTTP GitHub via
- * Http::fake, purge) couvrent tout ce qui ne dépend pas de MySQL.
+ * : mysqldump n'existe pas dans l'environnement de test CI (sqlite en
+ * mémoire). Les méthodes testables directement ici (chiffrement, photos,
+ * déplacement vers le dossier de préparation, manifeste, purge locale)
+ * couvrent tout ce qui ne dépend pas de MySQL.
+ *
+ * Depuis le 13/11/2026, cette commande ne parle plus du tout à GitHub
+ * (plus de jeton, plus d'appel HTTP) : voir SauvegardeGithubCommand pour
+ * le détail. Les anciens tests qui simulaient l'API GitHub (Http::fake)
+ * ont été remplacés par des tests sur le dossier de préparation local et
+ * sur la vérification locale.
  */
 class SauvegardeGithubCommandTest extends TestCase
 {
@@ -36,8 +41,25 @@ class SauvegardeGithubCommandTest extends TestCase
         return $methode->invoke($commande, ...$arguments);
     }
 
+    private function nettoyerDossierPret(string $dossier): void
+    {
+        array_map('unlink', glob($dossier.'/*') ?: []);
+    }
+
     public function test_echoue_proprement_si_la_connexion_nest_pas_mysql(): void
     {
+        $this->artisan('sauvegarde:github')->assertFailed();
+    }
+
+    public function test_echoue_proprement_si_la_cle_est_absente(): void
+    {
+        config(['services.sauvegarde_github.cle' => null]);
+
+        // database.default reste sqlite ici aussi : l'échec vient déjà de
+        // la connexion avant même d'atteindre la vérification de la clé —
+        // la vérification de configuration elle-même est testée
+        // directement via la commande réelle en bac à sable (MySQL réel),
+        // pas reproductible ici sans dupliquer tout l'environnement MySQL.
         $this->artisan('sauvegarde:github')->assertFailed();
     }
 
@@ -79,71 +101,110 @@ class SauvegardeGithubCommandTest extends TestCase
         $this->assertNull($resultat);
     }
 
-    public function test_cree_une_release_et_envoie_les_fichiers_chiffres(): void
+    public function test_deplace_les_fichiers_chiffres_et_ecrit_un_manifest(): void
     {
-        Http::fake([
-            'api.github.com/repos/*/releases' => Http::response([
-                'id' => 999,
-                'upload_url' => 'https://uploads.github.com/repos/Test/depot/releases/999/assets{?name,label}',
-            ], 201),
-            'uploads.github.com/*' => Http::response(['id' => 1], 201),
-        ]);
+        $dossierPret = storage_path('app/sauvegardes-github-pretes');
+        $this->nettoyerDossierPret($dossierPret);
 
-        $fichierFictif = tempnam(sys_get_temp_dir(), 'test-chiffre-');
-        file_put_contents($fichierFictif, 'octets-chiffres-fictifs');
+        $dump = tempnam(sys_get_temp_dir(), 'test-dump-');
+        file_put_contents($dump, 'dump-chiffre-fictif');
+        $photos = tempnam(sys_get_temp_dir(), 'test-photos-');
+        file_put_contents($photos, 'photos-chiffre-fictif');
 
-        $reussite = $this->appelerMethodePrivee(
-            $this->nouvelleCommande(),
-            'publierRelease',
-            ['Test/depot', 'jeton-de-test-fictif', 'sauvegarde-test', [$fichierFictif]]
-        );
+        try {
+            $resultat = $this->appelerMethodePrivee(
+                $this->nouvelleCommande(),
+                'deplacerVersDossierPret',
+                ['sauvegarde-20261113_002000', $dump, $photos]
+            );
 
-        $this->assertTrue($reussite);
+            $this->assertNotNull($resultat);
+            $this->assertFileExists($dossierPret.'/afrolia-db-sauvegarde-20261113_002000.sql.gz.enc');
+            $this->assertFileExists($dossierPret.'/afrolia-photos-sauvegarde-20261113_002000.tar.gz.enc');
+            $this->assertFileExists($dossierPret.'/manifest.json');
+            $this->assertFileDoesNotExist($dump, 'Le fichier source doit avoir été déplacé, pas copié.');
 
-        Http::assertSent(fn ($requete) => str_contains($requete->url(), 'api.github.com/repos/Test/depot/releases')
-            && $requete->method() === 'POST');
-        Http::assertSent(fn ($requete) => str_contains($requete->url(), 'uploads.github.com'));
+            $manifest = json_decode((string) file_get_contents($dossierPret.'/manifest.json'), true);
+            $this->assertSame('sauvegarde-20261113_002000', $manifest['tag']);
+            $this->assertCount(2, $manifest['fichiers']);
 
-        unlink($fichierFictif);
+            $parNom = collect($manifest['fichiers'])->keyBy('nom');
+            $this->assertSame(hash('sha256', 'dump-chiffre-fictif'), $parNom['afrolia-db-sauvegarde-20261113_002000.sql.gz.enc']['sha256']);
+            $this->assertSame(hash('sha256', 'photos-chiffre-fictif'), $parNom['afrolia-photos-sauvegarde-20261113_002000.tar.gz.enc']['sha256']);
+        } finally {
+            $this->nettoyerDossierPret($dossierPret);
+        }
     }
 
-    public function test_purge_les_releases_de_sauvegarde_au_dela_de_la_conservation(): void
+    public function test_fonctionne_sans_photos(): void
     {
-        $releasesFictives = array_map(
-            fn (int $i) => ['id' => $i, 'tag_name' => 'sauvegarde-'.sprintf('%03d', $i)],
-            range(1, 93)
-        );
+        $dossierPret = storage_path('app/sauvegardes-github-pretes');
+        $this->nettoyerDossierPret($dossierPret);
 
-        Http::fake([
-            'api.github.com/repos/*/releases?*' => Http::response($releasesFictives, 200),
-            'api.github.com/repos/*/releases/*' => Http::response([], 204),
-        ]);
+        $dump = tempnam(sys_get_temp_dir(), 'test-dump-');
+        file_put_contents($dump, 'dump-chiffre-fictif-seul');
 
-        $this->appelerMethodePrivee($this->nouvelleCommande(), 'purgerAnciennesReleases', ['Test/depot', 'jeton-de-test-fictif']);
+        try {
+            $resultat = $this->appelerMethodePrivee(
+                $this->nouvelleCommande(),
+                'deplacerVersDossierPret',
+                ['sauvegarde-20261113_003000', $dump, null]
+            );
 
-        // 93 releases, 90 conservées → 3 suppressions attendues (les plus anciennes).
-        Http::assertSentCount(4); // 1 listing + 3 suppressions
+            $this->assertNotNull($resultat);
+            $manifest = json_decode((string) file_get_contents($dossierPret.'/manifest.json'), true);
+            $this->assertCount(1, $manifest['fichiers']);
+        } finally {
+            $this->nettoyerDossierPret($dossierPret);
+        }
+    }
+
+    public function test_purge_les_anciens_jeux_locaux_au_dela_de_la_conservation(): void
+    {
+        $dossier = storage_path('app/sauvegardes-github-pretes');
+        $this->nettoyerDossierPret($dossier);
+        @mkdir($dossier, 0700, true);
+
+        foreach (['sauvegarde-20261110_002000', 'sauvegarde-20261111_002000', 'sauvegarde-20261112_002000', 'sauvegarde-20261113_002000'] as $tag) {
+            file_put_contents($dossier."/afrolia-db-{$tag}.sql.gz.enc", 'x');
+        }
+
+        try {
+            $this->appelerMethodePrivee($this->nouvelleCommande(), 'purgerAnciensJeuxLocaux', []);
+
+            $restants = array_map('basename', glob($dossier.'/afrolia-db-*.enc') ?: []);
+            sort($restants);
+
+            // 4 jeux, 2 conservés (NOMBRE_JEUX_LOCAUX_CONSERVES) → les 2 plus récents.
+            $this->assertSame([
+                'afrolia-db-sauvegarde-20261112_002000.sql.gz.enc',
+                'afrolia-db-sauvegarde-20261113_002000.sql.gz.enc',
+            ], $restants);
+        } finally {
+            $this->nettoyerDossierPret($dossier);
+        }
     }
 
     public function test_ne_supprime_rien_si_sous_le_seuil_de_conservation(): void
     {
-        $releasesFictives = array_map(
-            fn (int $i) => ['id' => $i, 'tag_name' => 'sauvegarde-'.sprintf('%03d', $i)],
-            range(1, 5)
-        );
+        $dossier = storage_path('app/sauvegardes-github-pretes');
+        $this->nettoyerDossierPret($dossier);
+        @mkdir($dossier, 0700, true);
 
-        Http::fake([
-            'api.github.com/repos/*/releases?*' => Http::response($releasesFictives, 200),
-        ]);
+        file_put_contents($dossier.'/afrolia-db-sauvegarde-20261113_002000.sql.gz.enc', 'x');
 
-        $this->appelerMethodePrivee($this->nouvelleCommande(), 'purgerAnciennesReleases', ['Test/depot', 'jeton-de-test-fictif']);
+        try {
+            $this->appelerMethodePrivee($this->nouvelleCommande(), 'purgerAnciensJeuxLocaux', []);
 
-        Http::assertSentCount(1); // seulement le listing, aucune suppression
+            $this->assertFileExists($dossier.'/afrolia-db-sauvegarde-20261113_002000.sql.gz.enc');
+        } finally {
+            $this->nettoyerDossierPret($dossier);
+        }
     }
 
-    public function test_verification_telecharge_dechiffre_et_ne_laisse_rien_apres_coup(): void
+    public function test_verification_locale_dechiffre_et_ne_laisse_rien_apres_coup(): void
     {
-        $dossier = sys_get_temp_dir().'/test-verif-'.uniqid();
+        $dossier = sys_get_temp_dir().'/test-verif-locale-'.uniqid();
         mkdir($dossier);
         file_put_contents($dossier.'/contenu.txt', 'CONTENU FICTIF DE TEST');
         exec(sprintf('gzip -c %s > %s', escapeshellarg($dossier.'/contenu.txt'), escapeshellarg($dossier.'/contenu.gz')));
@@ -153,48 +214,23 @@ class SauvegardeGithubCommandTest extends TestCase
             escapeshellarg($dossier.'/contenu.gz.enc'),
             escapeshellarg('cle-de-test-fictive')
         ));
-        $contenuChiffre = file_get_contents($dossier.'/contenu.gz.enc');
-
-        Http::fake([
-            'api.github.com/repos/*/releases/tags/*' => Http::response([
-                'assets' => [
-                    ['name' => 'sauvegarde-github-ABC.gz.enc', 'url' => 'https://api.github.com/repos/Test/depot/releases/assets/1'],
-                ],
-            ], 200),
-            'api.github.com/repos/*/releases/assets/*' => Http::response($contenuChiffre, 200),
-        ]);
 
         // database.connections.mysql n'existe pas forcément en CI (sqlite) :
         // la restauration réelle (mysqldump/mysql CLI) a été vérifiée
         // manuellement en bac à sable, comme le reste de cette commande. Ce
-        // test vérifie seulement que le téléchargement/déchiffrement se
-        // déroule sans erreur fatale et que rien ne reste après coup, même
-        // quand la restauration MySQL elle-même échoue dans cet environnement.
+        // test vérifie seulement que le déchiffrement se déroule sans
+        // erreur fatale et que rien ne reste après coup, même quand la
+        // restauration MySQL elle-même échoue dans cet environnement.
         $this->appelerMethodePrivee(
             $this->nouvelleCommande(),
-            'verifierRestauration',
-            ['Test/depot', 'jeton-de-test-fictif', 'cle-de-test-fictive', 'sauvegarde-test']
+            'verifierLocalement',
+            [$dossier.'/contenu.gz.enc', null, 'cle-de-test-fictive']
         );
 
-        $restes = glob(sys_get_temp_dir().'/verif-restauration-*');
+        $restes = glob(sys_get_temp_dir().'/verif-sauvegarde-github-*');
         $this->assertEmpty($restes, 'Aucun dossier temporaire ne doit rester après la vérification.');
 
         array_map('unlink', glob($dossier.'/*'));
         rmdir($dossier);
-    }
-
-    public function test_echoue_proprement_si_la_configuration_est_incomplete(): void
-    {
-        config([
-            'services.sauvegarde_github.cle' => null,
-            'services.sauvegarde_github.token' => null,
-            'services.sauvegarde_github.depot' => null,
-        ]);
-
-        // database.default reste sqlite ici aussi, donc l'échec vient déjà
-        // de la connexion — la vérification de configuration est testée
-        // directement via la commande réelle en bac à sable (mysql réel),
-        // pas reproductible ici sans dupliquer tout l'environnement MySQL.
-        $this->artisan('sauvegarde:github')->assertFailed();
     }
 }

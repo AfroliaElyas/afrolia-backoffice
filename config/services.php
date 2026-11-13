@@ -49,18 +49,25 @@ return [
     // Sauvegarde externe chiffrée vers les Releases d'un dépôt GitHub
     // privé (sauvegarde:github), totalement indépendante de Backblaze
     // (voir SauvegardeExterneCommand) : ni l'une ni l'autre ne dépend du
-    // bon fonctionnement de la seconde. Non activée jusqu'à ce que ces
-    // trois variables soient renseignées ET que la commande soit ajoutée
-    // à la planification (routes/console.php) — décision prise séparément,
-    // après validation explicite.
+    // bon fonctionnement de la seconde.
     'sauvegarde_github' => [
         // Clé de chiffrement (AES-256) : à garder uniquement ici et dans
         // le gestionnaire de mots de passe de Ruth — jamais sur GitHub.
+        // Seule variable encore utilisée par sauvegarde:github depuis le
+        // 13/11/2026 (voir ci-dessous).
         'cle' => env('SAUVEGARDE_GITHUB_CLE'),
-        // Jeton d'accès personnel "fine-grained", limité aux Releases du
-        // seul dépôt ci-dessous.
+
+        // SAUVEGARDE_GITHUB_TOKEN et SAUVEGARDE_GITHUB_DEPOT ne sont PLUS
+        // utilisées depuis le 13/11/2026 : sauvegarde:github ne parle plus
+        // du tout à l'API GitHub (abandonné après un échec persistant
+        // "Bad credentials" qui obligeait à chaque fois un nouveau
+        // copier-coller suivi d'un déploiement complet juste pour
+        // vérifier). La publication vers GitHub est désormais faite par le
+        // workflow .github/workflows/sauvegarde-github.yml, avec le jeton
+        // automatique GITHUB_TOKEN — plus aucun jeton personnel à gérer.
+        // Ces deux lignes de .env peuvent être retirées quand Ruth le
+        // souhaite ; les laisser ne gêne rien.
         'token' => env('SAUVEGARDE_GITHUB_TOKEN'),
-        // Format "proprietaire/depot", ex. AfroliaElyas/afrolia-backoffice.
         'depot' => env('SAUVEGARDE_GITHUB_DEPOT'),
     ],
 

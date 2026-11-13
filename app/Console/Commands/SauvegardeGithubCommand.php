@@ -3,36 +3,46 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Http;
 use Symfony\Component\Process\Process;
 
 /**
- * Sauvegarde la base de données ET les photos, chiffrées, vers les
- * "Releases" d'un dépôt GitHub privé — une seconde copie hors serveur,
- * totalement indépendante de Backblaze (voir SauvegardeExterneCommand) :
- * aucune des deux ne dépend du bon fonctionnement de l'autre.
+ * Chiffre la base de données ET les photos, puis les prépare dans un
+ * dossier stable (storage/app/sauvegardes-github-pretes/) pour
+ * récupération par le workflow GitHub Actions sauvegarde-github.yml, qui
+ * les publie dans les Releases d'un dépôt GitHub privé — une seconde
+ * copie hors serveur, totalement indépendante de Backblaze (voir
+ * SauvegardeExterneCommand) : aucune des deux ne dépend du bon
+ * fonctionnement de l'autre.
  *
- * N'est PAS planifiée automatiquement (voir routes/console.php) : tant que
- * cette ligne n'y est pas ajoutée, cette commande ne s'exécute jamais
- * seule — l'ajouter est une décision à part, prise seulement après
- * validation explicite de Ruth.
+ * Avant le 13/11/2026, cette commande appelait elle-même l'API GitHub
+ * avec un jeton d'accès personnel (SAUVEGARDE_GITHUB_TOKEN) — abandonné
+ * après un échec persistant "Bad credentials" (HTTP 401) nécessitant à
+ * chaque fois que Ruth recrée/recolle un jeton puis redéploie, sans
+ * jamais pouvoir vérifier la valeur avant un déploiement complet. Cette
+ * commande ne parle plus du tout à GitHub : elle produit seulement les
+ * fichiers chiffrés localement. C'est le workflow GitHub Actions qui va
+ * les chercher (lecture seule, via la clé SSH déjà existante et déjà
+ * restreinte, voir deploy/diagnostic-afrolia.sh) et les publie avec le
+ * jeton automatique GITHUB_TOKEN fourni par GitHub Actions — jamais un
+ * jeton personnel à créer ou coller.
  *
  * Ne modifie rien à la sauvegarde Backblaze existante
  * (SauvegardeExterneCommand) : fichier entièrement séparé.
  */
 class SauvegardeGithubCommand extends Command
 {
-    protected $signature = 'sauvegarde:github {--verifier : Vérifie la restauration juste après l\'envoi, dans un environnement isolé (base temporaire supprimée ensuite), sans jamais toucher à la production}';
+    protected $signature = 'sauvegarde:github {--verifier : Déchiffre et restaure immédiatement les fichiers venant d\'être produits, dans un environnement isolé (base temporaire supprimée ensuite), sans jamais toucher à la production ni à GitHub}';
 
-    protected $description = "Sauvegarde la base de données et les photos, chiffrées, vers les Releases d'un dépôt GitHub privé (indépendant de Backblaze)";
+    protected $description = "Chiffre la base de données et les photos, et les prépare pour récupération par le workflow GitHub Actions sauvegarde-github.yml (aucun appel réseau à GitHub depuis ce processus)";
 
-    // Contrairement à Backblaze (où la facturation dépend du volume
-    // stocké), les pièces jointes de Release GitHub n'ont pas de coût lié
-    // à leur nombre ou à leur durée de conservation : rien n'empêche de
-    // garder plus de marge de sécurité que les 14 jours de Backblaze.
-    // 90 jours de sauvegardes quotidiennes représentent encore quelques
-    // centaines de Mo au grand maximum, loin des limites GitHub.
-    private const NOMBRE_SAUVEGARDES_CONSERVEES = 90;
+    // Nombre de jeux de sauvegarde (base + photos chiffrées) gardés
+    // localement sur le serveur, en plus de celui du jour : une marge de
+    // sécurité si le workflow GitHub Actions qui vient les récupérer a
+    // manqué une exécution, sans faire grossir indéfiniment le disque. La
+    // conservation longue durée (90 jours) vit désormais dans les
+    // Releases GitHub elles-mêmes, gérées par ce workflow — voir
+    // .github/workflows/sauvegarde-github.yml.
+    private const NOMBRE_JEUX_LOCAUX_CONSERVES = 2;
 
     public function handle(): int
     {
@@ -44,11 +54,9 @@ class SauvegardeGithubCommand extends Command
         }
 
         $cle = config('services.sauvegarde_github.cle');
-        $token = config('services.sauvegarde_github.token');
-        $depot = config('services.sauvegarde_github.depot');
 
-        if (empty($cle) || empty($token) || empty($depot)) {
-            $this->error('ÉCHEC : SAUVEGARDE_GITHUB_CLE, SAUVEGARDE_GITHUB_TOKEN et SAUVEGARDE_GITHUB_DEPOT doivent tous les trois être renseignés. Sauvegarde GitHub non effectuée.');
+        if (empty($cle)) {
+            $this->error('ÉCHEC : SAUVEGARDE_GITHUB_CLE doit être renseignée. Sauvegarde GitHub non effectuée.');
 
             return self::FAILURE;
         }
@@ -68,97 +76,56 @@ class SauvegardeGithubCommand extends Command
         }
 
         $nomTag = 'sauvegarde-'.now()->format('Ymd_His');
-        $fichiers = array_filter([$cheminDumpChiffre, $cheminPhotosChiffre ?: null]);
 
-        $reussite = $this->publierRelease($depot, $token, $nomTag, $fichiers);
-
-        foreach ($fichiers as $fichier) {
-            @unlink($fichier);
+        if ($this->option('verifier')) {
+            $this->verifierLocalement($cheminDumpChiffre, $cheminPhotosChiffre ?: null, $cle);
         }
 
-        if (! $reussite) {
+        $dossierPret = $this->deplacerVersDossierPret($nomTag, $cheminDumpChiffre, $cheminPhotosChiffre ?: null);
+        if ($dossierPret === null) {
             return self::FAILURE;
         }
 
-        $this->info("Sauvegarde GitHub envoyée : release '{$nomTag}' sur {$depot}.");
+        $this->info("Sauvegarde chiffrée prête pour récupération : '{$nomTag}' (storage/app/sauvegardes-github-pretes/).");
 
-        $this->purgerAnciennesReleases($depot, $token);
-
-        if ($this->option('verifier')) {
-            $this->verifierRestauration($depot, $token, $cle, $nomTag);
-        }
+        $this->purgerAnciensJeuxLocaux();
 
         return self::SUCCESS;
     }
 
     /**
-     * Télécharge réellement depuis GitHub ce qui vient d'être envoyé,
-     * déchiffre, et restaure dans un environnement isolé (base MySQL
-     * temporaire + dossier temporaire) — jamais dans la base ou le
-     * dossier de production. Tout est supprimé à la fin, succès ou échec
-     * (bloc finally). N'affiche jamais le contenu réel (ni lignes de
-     * table, ni noms de fichiers), seulement des compteurs.
+     * Déchiffre et restaure IMMÉDIATEMENT les fichiers qui viennent d'être
+     * produits (ceux de CETTE exécution, pas ceux déjà publiés sur
+     * GitHub), dans un environnement isolé — jamais la base ou le dossier
+     * de production. Remplace l'ancienne vérification (qui téléchargeait
+     * depuis GitHub avec un jeton) : plus simple, plus rapide, et ne
+     * dépend plus du tout d'une connexion réseau à GitHub ni d'aucun
+     * jeton. Tout est supprimé à la fin, succès ou échec (bloc finally).
+     * N'affiche jamais le contenu réel (ni lignes de table, ni noms de
+     * fichiers), seulement des compteurs.
      */
-    private function verifierRestauration(string $depot, string $token, string $cle, string $tag): void
+    private function verifierLocalement(string $cheminDumpChiffre, ?string $cheminPhotosChiffre, string $cle): void
     {
-        $this->info("=== Vérification de la restauration (environnement isolé, release '{$tag}') ===");
+        $this->info('=== Vérification locale (environnement isolé, sans réseau ni GitHub) ===');
 
-        $entetes = [
-            'Authorization' => 'Bearer '.$token,
-            'Accept' => 'application/vnd.github+json',
-        ];
-
-        try {
-            $reponse = Http::withHeaders($entetes)->get("https://api.github.com/repos/{$depot}/releases/tags/{$tag}");
-        } catch (\Throwable $e) {
-            $this->warn('AVERTISSEMENT : vérification impossible — récupération de la release échouée : '.$e->getMessage());
-
-            return;
-        }
-
-        if (! $reponse->successful()) {
-            $this->warn('AVERTISSEMENT : vérification impossible — HTTP '.$reponse->status().' lors de la récupération de la release.');
-
-            return;
-        }
-
-        $assets = $reponse->json('assets') ?: [];
-        $dossierTemp = sys_get_temp_dir().'/verif-restauration-'.now()->format('YmdHis').'-'.bin2hex(random_bytes(4));
+        $dossierTemp = sys_get_temp_dir().'/verif-sauvegarde-github-'.now()->format('YmdHis').'-'.bin2hex(random_bytes(4));
         @mkdir($dossierTemp, 0700, true);
-        $nomBaseTemp = 'verif_restauration_'.now()->format('YmdHis');
+        $nomBaseTemp = 'verif_sauvegarde_github_'.now()->format('YmdHis');
 
         try {
-            foreach ($assets as $asset) {
-                $cheminChiffre = $dossierTemp.'/'.$asset['name'];
+            $cheminDumpClairGz = $dossierTemp.'/dump.gz';
+            if ($this->dechiffrer($cheminDumpChiffre, $cheminDumpClairGz, $cle)) {
+                $this->verifierBaseRestauree($cheminDumpClairGz, $nomBaseTemp);
+            } else {
+                $this->warn('AVERTISSEMENT : déchiffrement de vérification impossible pour le dump.');
+            }
 
-                try {
-                    $reponseAsset = Http::withHeaders($entetes + ['Accept' => 'application/octet-stream'])
-                        ->get($asset['url']);
-                } catch (\Throwable $e) {
-                    $this->warn("AVERTISSEMENT : téléchargement de vérification impossible pour un fichier — ".$e->getMessage());
-
-                    continue;
-                }
-
-                if (! $reponseAsset->successful()) {
-                    $this->warn('AVERTISSEMENT : téléchargement de vérification refusé — HTTP '.$reponseAsset->status());
-
-                    continue;
-                }
-
-                file_put_contents($cheminChiffre, $reponseAsset->body());
-
-                $cheminClair = preg_replace('/\.enc$/', '', $cheminChiffre);
-                if (! $this->dechiffrer($cheminChiffre, $cheminClair, $cle)) {
-                    $this->warn('AVERTISSEMENT : déchiffrement de vérification impossible pour un fichier.');
-
-                    continue;
-                }
-
-                if (str_contains((string) $asset['name'], 'photos')) {
-                    $this->verifierPhotosRestaurees($cheminClair);
+            if ($cheminPhotosChiffre !== null) {
+                $cheminPhotosClair = $dossierTemp.'/photos.tar.gz';
+                if ($this->dechiffrer($cheminPhotosChiffre, $cheminPhotosClair, $cle)) {
+                    $this->verifierPhotosRestaurees($cheminPhotosClair);
                 } else {
-                    $this->verifierBaseRestauree($cheminClair, $nomBaseTemp);
+                    $this->warn('AVERTISSEMENT : déchiffrement de vérification impossible pour les photos.');
                 }
             }
         } finally {
@@ -465,90 +432,117 @@ class SauvegardeGithubCommand extends Command
         return true;
     }
 
-    private function publierRelease(string $depot, string $token, string $tag, array $fichiers): bool
+    /**
+     * Déplace les fichiers chiffrés venant d'être produits vers le dossier
+     * stable storage/app/sauvegardes-github-pretes/ (persistant entre
+     * déploiements, comme tout storage/), et écrit un manifest.json
+     * décrivant ce jeu précis (tag, horodatage, nom/empreinte SHA-256/
+     * taille de chaque fichier). C'est ce manifeste, lu et retransmis tel
+     * quel (jamais exécuté) par la nouvelle action SSH en lecture seule
+     * "recuperer-sauvegarde-github" (voir deploy/diagnostic-afrolia.sh),
+     * qui permet au workflow GitHub Actions sauvegarde-github.yml de
+     * vérifier que rien n'a été corrompu pendant le transfert avant de
+     * publier.
+     *
+     * rename() peut échouer si storage/app et le dossier temporaire
+     * système (sys_get_temp_dir()) ne sont pas sur le même système de
+     * fichiers : on retombe alors sur copy()+unlink().
+     */
+    private function deplacerVersDossierPret(string $tag, string $cheminDumpChiffre, ?string $cheminPhotosChiffre): ?string
     {
-        $entetes = [
-            'Authorization' => 'Bearer '.$token,
-            'Accept' => 'application/vnd.github+json',
+        $dossier = storage_path('app/sauvegardes-github-pretes');
+        if (! is_dir($dossier) && ! @mkdir($dossier, 0700, true) && ! is_dir($dossier)) {
+            $this->error("ÉCHEC : impossible de créer le dossier de préparation {$dossier}.");
+            @unlink($cheminDumpChiffre);
+            if ($cheminPhotosChiffre !== null) {
+                @unlink($cheminPhotosChiffre);
+            }
+
+            return null;
+        }
+
+        $nomDump = "afrolia-db-{$tag}.sql.gz.enc";
+        $nomPhotos = $cheminPhotosChiffre !== null ? "afrolia-photos-{$tag}.tar.gz.enc" : null;
+
+        if (! $this->deplacerFichier($cheminDumpChiffre, $dossier.'/'.$nomDump)) {
+            $this->error('ÉCHEC : impossible de déplacer le dump chiffré vers le dossier de préparation.');
+            if ($cheminPhotosChiffre !== null) {
+                @unlink($cheminPhotosChiffre);
+            }
+
+            return null;
+        }
+
+        if ($nomPhotos !== null && ! $this->deplacerFichier($cheminPhotosChiffre, $dossier.'/'.$nomPhotos)) {
+            $this->error('ÉCHEC : impossible de déplacer les photos chiffrées vers le dossier de préparation.');
+            @unlink($dossier.'/'.$nomDump);
+
+            return null;
+        }
+
+        $fichiers = [['nom' => $nomDump, 'chemin' => $dossier.'/'.$nomDump]];
+        if ($nomPhotos !== null) {
+            $fichiers[] = ['nom' => $nomPhotos, 'chemin' => $dossier.'/'.$nomPhotos];
+        }
+
+        $manifest = [
+            'tag' => $tag,
+            'cree_le_utc' => now('UTC')->toIso8601String(),
+            'fichiers' => array_map(fn (array $f) => [
+                'nom' => $f['nom'],
+                'sha256' => hash_file('sha256', $f['chemin']),
+                'octets' => filesize($f['chemin']),
+            ], $fichiers),
         ];
 
-        try {
-            $reponse = Http::withHeaders($entetes)
-                ->post("https://api.github.com/repos/{$depot}/releases", [
-                    'tag_name' => $tag,
-                    'name' => "Sauvegarde chiffrée {$tag}",
-                    'body' => 'Sauvegarde automatique chiffrée (base + photos). Clé de déchiffrement non stockée ici.',
-                    'prerelease' => true,
-                ]);
-        } catch (\Throwable $e) {
-            $this->error('ÉCHEC : impossible de créer la release GitHub — '.$e->getMessage());
+        file_put_contents($dossier.'/manifest.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
-            return false;
-        }
-
-        if (! $reponse->successful()) {
-            $this->error('ÉCHEC : création de la release GitHub refusée — HTTP '.$reponse->status().' — '.$reponse->body());
-
-            return false;
-        }
-
-        $idRelease = $reponse->json('id');
-        $urlUpload = str_replace('{?name,label}', '', (string) $reponse->json('upload_url'));
-
-        foreach ($fichiers as $fichier) {
-            $nomFichier = basename($fichier);
-            try {
-                $reponseUpload = Http::withHeaders($entetes + ['Content-Type' => 'application/octet-stream'])
-                    ->withBody(file_get_contents($fichier), 'application/octet-stream')
-                    ->post("{$urlUpload}?name={$nomFichier}");
-            } catch (\Throwable $e) {
-                $this->error("ÉCHEC : envoi de {$nomFichier} impossible — ".$e->getMessage());
-
-                return false;
-            }
-
-            if (! $reponseUpload->successful()) {
-                $this->error("ÉCHEC : envoi de {$nomFichier} refusé — HTTP ".$reponseUpload->status());
-
-                return false;
-            }
-        }
-
-        return true;
+        return $dossier;
     }
 
-    private function purgerAnciennesReleases(string $depot, string $token): void
+    private function deplacerFichier(string $source, string $destination): bool
     {
-        $entetes = [
-            'Authorization' => 'Bearer '.$token,
-            'Accept' => 'application/vnd.github+json',
-        ];
+        if (@rename($source, $destination)) {
+            return true;
+        }
 
-        try {
-            $reponse = Http::withHeaders($entetes)->get("https://api.github.com/repos/{$depot}/releases", ['per_page' => 100]);
-            if (! $reponse->successful()) {
-                $this->warn('AVERTISSEMENT : impossible de lister les releases pour la purge — la sauvegarde du jour est bien envoyée.');
+        if (@copy($source, $destination)) {
+            @unlink($source);
 
-                return;
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Garde seulement les NOMBRE_JEUX_LOCAUX_CONSERVES jeux les plus
+     * récents dans le dossier de préparation (regroupés par tag, extrait
+     * du nom de fichier) — une marge de sécurité locale si le workflow
+     * GitHub Actions a manqué une exécution, sans faire grossir
+     * indéfiniment le disque. Le tag horodaté (sauvegarde-AAAAMMJJ_HHMMSS)
+     * se trie correctement par ordre alphabétique = ordre chronologique.
+     */
+    private function purgerAnciensJeuxLocaux(): void
+    {
+        $dossier = storage_path('app/sauvegardes-github-pretes');
+        $fichiers = glob($dossier.'/afrolia-*.enc') ?: [];
+
+        $parTag = [];
+        foreach ($fichiers as $fichier) {
+            if (preg_match('/^afrolia-(?:db|photos)-(sauvegarde-\d{8}_\d{6})\./', basename($fichier), $m)) {
+                $parTag[$m[1]][] = $fichier;
             }
+        }
 
-            $releases = collect($reponse->json())
-                ->filter(fn ($r) => str_starts_with((string) $r['tag_name'], 'sauvegarde-'))
-                ->sortBy('tag_name')
-                ->values();
+        $tags = array_keys($parTag);
+        rsort($tags);
 
-            $aSupprimer = $releases->count() - self::NOMBRE_SAUVEGARDES_CONSERVEES;
-            if ($aSupprimer <= 0) {
-                return;
+        $aSupprimer = array_slice($tags, self::NOMBRE_JEUX_LOCAUX_CONSERVES);
+        foreach ($aSupprimer as $tag) {
+            foreach ($parTag[$tag] as $fichier) {
+                @unlink($fichier);
             }
-
-            foreach ($releases->take($aSupprimer) as $release) {
-                Http::withHeaders($entetes)->delete("https://api.github.com/repos/{$depot}/releases/{$release['id']}");
-            }
-
-            $this->info("{$aSupprimer} ancienne(s) release(s) de sauvegarde supprimée(s) (conservation : ".self::NOMBRE_SAUVEGARDES_CONSERVEES.').');
-        } catch (\Throwable $e) {
-            $this->warn('AVERTISSEMENT : purge des anciennes releases impossible — la sauvegarde du jour est bien envoyée. Détail : '.$e->getMessage());
         }
     }
 }

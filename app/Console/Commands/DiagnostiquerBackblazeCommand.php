@@ -427,6 +427,18 @@ class DiagnostiquerBackblazeCommand extends Command
      * "non renseignés" alors que Ruth les avait bien enregistrés et
      * déployés : jamais affichée, seule leur présence (fichier .env réel ET
      * configuration chargée par ce processus) est comparée.
+     *
+     * Longueur + détection d'espace parasite + empreinte SHA-256 ajoutées le
+     * 13/11/2026, en reprenant exactement la vérification déjà faite pour
+     * BACKBLAZE_KEY_ID/APPLICATION_KEY en section 1 : la première exécution
+     * réelle de sauvegarde:github --verifier (via le cron, sans la limite de
+     * Forge Commands) a échoué avec "HTTP 401" lors de la création de la
+     * release GitHub — un code typique d'un jeton refusé par GitHub
+     * (« Bad credentials »), qui peut venir d'un espace resté collé au
+     * jeton lors du copier-coller dans Forge, comme déjà rencontré deux
+     * fois pour Backblaze. SAUVEGARDE_GITHUB_DEPOT n'est pas un secret
+     * (propriétaire/nom de dépôt) : pas d'empreinte pour lui, seulement la
+     * détection d'espace parasite (un espace y casserait aussi l'appel API).
      */
     private function afficherEtatReglagesSauvegardeGithub(): void
     {
@@ -455,6 +467,19 @@ class DiagnostiquerBackblazeCommand extends Command
             }
 
             $this->line("  {$nom} : {$etat}");
+
+            if ($dansConfig) {
+                $brute = (string) $valeurConfig;
+                $longueur = strlen($brute);
+                $espacesParasites = trim($brute) !== $brute;
+
+                $this->line("    Longueur : {$longueur} caractère(s)."
+                    .($espacesParasites ? '  ⚠️ ESPACE(S) PARASITE(S) EN DÉBUT/FIN DÉTECTÉ(S) — casse l\'authentification GitHub même si la valeur semble correcte visuellement.' : ''));
+
+                if ($nom !== 'SAUVEGARDE_GITHUB_DEPOT') {
+                    $this->line('    empreinte SHA-256 : '.hash('sha256', $brute));
+                }
+            }
         }
     }
 

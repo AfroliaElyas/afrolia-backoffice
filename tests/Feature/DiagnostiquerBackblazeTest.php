@@ -543,6 +543,12 @@ class DiagnostiquerBackblazeTest extends TestCase
         // déjà causés par un espace resté collé lors du copier-coller dans
         // Forge. Ce test vérifie que le même espace, sur le jeton GitHub,
         // est bien détecté, sans jamais afficher le jeton lui-même.
+        //
+        // avecFichierEnvDeTest est nécessaire ici (comme pour
+        // test_signale_que_les_trois_reglages_sauvegarde_github_sont_corrects
+        // ci-dessus) : sans fichier .env correspondant, la commande
+        // rapporte "chargé par la configuration, mais absent du fichier
+        // .env" plutôt que "✅ présent" — repéré par la CI de cette PR.
         config(self::CONFIG_VALIDE);
         config([
             'services.sauvegarde_github.cle' => 'cle-de-test',
@@ -550,11 +556,16 @@ class DiagnostiquerBackblazeTest extends TestCase
             'services.sauvegarde_github.depot' => 'AfroliaElyas/afrolia-backoffice',
         ]);
 
-        $this->artisan('backblaze:diagnostiquer')
-            ->expectsOutputToContain('SAUVEGARDE_GITHUB_TOKEN : ✅ présent dans le fichier .env et chargé par la configuration.')
-            ->expectsOutputToContain('ESPACE(S) PARASITE(S) EN DÉBUT/FIN DÉTECTÉ(S)')
-            ->expectsOutputToContain('empreinte SHA-256 : '.hash('sha256', 'jeton-secret-ne-doit-jamais-apparaitre '))
-            ->doesntExpectOutputToContain('jeton-secret-ne-doit-jamais-apparaitre ');
+        $this->avecFichierEnvDeTest(
+            "SAUVEGARDE_GITHUB_CLE=cle-de-test\nSAUVEGARDE_GITHUB_TOKEN=jeton-secret-ne-doit-jamais-apparaitre \nSAUVEGARDE_GITHUB_DEPOT=AfroliaElyas/afrolia-backoffice\n",
+            function () {
+                $this->artisan('backblaze:diagnostiquer')
+                    ->expectsOutputToContain('SAUVEGARDE_GITHUB_TOKEN : ✅ présent dans le fichier .env et chargé par la configuration.')
+                    ->expectsOutputToContain('ESPACE(S) PARASITE(S) EN DÉBUT/FIN DÉTECTÉ(S)')
+                    ->expectsOutputToContain('empreinte SHA-256 : '.hash('sha256', 'jeton-secret-ne-doit-jamais-apparaitre '))
+                    ->doesntExpectOutputToContain('jeton-secret-ne-doit-jamais-apparaitre ');
+            }
+        );
     }
 
     public function test_ne_signale_aucun_espace_parasite_sur_les_reglages_github_propres(): void
@@ -566,9 +577,14 @@ class DiagnostiquerBackblazeTest extends TestCase
             'services.sauvegarde_github.depot' => 'AfroliaElyas/afrolia-backoffice',
         ]);
 
-        $this->artisan('backblaze:diagnostiquer')
-            ->expectsOutputToContain('SAUVEGARDE_GITHUB_CLE : ✅')
-            ->doesntExpectOutputToContain('ESPACE(S) PARASITE(S) EN DÉBUT/FIN DÉTECTÉ(S)');
+        $this->avecFichierEnvDeTest(
+            "SAUVEGARDE_GITHUB_CLE=cle-de-test\nSAUVEGARDE_GITHUB_TOKEN=jeton-de-test\nSAUVEGARDE_GITHUB_DEPOT=AfroliaElyas/afrolia-backoffice\n",
+            function () {
+                $this->artisan('backblaze:diagnostiquer')
+                    ->expectsOutputToContain('SAUVEGARDE_GITHUB_CLE : ✅')
+                    ->doesntExpectOutputToContain('ESPACE(S) PARASITE(S) EN DÉBUT/FIN DÉTECTÉ(S)');
+            }
+        );
     }
 
     public function test_naffiche_aucune_empreinte_pour_le_depot_github_car_pas_un_secret(): void

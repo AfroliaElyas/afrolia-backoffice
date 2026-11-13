@@ -15,19 +15,29 @@ name: Sauvegarde GitHub (récupération + publication + vérification réelle)
 # chaque exécution puis détruit à la fin — jamais un jeton personnel à
 # créer ou coller dans Forge.
 #
-# Ajouté le 13/11/2026 : une vérification locale (côté serveur, avant
-# tout envoi) ne prouve pas que la copie réellement stockée sur GitHub
-# est récupérable — seulement que la copie produite sur le serveur
-# l'était. Ce workflow télécharge donc maintenant la pièce jointe
-# FRAÎntCHEMENT depuis la Release qu'il vient de publier (jamais le
-# fichier local déjà en main), la déchiffre, et restaure réellement la
-# base dans un conteneur MySQL éphémère (services ci-dessous, détruit à
-# la fin du job, aucun rapport avec la base de production) + extrait les
-# photos — avant de purger quoi que ce soit. Nécessite le secret
-# SAUVEGARDE_GITHUB_CLE (la même clé de chiffrement que celle de Forge,
-# dupliquée ici dans le coffre à secrets GitHub — jamais affichée dans
-# les journaux, GitHub masque automatiquement toute valeur de secret qui
-# apparaîtrait en sortie).
+# Corrigé le 13/11/2026 (Ruth a eu raison de le relever) : une première
+# version de cette vérification dupliquait SAUVEGARDE_GITHUB_CLE comme
+# secret GitHub Actions pour déchiffrer ici après téléchargement. Ça
+# contredisait le principe initial (cette clé ne doit JAMAIS être sur
+# GitHub, écrit dans config/services.php depuis le début) : la mettre à
+# côté des sauvegardes chiffrées, dans le même compte GitHub, annule
+# l'intérêt de les avoir chiffrées avant envoi — quiconque compromettrait
+# ce dépôt aurait alors les deux à la fois.
+#
+# La preuve de récupérabilité réelle n'a pas besoin de ça. Elle se fait en
+# deux étapes INDÉPENDANTES, jamais réunies au même endroit :
+#   1. Ici (sans la clé) : on télécharge FRAÎntCHEMENT la pièce jointe depuis
+#      la Release qu'on vient de publier (jamais le fichier local déjà en
+#      main) et on vérifie que son empreinte SHA-256 correspond à celle du
+#      manifeste — prouve que GitHub stocke et restitue EXACTEMENT les
+#      mêmes octets que ceux produits sur le serveur.
+#   2. Sur le serveur (avec la clé, qui n'en bouge jamais) : sauvegarde:
+#      github --verifier déchiffre et restaure ce MÊME fichier (avant son
+#      envoi) dans un environnement isolé — prouve qu'il se déchiffre et
+#      se restaure correctement.
+# (1) + (2) prouvent ensemble, par transitivité, que la copie réellement
+# stockée sur GitHub est récupérable — sans jamais faire cohabiter la clé
+# et les sauvegardes chiffrées au même endroit.
 
 on:
   schedule:
@@ -46,21 +56,6 @@ env:
 jobs:
   sauvegarde:
     runs-on: ubuntu-latest
-
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: verif-sauvegarde-github-ephemere
-          MYSQL_DATABASE: verif_sauvegarde_github
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=10
-
     steps:
       - name: Prépare la clé SSH (fichier temporaire, jamais affiché, supprimé en fin de job)
         run: |
@@ -120,68 +115,30 @@ jobs:
             echo "Release $TAG créée avec $(ls fichiers | wc -l) fichier(s)."
           fi
 
-      - name: Vérifie la récupération RÉELLE depuis GitHub (téléchargement frais + déchiffrement + restauration isolée)
+      - name: Vérifie que la copie RÉELLEMENT stockée sur GitHub est identique à celle envoyée (sans la clé de déchiffrement)
         env:
           GH_TOKEN: ${{ github.token }}
-          SAUVEGARDE_GITHUB_CLE_OPENSSL: ${{ secrets.SAUVEGARDE_GITHUB_CLE }}
         run: |
-          if [ -z "$SAUVEGARDE_GITHUB_CLE_OPENSSL" ]; then
-            echo "ÉCHEC : le secret SAUVEGARDE_GITHUB_CLE n'est pas configuré dans ce dépôt (Settings > Secrets and variables > Actions) — vérification réelle impossible." >&2
-            exit 1
-          fi
-
           rm -rf verif_telecharge && mkdir verif_telecharge
           # Téléchargement FRAIS depuis la Release qui vient d'être publiée —
           # jamais les fichiers déjà en main localement (fichiers/) : ceci
-          # prouve que la copie réellement stockée par GitHub est
-          # récupérable, pas seulement celle produite sur le serveur.
+          # prouve que GitHub stocke et restitue bien la copie, pas
+          # seulement que le serveur l'a produite.
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir verif_telecharge --clobber
 
           echo "=== Fichiers téléchargés depuis la Release (fraîchement, pas depuis le cache local) ==="
           ls -la verif_telecharge
 
           echo
-          echo "=== Vérifie que le contenu téléchargé est bien identique à celui envoyé (empreinte SHA-256) ==="
+          echo "=== Empreinte SHA-256 du contenu téléchargé, comparée au manifeste ==="
           (cd verif_telecharge && jq -r '.fichiers[] | "\(.sha256)  \(.nom)"' ../manifest.json > ../sommes_telecharge.txt)
           (cd verif_telecharge && sha256sum -c ../sommes_telecharge.txt)
 
-          for fichier in verif_telecharge/*; do
-            nom=$(basename "$fichier")
-            dechiffre="verif_telecharge/dechiffre-${nom%.enc}"
-            if ! openssl enc -d -aes-256-cbc -pbkdf2 -in "$fichier" -out "$dechiffre" -pass env:SAUVEGARDE_GITHUB_CLE_OPENSSL; then
-              echo "ÉCHEC : déchiffrement impossible pour $nom (clé incorrecte, ou fichier corrompu)." >&2
-              exit 1
-            fi
-
-            case "$nom" in
-              *-db-*)
-                gunzip -f "$dechiffre"
-                dump="${dechiffre%.gz}"
-                if ! mysql -h 127.0.0.1 -P 3306 -u root -proot verif_sauvegarde_github < "$dump"; then
-                  echo "ÉCHEC : la restauration de la base téléchargée depuis GitHub a échoué." >&2
-                  exit 1
-                fi
-                NB_TABLES=$(mysql -h 127.0.0.1 -P 3306 -u root -proot -N -e 'SHOW TABLES;' verif_sauvegarde_github | wc -l)
-                if [ "$NB_TABLES" -lt 1 ]; then
-                  echo "ÉCHEC : la base restaurée depuis la copie GitHub ne contient aucune table." >&2
-                  exit 1
-                fi
-                echo "✅ Base restaurée depuis la copie GitHub (fraîchement téléchargée) : $NB_TABLES table(s)."
-                ;;
-              *-photos-*)
-                mkdir -p verif_telecharge/photos-extraites
-                if ! tar -xzf "$dechiffre" -C verif_telecharge/photos-extraites; then
-                  echo "ÉCHEC : extraction des photos téléchargées depuis GitHub impossible (archive corrompue)." >&2
-                  exit 1
-                fi
-                NB_PHOTOS=$(find verif_telecharge/photos-extraites -type f | wc -l)
-                echo "✅ Photos extraites depuis la copie GitHub (fraîchement téléchargée) : $NB_PHOTOS fichier(s)."
-                ;;
-            esac
-          done
-
           echo
-          echo "✅ VÉRIFIÉ : la copie réellement stockée sur GitHub (release $TAG) a été téléchargée, déchiffrée et restaurée avec succès — pas seulement la copie locale avant envoi."
+          echo "✅ VÉRIFIÉ : GitHub restitue, octet pour octet, exactement ce qui a été envoyé."
+          echo "   Combiné à la vérification locale (sauvegarde:github --verifier, qui déchiffre et"
+          echo "   restaure ce même fichier AVANT son envoi, sur le serveur, avec la clé qui n'en bouge"
+          echo "   jamais) : la copie sur GitHub est prouvée récupérable, sans jamais exposer la clé ici."
 
       - name: Purge les anciennes releases de sauvegarde au-delà de la conservation (90)
         env:
@@ -201,7 +158,7 @@ jobs:
             echo "Rien à purger ($TOTAL sauvegarde(s), conservation : $A_CONSERVER)."
           fi
 
-      - name: Nettoyage (clé SSH, fichiers locaux au runner, y compris le contenu déchiffré)
+      - name: Nettoyage (clé SSH, fichiers locaux au runner)
         if: always()
         run: |
           rm -f ~/.ssh/afrolia_diagnostic

@@ -534,6 +534,59 @@ class DiagnostiquerBackblazeTest extends TestCase
         );
     }
 
+    public function test_detecte_un_espace_parasite_dans_le_jeton_github_sans_lafficher(): void
+    {
+        // Ajouté le 13/11/2026 : la première exécution réelle de
+        // sauvegarde:github --verifier (via le cron) a échoué avec "HTTP
+        // 401" lors de la création de la release GitHub — même famille
+        // d'erreur ("identifiants refusés") que deux incidents Backblaze
+        // déjà causés par un espace resté collé lors du copier-coller dans
+        // Forge. Ce test vérifie que le même espace, sur le jeton GitHub,
+        // est bien détecté, sans jamais afficher le jeton lui-même.
+        config(self::CONFIG_VALIDE);
+        config([
+            'services.sauvegarde_github.cle' => 'cle-de-test',
+            'services.sauvegarde_github.token' => 'jeton-secret-ne-doit-jamais-apparaitre ',
+            'services.sauvegarde_github.depot' => 'AfroliaElyas/afrolia-backoffice',
+        ]);
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->expectsOutputToContain('SAUVEGARDE_GITHUB_TOKEN : ✅ présent dans le fichier .env et chargé par la configuration.')
+            ->expectsOutputToContain('ESPACE(S) PARASITE(S) EN DÉBUT/FIN DÉTECTÉ(S)')
+            ->expectsOutputToContain('empreinte SHA-256 : '.hash('sha256', 'jeton-secret-ne-doit-jamais-apparaitre '))
+            ->doesntExpectOutputToContain('jeton-secret-ne-doit-jamais-apparaitre ');
+    }
+
+    public function test_ne_signale_aucun_espace_parasite_sur_les_reglages_github_propres(): void
+    {
+        config(self::CONFIG_VALIDE);
+        config([
+            'services.sauvegarde_github.cle' => 'cle-de-test',
+            'services.sauvegarde_github.token' => 'jeton-de-test',
+            'services.sauvegarde_github.depot' => 'AfroliaElyas/afrolia-backoffice',
+        ]);
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->expectsOutputToContain('SAUVEGARDE_GITHUB_CLE : ✅')
+            ->doesntExpectOutputToContain('ESPACE(S) PARASITE(S) EN DÉBUT/FIN DÉTECTÉ(S)');
+    }
+
+    public function test_naffiche_aucune_empreinte_pour_le_depot_github_car_pas_un_secret(): void
+    {
+        // SAUVEGARDE_GITHUB_DEPOT (propriétaire/nom de dépôt) n'a pas la
+        // même sensibilité que la clé ou le jeton : pas d'empreinte à
+        // calculer pour lui, seulement la détection d'espace parasite.
+        config(self::CONFIG_VALIDE);
+        config([
+            'services.sauvegarde_github.cle' => 'cle-de-test',
+            'services.sauvegarde_github.token' => 'jeton-de-test',
+            'services.sauvegarde_github.depot' => 'AfroliaElyas/afrolia-backoffice',
+        ]);
+
+        $this->artisan('backblaze:diagnostiquer')
+            ->doesntExpectOutputToContain('empreinte SHA-256 : '.hash('sha256', 'AfroliaElyas/afrolia-backoffice'));
+    }
+
     /**
      * Même principe que avecJournalDeTest ci-dessus (ne touche jamais à un
      * vrai journal applicatif qui existerait déjà localement), appliqué à

@@ -534,6 +534,31 @@ class DiagnostiquerBackblazeTest extends TestCase
         );
     }
 
+    public function test_signale_quand_le_fichier_env_differe_de_la_configuration_chargee_github(): void
+    {
+        // Ajouté le 13/11/2026 : après un « Save » (sans « Deploy ») dans
+        // Forge, le fichier .env est déjà à jour mais la configuration en
+        // cache ne l'est pas encore. Ce test vérifie que ce diagnostic
+        // détecte et signale l'écart entre les deux, sans jamais afficher
+        // les valeurs elles-mêmes.
+        config(self::CONFIG_VALIDE);
+        config([
+            'services.sauvegarde_github.cle' => 'cle-de-test',
+            'services.sauvegarde_github.token' => 'ancien-jeton-encore-en-cache',
+            'services.sauvegarde_github.depot' => 'AfroliaElyas/afrolia-backoffice',
+        ]);
+
+        $this->avecFichierEnvDeTest(
+            "SAUVEGARDE_GITHUB_CLE=cle-de-test\nSAUVEGARDE_GITHUB_TOKEN=nouveau-jeton-colle-apres-save\nSAUVEGARDE_GITHUB_DEPOT=AfroliaElyas/afrolia-backoffice\n",
+            function () {
+                $this->artisan('backblaze:diagnostiquer')
+                    ->expectsOutputToContain('⚠️ La valeur du fichier .env diffère de celle actuellement chargée — un déploiement est nécessaire pour que le changement prenne effet.')
+                    ->doesntExpectOutputToContain('ancien-jeton-encore-en-cache')
+                    ->doesntExpectOutputToContain('nouveau-jeton-colle-apres-save');
+            }
+        );
+    }
+
     public function test_detecte_un_espace_parasite_dans_le_jeton_github_sans_lafficher(): void
     {
         // Ajouté le 13/11/2026 : la première exécution réelle de

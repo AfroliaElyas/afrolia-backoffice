@@ -439,6 +439,14 @@ class DiagnostiquerBackblazeCommand extends Command
      * fois pour Backblaze. SAUVEGARDE_GITHUB_DEPOT n'est pas un secret
      * (propriétaire/nom de dépôt) : pas d'empreinte pour lui, seulement la
      * détection d'espace parasite (un espace y casserait aussi l'appel API).
+     *
+     * La valeur du FICHIER .env est désormais affichée séparément de celle
+     * CHARGÉE par la configuration (ajouté le 13/11/2026) : un « Save »
+     * (sans « Deploy ») dans Forge écrit immédiatement .env sur le serveur,
+     * mais ne régénère pas le cache de configuration — ce diagnostic, lancé
+     * par SSH dans un processus séparé, relit toujours le fichier à jour,
+     * ce qui permet de vérifier une nouvelle valeur juste après un « Save »,
+     * avant de lancer un déploiement complet.
      */
     private function afficherEtatReglagesSauvegardeGithub(): void
     {
@@ -468,16 +476,48 @@ class DiagnostiquerBackblazeCommand extends Command
 
             $this->line("  {$nom} : {$etat}");
 
+            // Ajouté le 13/11/2026 : affiche la valeur BRUTE du fichier .env
+            // (lue directement, sans passer par le cache de configuration)
+            // en plus de la valeur chargée en mémoire. Dans Forge, cliquer
+            // « Save » sur la page Environment écrit immédiatement le
+            // fichier .env sur le serveur, SANS relancer un déploiement —
+            // alors que ce diagnostic tourne dans un processus séparé via
+            // SSH et relit donc toujours le fichier à jour, cache ou pas.
+            // Objectif : permettre de coller une nouvelle valeur, cliquer
+            // uniquement « Save » (pas « Deploy »), puis relancer ce
+            // diagnostic pour une vérification immédiate — avant de lancer
+            // un déploiement complet, qui ne sera nécessaire qu'une fois la
+            // valeur confirmée correcte (demandé le 13/11/2026, pour éviter
+            // de répéter le cycle complet collage → déploiement → échec).
+            if ($dansFichier) {
+                $bruteFichier = (string) $valeursFichierEnv[$nom];
+                $longueurFichier = strlen($bruteFichier);
+                $espacesParasitesFichier = trim($bruteFichier) !== $bruteFichier;
+
+                $this->line("    Dans le fichier .env (valeur actuelle sur le serveur, après un éventuel « Save » Forge) :");
+                $this->line("      Longueur : {$longueurFichier} caractère(s)."
+                    .($espacesParasitesFichier ? '  ⚠️ ESPACE(S) PARASITE(S) EN DÉBUT/FIN DÉTECTÉ(S).' : ''));
+
+                if ($nom !== 'SAUVEGARDE_GITHUB_DEPOT') {
+                    $this->line('      empreinte SHA-256 : '.hash('sha256', $bruteFichier));
+                }
+            }
+
             if ($dansConfig) {
                 $brute = (string) $valeurConfig;
                 $longueur = strlen($brute);
                 $espacesParasites = trim($brute) !== $brute;
 
-                $this->line("    Longueur : {$longueur} caractère(s)."
+                $this->line("    Chargée par la configuration (nécessite un déploiement pour se mettre à jour si le cache est actif) :");
+                $this->line("      Longueur : {$longueur} caractère(s)."
                     .($espacesParasites ? '  ⚠️ ESPACE(S) PARASITE(S) EN DÉBUT/FIN DÉTECTÉ(S) — casse l\'authentification GitHub même si la valeur semble correcte visuellement.' : ''));
 
                 if ($nom !== 'SAUVEGARDE_GITHUB_DEPOT') {
-                    $this->line('    empreinte SHA-256 : '.hash('sha256', $brute));
+                    $this->line('      empreinte SHA-256 : '.hash('sha256', $brute));
+                }
+
+                if ($dansFichier && $bruteFichier !== $brute) {
+                    $this->warn('    ⚠️ La valeur du fichier .env diffère de celle actuellement chargée — un déploiement est nécessaire pour que le changement prenne effet.');
                 }
             }
         }

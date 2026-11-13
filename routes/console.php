@@ -42,17 +42,18 @@ Schedule::command('sauvegarde:externe')
 // 00h20 (au lieu de minuit) pour ne pas faire tourner deux mysqldump en
 // même temps que sauvegarde:externe ci-dessus.
 //
-// --verifier ajouté le 12/11/2026 : une exécution manuelle de
-// `sauvegarde:github --verifier` depuis l'onglet "Commands" de Forge a
-// échoué sans aucune sortie et sans aucune trace dans storage/logs/
-// laravel.log (donc pas un plantage PHP) — Forge Commands n'offre pas de
-// vrai terminal et coupe tout après 5 minutes, ce que l'aller-retour
-// complet de --verifier (téléchargement + déchiffrement + restauration +
-// comparaison, en plus de la sauvegarde) peut dépasser avec de vraies
-// données de production. La tâche planifiée ci-dessous tourne via le cron
-// Forge (schedule:run), pas via Commands : aucune limite de 5 minutes ni
-// de terminal, donc --verifier peut y tourner sans ce risque. Ne jamais
-// relancer --verifier depuis Commands ; le résultat réel de cette
+// Depuis le 13/11/2026, cette commande ne parle plus du tout à GitHub :
+// elle chiffre et PRÉPARE seulement les fichiers localement
+// (storage/app/sauvegardes-github-pretes/). C'est le workflow GitHub
+// Actions .github/workflows/sauvegarde-github.yml (planifié à 00h40, soit
+// 20 minutes plus tard) qui vient les chercher en lecture seule par SSH et
+// les publie dans les Releases du dépôt — avec le jeton automatique
+// GITHUB_TOKEN, jamais un jeton personnel à créer/coller/renouveler.
+//
+// --verifier déchiffre et restaure IMMÉDIATEMENT (dans cette même
+// exécution, en environnement isolé, jamais la production) les fichiers
+// qui viennent d'être produits — entièrement local, ne dépend plus d'une
+// connexion réseau à GitHub ni d'aucun jeton. Le résultat réel de cette
 // vérification s'observe dans storage/logs/scheduler-sauvegarde-github.log.
 Schedule::command('sauvegarde:github --verifier')
     ->dailyAt('00:20')

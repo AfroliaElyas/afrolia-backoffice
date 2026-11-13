@@ -1,0 +1,123 @@
+name: Sauvegarde GitHub (récupération + publication)
+
+# Récupère les fichiers chiffrés déjà produits par le cron Laravel
+# existant (sauvegarde:github, routes/console.php, 00h20 UTC) via la clé
+# SSH DÉJÀ EXISTANTE et déjà restreinte par une "forced command"
+# (FORGE_SSH_PRIVATE_KEY — même secret, même mécanisme que
+# diagnostic-afrolia.yml) : aucune nouvelle clé, aucun nouveau secret SSH.
+# L'action demandée au serveur (recuperer-sauvegarde-github, voir
+# deploy/diagnostic-afrolia.sh) ne fait que LIRE des fichiers déjà
+# présents — jamais d'écriture, jamais de commande arbitraire.
+#
+# La publication vers GitHub (création de la Release, envoi des pièces
+# jointes, purge des anciennes au-delà de 90 jours) utilise le jeton
+# AUTOMATIQUE GITHUB_TOKEN, fourni par GitHub Actions pour ce dépôt à
+# chaque exécution puis détruit à la fin — jamais un jeton personnel à
+# créer ou coller dans Forge. C'est précisément ce qui remplace
+# SAUVEGARDE_GITHUB_TOKEN (abandonné le 13/11/2026 après un échec
+# persistant "Bad credentials" qui obligeait à chaque fois un nouveau
+# copier-coller suivi d'un déploiement complet juste pour vérifier).
+#
+# Avant de publier, l'empreinte SHA-256 de chaque fichier reçu est
+# comparée à celle du manifeste (calculée sur le serveur au moment du
+# chiffrement) : si le transfert a corrompu quoi que ce soit, le job
+# échoue avant toute publication.
+
+on:
+  schedule:
+    # 00h40 UTC : 20 minutes après le cron Laravel (00h20), le temps que
+    # mysqldump + compression + chiffrement des photos se terminent.
+    - cron: '40 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FORGE_SSH_HOST: "164.92.230.201"
+  FORGE_SSH_USER: "forge"
+
+jobs:
+  sauvegarde:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prépare la clé SSH (fichier temporaire, jamais affiché, supprimé en fin de job)
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.FORGE_SSH_PRIVATE_KEY }}" > ~/.ssh/afrolia_diagnostic
+          chmod 600 ~/.ssh/afrolia_diagnostic
+          ssh-keyscan -H "$FORGE_SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Récupère le manifeste et les fichiers chiffrés (lecture seule sur le serveur)
+        run: |
+          ssh -i ~/.ssh/afrolia_diagnostic "$FORGE_SSH_USER@$FORGE_SSH_HOST" "recuperer-sauvegarde-github" > sortie_brute.txt
+          # Le texte "recuperer-sauvegarde-github" ci-dessus n'a d'effet que
+          # parce que la "forced command" côté serveur le reconnaît comme une
+          # des actions allowlistées ; toute autre commande serait rejetée.
+
+          mkdir -p fichiers
+          while IFS=' ' read -r type reste; do
+            case "$type" in
+              MANIFEST)
+                printf '%s\n' "$reste" > manifest.json
+                ;;
+              FICHIER)
+                nom="${reste%% *}"
+                b64="${reste#* }"
+                printf '%s' "$b64" | base64 -d > "fichiers/$nom"
+                ;;
+            esac
+          done < sortie_brute.txt
+
+          if [ ! -f manifest.json ]; then
+            echo "ÉCHEC : aucun manifeste reçu — sortie du serveur ci-dessous :" >&2
+            cat sortie_brute.txt >&2
+            exit 1
+          fi
+
+      - name: Vérifie l'intégrité des fichiers reçus (empreinte SHA-256 du manifeste)
+        run: |
+          jq -r '.fichiers[] | "\(.sha256)  fichiers/\(.nom)"' manifest.json > sommes_attendues.txt
+          cat sommes_attendues.txt
+          sha256sum -c sommes_attendues.txt
+
+      - name: Publie la Release GitHub si elle n'existe pas déjà (GITHUB_TOKEN automatique — jamais de jeton personnel)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(jq -r '.tag' manifest.json)
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "La release $TAG existe déjà — rien à republier (nouvelle exécution du même jour, ou re-déclenchement manuel)."
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "Sauvegarde chiffrée $TAG" \
+              --notes "Sauvegarde automatique chiffrée (base + photos). Clé de déchiffrement non stockée ici." \
+              --prerelease \
+              fichiers/*
+            echo "Release $TAG créée avec $(ls fichiers | wc -l) fichier(s)."
+          fi
+
+      - name: Purge les anciennes releases de sauvegarde au-delà de la conservation (90)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RELEASES=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json tagName | jq -r '.[] | select(.tagName | startswith("sauvegarde-")) | .tagName' | sort)
+          TOTAL=$(printf '%s\n' "$RELEASES" | grep -c . || true)
+          A_CONSERVER=90
+
+          if [ "$TOTAL" -gt "$A_CONSERVER" ]; then
+            A_SUPPRIMER=$((TOTAL - A_CONSERVER))
+            printf '%s\n' "$RELEASES" | head -n "$A_SUPPRIMER" | while read -r tag; do
+              echo "Suppression de l'ancienne release : $tag"
+              gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes
+            done
+          else
+            echo "Rien à purger ($TOTAL sauvegarde(s), conservation : $A_CONSERVER)."
+          fi
+
+      - name: Nettoyage (clé SSH, fichiers locaux au runner)
+        if: always()
+        run: |
+          rm -f ~/.ssh/afrolia_diagnostic
+          rm -rf fichiers manifest.json sortie_brute.txt sommes_attendues.txt

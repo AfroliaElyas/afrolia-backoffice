@@ -773,9 +773,25 @@ class DiagnostiquerBackblazeCommand extends Command
                 ? '✅ dernière vérification trouvée : réussie.'
                 : '⚠️ aucune vérification réussie trouvée dans la portion lue du journal.'));
 
-        if (preg_match_all('/^.*(ÉCHEC|AVERTISSEMENT).*$/m', $contenu, $erreurs) && ! empty($erreurs[0])) {
-            $derniereErreur = trim((string) end($erreurs[0]));
-            $this->warn('  Dernière ligne d\'erreur/avertissement dans le journal : '.mb_strimwidth($derniereErreur, 0, 300, '…'));
+        // Ajouté le 13/11/2026 : l'ancienne version (une seule ligne captée
+        // par /^.*(ÉCHEC|AVERTISSEMENT).*$/m) coupait le message pile au
+        // début du corps JSON renvoyé par GitHub ("HTTP 401 — {"), sans
+        // jamais montrer le message exact ("Bad credentials" ou autre)
+        // qui permettrait de savoir précisément pourquoi GitHub refuse le
+        // jeton — repéré en cherchant cette cause le 13/11/2026. À partir
+        // de la dernière occurrence d'ÉCHEC/AVERTISSEMENT, affiche TOUT ce
+        // qui suit jusqu'à la fin du journal (inclut donc les lignes
+        // suivantes, comme un corps JSON multi-lignes) : ce journal ne
+        // contient jamais de secret (SauvegardeGithubCommand n'y écrit
+        // jamais CLE/TOKEN/DEPOT), seulement des codes HTTP et des
+        // messages d'erreur publics renvoyés par GitHub.
+        $positionEchec = strripos($contenu, 'ÉCHEC');
+        $positionAvertissement = strripos($contenu, 'AVERTISSEMENT');
+        $dernierePositionEchec = max($positionEchec === false ? -1 : $positionEchec, $positionAvertissement === false ? -1 : $positionAvertissement);
+        if ($dernierePositionEchec >= 0) {
+            $blocErreur = trim(substr($contenu, $dernierePositionEchec));
+            $this->warn('  Dernière erreur/avertissement dans le journal (texte complet renvoyé par GitHub, jamais de secret) :');
+            $this->warn('  '.mb_strimwidth($blocErreur, 0, 2000, '…'));
         }
     }
 

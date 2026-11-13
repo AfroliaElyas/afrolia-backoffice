@@ -16,9 +16,13 @@
 #
 # Portée volontairement limitée aux diagnostics en lecture seule (demandé
 # le 08/11/2026) : ni déploiement, ni création de compte, ni envoi de
-# notification — seulement de quoi vérifier Backblaze et Jèko sans
-# manipulation de Ruth. jeko-test ne fait que lire le solde du magasin
-# (aucun argent déplacé, voir app/Console/Commands/JekoTesterCommand.php).
+# notification. jeko-test ne fait que lire le solde du magasin (aucun
+# argent déplacé). recuperer-sauvegarde-github (ajoutée le 13/11/2026) ne
+# fait que LIRE des fichiers déjà produits par le cron Laravel existant
+# (storage/app/sauvegardes-github-pretes/) et les retransmettre encodés en
+# base64 : aucune écriture, aucune commande artisan déclenchée par cette
+# action précise — toujours strictement en lecture, exactement comme
+# "diagnostic" et "jeko-test", conformément à la restriction du 08/11/2026.
 #
 # Actions disponibles :
 #   diagnostic — comportement inchangé depuis toujours (lecture seule), plus
@@ -34,6 +38,14 @@
 #                sans jamais modifier quoi que ce soit — lecture seule,
 #                aucun secret affiché.
 #   jeko-test  — php artisan jeko:tester (lecture seule, aucun paiement)
+#   recuperer-sauvegarde-github — lit storage/app/sauvegardes-github-pretes/
+#                (manifest.json + fichiers chiffrés déjà produits par le
+#                cron sauvegarde:github existant) et les imprime encodés en
+#                base64, pour que le workflow GitHub Actions
+#                sauvegarde-github.yml les récupère et les publie dans les
+#                Releases du dépôt — avec le jeton automatique GITHUB_TOKEN,
+#                jamais un jeton personnel. Ne modifie, n'exécute et ne
+#                supprime jamais rien.
 
 set -e
 
@@ -117,6 +129,33 @@ case "$action" in
 
   jeko-test*)
     (cd "$SITE_DIR" && php artisan jeko:tester)
+    ;;
+
+  recuperer-sauvegarde-github*)
+    DOSSIER_PRET="$SITE_DIR/storage/app/sauvegardes-github-pretes"
+    MANIFESTE="$DOSSIER_PRET/manifest.json"
+
+    if [ ! -f "$MANIFESTE" ]; then
+        echo "ERREUR : aucun manifeste trouvé dans $DOSSIER_PRET (sauvegarde:github n'a peut-être jamais tourné avec succès)." >&2
+        exit 1
+    fi
+
+    # Lecture seule : cat + base64, jamais d'écriture, jamais de commande
+    # arbitraire. Format en une ligne par élément (voir
+    # .github/workflows/sauvegarde-github.yml pour l'analyse côté GitHub
+    # Actions) : "MANIFEST <json compact sur une ligne>" puis
+    # "FICHIER <nom> <contenu en base64 sur une ligne>" pour chaque fichier
+    # listé dans le manifeste.
+    echo "MANIFEST $(tr -d '\n' < "$MANIFESTE")"
+
+    for nom in $(php -r '$m = json_decode(file_get_contents($argv[1]), true); foreach ($m["fichiers"] as $f) { echo $f["nom"] . "\n"; }' "$MANIFESTE"); do
+        chemin="$DOSSIER_PRET/$nom"
+        if [ ! -f "$chemin" ]; then
+            echo "ERREUR : fichier listé dans le manifeste introuvable : $nom" >&2
+            exit 1
+        fi
+        echo "FICHIER $nom $(base64 -w0 "$chemin")"
+    done
     ;;
 
   *)
